@@ -10,6 +10,7 @@
 	import CustomSymbolDialog from './CustomSymbolDialog.svelte';
 	import Inspector from './Inspector.svelte';
 	import ProjectDialog from './ProjectDialog.svelte';
+	import ShortcutsDialog from './ShortcutsDialog.svelte';
 	import Sidebar from './Sidebar.svelte';
 	import StatusBar from './StatusBar.svelte';
 	import StripsDialog from './StripsDialog.svelte';
@@ -45,7 +46,8 @@
 	};
 
 	function onkeydown(e: KeyboardEvent) {
-		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+		const mod = e.ctrlKey || e.metaKey;
+		if (mod && e.key.toLowerCase() === 's') {
 			e.preventDefault();
 			session.flush();
 			return;
@@ -55,10 +57,21 @@
 			projectOpen ||
 			stripsOpen ||
 			exportOpen ||
+			editor.shortcutsOpen ||
 			interaction.menu ||
 			editor.symbolEditor
 		)
 			return;
+		if (e.key === '?' || e.key === 'F1') {
+			e.preventDefault();
+			editor.shortcutsOpen = true;
+			return;
+		}
+		if (mod && e.key.toLowerCase() === 'e') {
+			e.preventDefault();
+			exportOpen = true;
+			return;
+		}
 		if (interaction.keyDown(e)) e.preventDefault();
 	}
 
@@ -105,7 +118,14 @@
 	}}
 />
 <StripsDialog {editor} bind:open={stripsOpen} />
-<ExportDialog bind:open={exportOpen} project={editor.project} analysis={editor.analysis} />
+<ShortcutsDialog bind:open={editor.shortcutsOpen} />
+<ExportDialog
+	bind:open={exportOpen}
+	project={editor.project}
+	analysis={editor.analysis}
+	grid={editor.grid}
+	bind:printGrid={() => editor.grid.print, (v) => editor.setGrid({ print: v })}
+/>
 
 <style>
 	.editor {

@@ -7,8 +7,15 @@
 	import type { Folio, Project } from '$lib/model/types';
 	import { schematic } from '$lib/theme/schematic';
 	import BarView from './BarView.svelte';
+	import CableView from './CableView.svelte';
 	import FolioFrame from './FolioFrame.svelte';
 	import Label from './Label.svelte';
+	import PanelView from './PanelView.svelte';
+	import StripDrawing from './StripDrawing.svelte';
+	import { stripFolioPage } from '$lib/model/stripDrawing';
+	import { projectStrips } from '$lib/model/analysis';
+	import GridLayer from './GridLayer.svelte';
+	import type { PrintGrid } from './pageNumbering';
 	import SymbolView from './SymbolView.svelte';
 	import WireView from './WireView.svelte';
 
@@ -17,7 +24,8 @@
 		folio,
 		analysis,
 		showOpenTerminals = false,
-		showWarnings = false
+		showWarnings = false,
+		grid = null
 	}: {
 		project: Project;
 		folio: Folio;
@@ -25,6 +33,8 @@
 		showOpenTerminals?: boolean;
 		/** Alertes d'édition (dépassement de contacts…) — éditeur seulement. */
 		showWarnings?: boolean;
+		/** Grille imprimée (export PDF) ; l'éditeur dessine la sienne par-dessus. */
+		grid?: PrintGrid | null;
 	} = $props();
 
 	const index = $derived(project.folios.findIndex((f) => f.id === folio.id));
@@ -33,7 +43,25 @@
 	const open = $derived(showOpenTerminals ? (analysis.nets.openTerminals.get(folio.id) ?? []) : []);
 </script>
 
-<FolioFrame meta={project.meta} title={folio.title} {index} total={project.folios.length} />
+<FolioFrame {project} title={folio.title} {index} total={project.folios.length} />
+
+{#if grid && (grid.kind === 'cases' || !folio.panel)}
+	<GridLayer kind={grid.kind} step={grid.step} opacity={grid.opacity} />
+{/if}
+
+{#if folio.strips}
+	{@const sp = stripFolioPage(project, folio, projectStrips(project, analysis))}
+	<StripDrawing
+		page={sp.page}
+		message={sp.pages === 0
+			? 'Aucun bornier dans le schéma (bornes P, C, X…).'
+			: `Page ${sp.index + 1} : la série ne compte que ${sp.pages} page(s) — folio en trop.`}
+	/>
+{/if}
+
+{#if folio.panel}
+	<PanelView {project} panel={folio.panel} {showWarnings} />
+{/if}
 
 {#each folio.rects as r (r.id)}
 	<rect
@@ -64,6 +92,11 @@
 
 {#each folio.wires as wire (wire.id)}
 	<WireView {wire} style={analysis.wireStyle.get(wire.id)} />
+{/each}
+
+{#each folio.cables as c (c.id)}
+	{@const info = analysis.cables.byId.get(c.id)}
+	<CableView cable={c} crossings={info?.crossings ?? []} warn={showWarnings && !!info?.overflow} />
 {/each}
 
 {#each junctions as j (`${j.x},${j.y}`)}

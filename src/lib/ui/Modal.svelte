@@ -43,7 +43,7 @@
 		z-index: 100;
 		display: grid;
 		place-items: center;
-		background: rgba(16, 24, 40, 0.35);
+		background: var(--c-backdrop);
 	}
 	.modal {
 		max-width: calc(100vw - 32px);

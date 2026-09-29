@@ -1,4 +1,5 @@
 /** Tout ce qui est calculé à partir du projet (jamais stocké). */
+import { analyzeCables, type CableAnalysis } from './cables';
 import { computeCrossRefs, type CrossRef } from './crossrefs';
 import { analyzeNets, type NetAnalysis } from './nets';
 import { computeStrips, type TerminalStrip } from './strips';
@@ -14,6 +15,7 @@ export interface ProjectAnalysis {
 	nets: NetAnalysis;
 	crossRefs: Map<Id, CrossRef>;
 	wireStyle: Map<Id, WireStyle>;
+	cables: CableAnalysis;
 }
 
 export function analyzeProject(project: Project): ProjectAnalysis {
@@ -24,9 +26,9 @@ export function analyzeProject(project: Project): ProjectAnalysis {
 		const pot = net.potentialId ? potentials.get(net.potentialId) : undefined;
 		wireStyle.set(wireId, { stroke: pot?.stroke, dashed: pot?.dashed, number: net.number });
 	}
-	return { nets, crossRefs: computeCrossRefs(project), wireStyle };
+	return { nets, crossRefs: computeCrossRefs(project), wireStyle, cables: analyzeCables(project) };
 }
 
 export function projectStrips(project: Project, analysis: ProjectAnalysis): TerminalStrip[] {
-	return computeStrips(project, analysis.nets);
+	return computeStrips(project, analysis.nets, analysis.cables);
 }

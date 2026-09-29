@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { columnAt, folioNumber, rowAt } from '$lib/model/layout';
+	import { Keyboard } from '@lucide/svelte';
 	import type { Editor } from '../editor.svelte';
+	import GridControl from './GridControl.svelte';
 
 	let { editor }: { editor: Editor } = $props();
 
@@ -24,7 +26,13 @@
 		{#if c}· {columnAt(c.x)}{rowAt(c.y)} · {c.x.toFixed(1)} ; {c.y.toFixed(1)} mm{/if}
 	</span>
 	<span class="hint">{HINTS[editor.tool.kind]}</span>
-	<label><input type="checkbox" bind:checked={editor.showGrid} /> Grille</label>
+	<button
+		class="help"
+		title="Voir tous les raccourcis clavier"
+		onclick={() => (editor.shortcutsOpen = true)}
+		><Keyboard size={13} /> Tous les raccourcis <kbd>?</kbd></button
+	>
+	<GridControl {editor} />
 </footer>
 
 <style>
@@ -49,9 +57,29 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	label {
-		display: flex;
+	.help {
+		display: inline-flex;
 		align-items: center;
 		gap: 4px;
+		flex-shrink: 0;
+		padding: 1px 6px;
+		border: 1px solid var(--c-border);
+		border-radius: var(--radius-sm);
+		background: var(--c-surface-2);
+		color: var(--c-text);
+		font-size: var(--fs-xs);
+		cursor: pointer;
+	}
+	.help:hover {
+		border-color: var(--c-primary);
+		color: var(--c-primary);
+	}
+	.help kbd {
+		padding: 0 4px;
+		border: 1px solid var(--c-border-strong);
+		border-radius: 3px;
+		font-family: inherit;
+		font-size: 10px;
+		line-height: 1.3;
 	}
 </style>

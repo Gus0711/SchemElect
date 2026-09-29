@@ -18,14 +18,29 @@ import {
 	snap,
 	type Rect
 } from './geometry';
+import { cableBounds, cableEllipseBounds, cableNameBounds, newCable, rotateCable } from './cables';
 import { deepClone, newId } from './ids';
+import {
+	createPanel,
+	deletePanelItems,
+	isPanelKind,
+	movePanelItems,
+	PANEL_TITLES,
+	panelHitTest,
+	panelItemBounds,
+	panelItems,
+	projectEnclosure,
+	pruneMounts
+} from './panel';
 import { createBar, createFolio } from './project';
 import { symbolBounds, symbolTerminals } from './symbolGeometry';
 import { nextFreeTag, parseTag } from './tags';
 import type {
+	CableItem,
 	Folio,
 	Id,
 	ItemKind,
+	PanelKind,
 	ItemRef,
 	Point,
 	Project,
@@ -94,6 +109,8 @@ export function detachSymbol(project: Project, symbol: SymbolInstance) {
 export function removeOrphanDevices(project: Project) {
 	const used = new Set(project.folios.flatMap((f) => f.symbols.map((s) => s.deviceId)));
 	for (const id of Object.keys(project.devices)) if (!used.has(id)) delete project.devices[id];
+	// Implantation / façade : les appareils disparus du schéma sont retirés.
+	pruneMounts(project);
 }
 
 // ---------------------------------------------------------------- création
@@ -149,6 +166,13 @@ export function addRect(folio: Folio, r: Rect, dashed = true): RectItem {
 	return item;
 }
 
+/** Câble tracé de `a` à `b` en travers des fils (conducteurs déduits des fils coupés). */
+export function addCable(project: Project, folio: Folio, a: Point, b: Point, type?: string) {
+	const cable: CableItem = newCable(project, folio, a, b, newId('c'), type);
+	folio.cables.push(cable);
+	return cable;
+}
+
 // ---------------------------------------------------------------- géométrie des éléments
 
 export function textBounds(t: TextItem): Rect {
@@ -161,6 +185,7 @@ export function textBounds(t: TextItem): Rect {
 }
 
 export function itemBounds(folio: Folio, ref: ItemRef): Rect | null {
+	if (isPanelKind(ref.kind)) return panelItemBounds(folio, ref);
 	switch (ref.kind) {
 		case 'symbol': {
 			const s = folio.symbols.find((x) => x.id === ref.id);
@@ -182,6 +207,10 @@ export function itemBounds(folio: Folio, ref: ItemRef): Rect | null {
 			const r = folio.rects.find((x) => x.id === ref.id);
 			return r ? { x: r.x, y: r.y, w: r.w, h: r.h } : null;
 		}
+		case 'cable': {
+			const c = folio.cables.find((x) => x.id === ref.id);
+			return c ? cableBounds(c) : null;
+		}
 	}
 }
 
@@ -191,11 +220,13 @@ export function allItems(folio: Folio): ItemRef[] {
 		...folio.wires.map((x) => ({ kind: 'wire' as const, id: x.id })),
 		...folio.bars.map((x) => ({ kind: 'bar' as const, id: x.id })),
 		...folio.texts.map((x) => ({ kind: 'text' as const, id: x.id })),
-		...folio.rects.map((x) => ({ kind: 'rect' as const, id: x.id }))
+		...folio.rects.map((x) => ({ kind: 'rect' as const, id: x.id })),
+		...folio.cables.map((x) => ({ kind: 'cable' as const, id: x.id })),
+		...panelItems(folio)
 	];
 }
 
-/** Élément sous le curseur (priorité : symbole, texte, fil, barre, cadre). */
+/** Élément sous le curseur (priorité : symbole, texte, nom de câble, fil, câble, barre, cadre). */
 export function hitTest(folio: Folio, p: Point, tol: number): ItemRef | null {
 	for (let i = folio.symbols.length - 1; i >= 0; i--) {
 		const s = folio.symbols[i];
@@ -203,12 +234,18 @@ export function hitTest(folio: Folio, p: Point, tol: number): ItemRef | null {
 	}
 	for (const t of folio.texts)
 		if (rectContainsPoint(textBounds(t), p, tol * 0.5)) return { kind: 'text', id: t.id };
+	for (const c of folio.cables)
+		if (rectContainsPoint(cableNameBounds(c), p, tol * 0.5)) return { kind: 'cable', id: c.id };
+	const mounted = panelHitTest(folio, p, tol);
+	if (mounted) return mounted;
 	let best: { ref: ItemRef; d: number } | null = null;
 	for (const w of folio.wires) {
 		const d = distToPolyline(p, w.points);
 		if (d <= tol && (!best || d < best.d)) best = { ref: { kind: 'wire', id: w.id }, d };
 	}
 	if (best) return best.ref;
+	for (const c of folio.cables)
+		if (rectContainsPoint(cableEllipseBounds(c), p, tol)) return { kind: 'cable', id: c.id };
 	for (const b of folio.bars)
 		if (p.x >= b.x1 - tol && p.x <= b.x2 + tol && Math.abs(p.y - b.y) <= tol)
 			return { kind: 'bar', id: b.id };
@@ -274,6 +311,7 @@ export function dragWireEnd(points: Point[], index: number, to: Point): Point[] 
 
 export function moveItems(folio: Folio, refs: ItemRef[], dx: number, dy: number) {
 	if (!dx && !dy) return;
+	movePanelItems(folio, refs, dx, dy);
 	const symIds = groupIds(refs, 'symbol');
 	const wireIds = groupIds(refs, 'wire');
 	const barIds = groupIds(refs, 'bar');
@@ -336,6 +374,12 @@ export function moveItems(folio: Folio, refs: ItemRef[], dx: number, dy: number)
 			r.x += dx;
 			r.y += dy;
 		}
+	const cableIds = groupIds(refs, 'cable');
+	for (const c of folio.cables)
+		if (cableIds.has(c.id)) {
+			c.x += dx;
+			c.y += dy;
+		}
 }
 
 /** Index du segment de fil le plus proche d'un point. */
@@ -385,12 +429,15 @@ export function deleteItems(project: Project, folio: Folio, refs: ItemRef[]) {
 		w = del('wire'),
 		b = del('bar'),
 		t = del('text'),
-		r = del('rect');
+		r = del('rect'),
+		c = del('cable');
 	folio.symbols = folio.symbols.filter((x) => !s.has(x.id));
 	folio.wires = folio.wires.filter((x) => !w.has(x.id));
 	folio.bars = folio.bars.filter((x) => !b.has(x.id));
 	folio.texts = folio.texts.filter((x) => !t.has(x.id));
 	folio.rects = folio.rects.filter((x) => !r.has(x.id));
+	folio.cables = folio.cables.filter((x) => !c.has(x.id));
+	deletePanelItems(folio, refs);
 	removeOrphanDevices(project);
 }
 
@@ -400,6 +447,8 @@ export function rotateItems(folio: Folio, refs: ItemRef[]) {
 	const tids = groupIds(refs, 'text');
 	for (const t of folio.texts)
 		if (tids.has(t.id)) t.rotation = t.rotation === 270 ? undefined : t.rotation === 90 ? 270 : 90;
+	const cids = groupIds(refs, 'cable');
+	for (const c of folio.cables) if (cids.has(c.id)) rotateCable(c);
 }
 
 export function mirrorItems(folio: Folio, refs: ItemRef[]) {
@@ -411,9 +460,35 @@ export function mirrorItems(folio: Folio, refs: ItemRef[]) {
 
 export function addFolio(project: Project, afterIndex: number, title = 'Nouveau folio'): Folio {
 	const folio = createFolio(title);
-	const prev = project.folios[afterIndex];
-	// Les barres de potentiel sont reprises du folio précédent (continuité du dossier).
+	// Les barres de potentiel sont reprises du folio de schéma précédent (continuité du dossier).
+	const prev = project.folios
+		.slice(0, afterIndex + 1)
+		.reverse()
+		.find((f) => !f.panel);
 	if (prev) folio.bars = prev.bars.map((b) => ({ ...b, id: newId('b') }));
+	project.folios.splice(afterIndex + 1, 0, folio);
+	return folio;
+}
+
+/**
+ * Folio d'implantation ou de façade, à la suite de `afterIndex`. L'armoire reprend les
+ * dimensions d'un folio d'armoire existant (implantation et façade de la même armoire).
+ */
+/** Folio borniers automatique (dessin des borniers, `prefixes` vide = tous). */
+export function addStripsFolio(
+	project: Project,
+	afterIndex: number,
+	prefixes: string[] = []
+): Folio {
+	const folio = createFolio('BORNIERS');
+	folio.strips = { prefixes: [...prefixes] };
+	project.folios.splice(afterIndex + 1, 0, folio);
+	return folio;
+}
+
+export function addPanelFolio(project: Project, afterIndex: number, kind: PanelKind): Folio {
+	const folio = createFolio(PANEL_TITLES[kind]);
+	folio.panel = createPanel(kind, projectEnclosure(project));
 	project.folios.splice(afterIndex + 1, 0, folio);
 	return folio;
 }

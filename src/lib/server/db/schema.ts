@@ -60,6 +60,17 @@ export const customSymbols = sqliteTable('custom_symbols', {
 	updatedAt: text('updated_at').notNull()
 });
 
+/** Modèles de cartouche et de page de garde : bibliothèque partagée. */
+export const templates = sqliteTable('templates', {
+	id: text('id').primaryKey(),
+	name: text('name').notNull(),
+	/** `DocTemplate` sérialisé en JSON. */
+	data: text('data').notNull(),
+	createdBy: text('created_by'),
+	createdAt: text('created_at').notNull(),
+	updatedAt: text('updated_at').notNull()
+});
+
 export type CustomSymbolRow = typeof customSymbols.$inferSelect;
 
 export type UserRow = typeof users.$inferSelect;

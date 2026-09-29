@@ -24,7 +24,12 @@ export const schematic = {
 		junction: '#1f3fd6',
 		frame: '#111111',
 		gridText: '#111111',
-		openTerminal: '#ff8a00'
+		openTerminal: '#ff8a00',
+		/** Câble : ellipse et nom ; couleurs des conducteurs. */
+		cable: '#111111',
+		cableColors: '#111111',
+		/** Câble plein (plus de fils que de conducteurs) — éditeur seulement. */
+		cableOverflow: '#e0001a'
 	},
 
 	stroke: {
@@ -78,6 +83,57 @@ export const schematic = {
 		stroke: 0.2,
 		strokeStrong: 0.35,
 		headerFill: '#eeeeee'
+	},
+
+	/** Folio borniers dessiné : bornes, rail, textes des fils. */
+	strips: {
+		rail: '#d9dde2',
+		boxFill: '#ffffff',
+		box: 0.25,
+		endStop: 0.8,
+		link: 0.15,
+		text: { title: 3, tag: 2.1, wire: 1.9, detail: 1.7, side: 1.8 }
+	},
+
+	/** Grille d'affichage / d'impression des folios (points, quadrillage, cases A–Q). */
+	grid: {
+		dot: '#7d8791',
+		line: '#b3bac2',
+		major: '#8f99a3',
+		cell: '#1f3fd6',
+		/** Impression : épaisseurs et rayon en mm. */
+		print: { dot: 0.22, line: 0.08, major: 0.15, cell: 0.12, cellDash: '1.5 1' }
+	},
+
+	/** Folios d'implantation et de façade (armoire à l'échelle). */
+	panel: {
+		enclosure: 0.5,
+		duct: 0.2,
+		ductFill: '#f4f4f4',
+		rail: 0.15,
+		railFill: '#e9eef9',
+		railAxis: '#1f3fd6',
+		axisDash: '4 1 0.6 1',
+		device: 0.25,
+		deviceFill: '#ffffff',
+		stripLine: 0.08,
+		dim: '#e0001a',
+		dimStroke: 0.15,
+		grid: '#6b6b6b',
+		gridStroke: 0.12,
+		gridDash: '0.8 0.6',
+		/** Alertes d'édition (rail plein, chevauchement) — éditeur seulement. */
+		warning: '#e0001a',
+		text: {
+			title: 3.4,
+			scale: 2.2,
+			duct: 1.7,
+			rail: 1.7,
+			tag: 1.8,
+			dim: 1.9,
+			grid: 1.9,
+			label: 1.8
+		}
 	},
 
 	terminalMarker: { show: true, size: 0.9 },

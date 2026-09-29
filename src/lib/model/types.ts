@@ -1,4 +1,5 @@
 import type { SymbolDef } from '$lib/symbols/types';
+import type { DocTemplate } from './template';
 
 /**
  * Modèle métier SchemElect — source de vérité unique.
@@ -39,6 +40,8 @@ export interface Device {
 	 * Absent = pas de contrôle. Sert à l'alerte « trop de contacts dessinés ».
 	 */
 	contacts?: { no: number; nc: number };
+	/** Montage imposé (sinon déduit du symbole, voir `footprints.ts`). */
+	mounting?: Mounting;
 }
 
 /** Symbole posé sur un folio : instance d'une définition de la bibliothèque. */
@@ -92,6 +95,98 @@ export interface RectItem {
 	dashed?: boolean;
 }
 
+/**
+ * Câble multi-conducteurs posé en travers des fils (ellipse). Les fils coupés sont ses
+ * conducteurs, dans l'ordre de l'axe (voir `cables.ts`).
+ */
+export interface CableItem {
+	id: Id;
+	/** Repère : W1, W2… (tableaux, borniers, carnet de câbles). */
+	tag: string;
+	/** Début de l'axe. */
+	x: number;
+	y: number;
+	length: number;
+	/** Axe vertical (coupe des fils horizontaux) ; sinon horizontal. */
+	vertical?: boolean;
+	/** Type : SYT1, U1000 R2V… */
+	type: string;
+	/** Câble à paires (un libellé « Paire Ciel / Jaune » par paire). */
+	pairs: boolean;
+	/** Couleurs des conducteurs dans l'ordre (câble à paires : 2 par paire). */
+	colors: string[];
+	/** Section (« 1,5 », « 8/10 »), reprise dans le nom par défaut. */
+	section?: string;
+	/** Texte affiché ; vide = calculé (« CABLE SYT1 3 PAIRES »). */
+	name?: string;
+	/** Afficher la couleur des conducteurs sur le schéma (défaut : oui). */
+	showColors?: boolean;
+}
+
+// ---------------------------------------------------------------- implantation / façade
+
+/**
+ * Folio d'armoire : `implantation` (fond d'armoire : rails, goulottes, appareils) ou
+ * `facade` (porte : voyants, commutateurs). Coordonnées RÉELLES en mm, origine au coin
+ * haut-gauche de l'armoire ; la mise à l'échelle sur la page est calculée (`panel.ts`).
+ */
+export type PanelKind = 'implantation' | 'facade';
+
+/** Montage d'un appareil : sur rail (fond d'armoire), en porte (façade) ou hors armoire. */
+export type Mounting = 'rail' | 'porte' | 'externe';
+
+export interface Enclosure {
+	/** Largeur (L). */
+	w: number;
+	/** Hauteur (H). */
+	h: number;
+	/** Profondeur (P). */
+	d: number;
+}
+
+/** Rail oméga (DIN 35 mm) horizontal : `y` = axe, de `x` à `x + length`. */
+export interface Rail {
+	id: Id;
+	x: number;
+	y: number;
+	length: number;
+}
+
+/** Goulotte : emprise w × h sur le fond d'armoire ; `depth` = hauteur de la goulotte. */
+export interface Duct {
+	id: Id;
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+	depth: number;
+}
+
+/** Élément monté : appareil du schéma ou bornier. Position = CENTRE, taille = encombrement. */
+export interface PanelItem {
+	id: Id;
+	/** Appareil du schéma (absent pour un bornier). */
+	deviceId?: Id;
+	/** Bornier monté (préfixe : P, C, X…) ; sa largeur suit le nombre de bornes. */
+	strip?: string;
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+	/** Étiquette de façade imposée (sinon : désignation, sinon repère). */
+	label?: string;
+}
+
+export interface Panel {
+	kind: PanelKind;
+	enclosure: Enclosure;
+	/** Échelle imposée (dénominateur : 8 = 1:8) ; absente = automatique. */
+	scale?: number;
+	rails: Rail[];
+	ducts: Duct[];
+	items: PanelItem[];
+}
+
 export interface Folio {
 	id: Id;
 	title: string;
@@ -100,6 +195,14 @@ export interface Folio {
 	bars: Bar[];
 	texts: TextItem[];
 	rects: RectItem[];
+	cables: CableItem[];
+	/** Folio d'implantation ou de façade (absent = folio de schéma). */
+	panel?: Panel;
+	/**
+	 * Folio borniers automatique (dessin calculé, voir `stripDrawing.ts`) ; `prefixes` vide
+	 * = tous les borniers.
+	 */
+	strips?: { prefixes: string[] };
 }
 
 export interface ProjectMeta {
@@ -112,6 +215,8 @@ export interface ProjectMeta {
 	author: string;
 	createdAt: string;
 	modifiedAt: string;
+	/** Valeurs des champs libres du modèle de cartouche (clé → texte). */
+	fields?: Record<string, string>;
 }
 
 export interface Revision {
@@ -140,10 +245,16 @@ export interface Project {
 	 * le symbole est modifié ou supprimé de la bibliothèque partagée).
 	 */
 	customSymbols: Record<string, SymbolDef>;
+	/**
+	 * Modèle de cartouche et de page de garde (copie de la bibliothèque) ; absent = modèle
+	 * standard (voir `template.ts`).
+	 */
+	template?: DocTemplate;
 }
 
 /** Élément sélectionnable d'un folio. */
-export type ItemKind = 'symbol' | 'wire' | 'bar' | 'text' | 'rect';
+export type ItemKind =
+	'symbol' | 'wire' | 'bar' | 'text' | 'rect' | 'cable' | 'rail' | 'duct' | 'mount';
 
 export interface ItemRef {
 	kind: ItemKind;

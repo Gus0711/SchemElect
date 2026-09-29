@@ -19,7 +19,20 @@ Ouvrir <http://127.0.0.1:5300> (port fixe, voir `vite.config.ts`). La base et se
 
 **Premier lancement** : sans aucun compte, l'application redirige vers `/setup` pour créer
 l'administrateur. Celui-ci crée ensuite les autres comptes dans **Utilisateurs**.
-Le bouton **Projet de démonstration** crée un dossier d'exemple pour découvrir l'éditeur.
+Le bouton **Projet de démonstration** crée un dossier d'exemple pour découvrir l'éditeur ;
+**Exemple armoire complète** crée un dossier complet (distribution, chaudière, pompe,
+implantation, façade). Dans l'éditeur, la touche **?** affiche tous les raccourcis clavier.
+
+## Fonctions principales
+
+- Folios de **schéma** : symboles, fils, barres de potentiel, câbles ; repères, renvois
+  croisés, numéros de fils, contrôles calculés.
+- Folios d'**implantation** (armoire à l'échelle, rails, goulottes, placement automatique)
+  et de **façade** (voyants, commutateurs, grille en cm).
+- **Folio borniers** automatique (dessin des borniers, mis à jour avec le schéma).
+- **Modèles** de cartouche et de page de garde (logo, champs libres), bibliothèque partagée.
+- Export **PDF** (même rendu qu'à l'écran, grille imprimable en option) et **CSV**
+  (borniers, nomenclature, fils, carnet de câbles).
 
 ## Commandes
 
@@ -42,7 +55,10 @@ docker compose up -d --build
 ```
 
 - Écoute sur le port **3000** ; la base est dans `./data/schemelect.db` (volume `./data:/app/data`)
-  — **sauvegarder ce dossier**.
+  — **sauvegarder ce dossier**. Une copie automatique de la base est faite toutes les 24 h dans
+  `./data/backups/` (30 conservées ; réglages `BACKUP_DIR`, `BACKUP_INTERVAL_HOURS`,
+  `BACKUP_KEEP`) et consultable dans **Sauvegardes** (administrateurs). Copier ce dossier hors
+  du serveur. Restauration : arrêter, remplacer `schemelect.db` par la sauvegarde, redémarrer.
 - Variables : `DATABASE_URL`, `ORIGIN` (obligatoire pour les formulaires), `BODY_SIZE_LIMIT`
   (défaut 50M dans l'image), `COOKIE_SECURE` (automatique si `ORIGIN` est en `https://`).
   Voir `.env.example`.

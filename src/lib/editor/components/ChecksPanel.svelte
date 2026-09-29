@@ -1,7 +1,11 @@
 <script lang="ts">
 	/** Contrôles de cohérence du dossier (calculés en continu). */
+	import { cableIssues } from '$lib/model/cables';
 	import { contactOverflows } from '$lib/model/crossrefs';
 	import { folioNumber } from '$lib/model/layout';
+	import { panelIssues } from '$lib/model/panel';
+	import { stripSeriesIssues } from '$lib/model/stripDrawing';
+	import { projectStrips } from '$lib/model/analysis';
 	import { getSymbolDef } from '$lib/symbols';
 	import { Panel } from '$lib/ui';
 	import { CircleAlert, Check } from '@lucide/svelte';
@@ -36,6 +40,10 @@
 				folioId: folio?.id
 			});
 		}
+		for (const c of cableIssues(a.cables)) out.push({ text: c.text, folioId: c.folioId });
+		out.push(...panelIssues(editor.project));
+		if (editor.project.folios.some((f) => f.strips))
+			out.push(...stripSeriesIssues(editor.project, projectStrips(editor.project, a)));
 		const links = new Map<string, number>();
 		for (const f of editor.project.folios)
 			for (const s of f.symbols)

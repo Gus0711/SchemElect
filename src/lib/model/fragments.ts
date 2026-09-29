@@ -1,16 +1,19 @@
 /**
- * Fragments : un morceau de folio autonome (symboles, fils, barres, textes, cadres
+ * Fragments : un morceau de folio autonome (symboles, fils, barres, textes, cadres, câbles
  * + appareils référencés). Sert au copier/coller, aux macros et à la duplication
  * de folio — un seul mécanisme, avec renumérotation des repères.
  */
 import { getSymbolDef } from '$lib/symbols';
 import type { SymbolDef } from '$lib/symbols/types';
+import { allCableTags } from './cables';
 import { boundsOf, snap } from './geometry';
 import { allItems, itemBounds } from './edit';
 import { deepClone, newId } from './ids';
+import { clonePanelLayout } from './panel';
 import { compareTags, nextFreeTag, parseTag } from './tags';
 import type {
 	Bar,
+	CableItem,
 	Device,
 	Folio,
 	Id,
@@ -28,18 +31,25 @@ export interface Fragment {
 	bars: Bar[];
 	texts: TextItem[];
 	rects: RectItem[];
+	/** Absent dans les macros enregistrées avant les câbles. */
+	cables?: CableItem[];
 	devices: Record<Id, Device>;
 	/** Symboles maison utilisés (pour coller dans un autre projet / macros). */
 	symbolDefs?: Record<string, SymbolDef>;
 }
 
 export function emptyFragment(): Fragment {
-	return { symbols: [], wires: [], bars: [], texts: [], rects: [], devices: {} };
+	return { symbols: [], wires: [], bars: [], texts: [], rects: [], cables: [], devices: {} };
 }
 
 export function isEmptyFragment(f: Fragment): boolean {
 	return (
-		!f.symbols.length && !f.wires.length && !f.bars.length && !f.texts.length && !f.rects.length
+		!f.symbols.length &&
+		!f.wires.length &&
+		!f.bars.length &&
+		!f.texts.length &&
+		!f.rects.length &&
+		!f.cables?.length
 	);
 }
 
@@ -53,6 +63,7 @@ export function extractFragment(project: Project, folio: Folio, refs: ItemRef[])
 		bars: folio.bars.filter((b) => ids.has(b.id)).map(clone),
 		texts: folio.texts.filter((t) => ids.has(t.id)).map(clone),
 		rects: folio.rects.filter((r) => ids.has(r.id)).map(clone),
+		cables: folio.cables.filter((c) => ids.has(c.id)).map(clone),
 		devices: {}
 	};
 	for (const s of frag.symbols) {
@@ -66,7 +77,7 @@ export function extractFragment(project: Project, folio: Folio, refs: ItemRef[])
 
 /** Coin haut-gauche du fragment (pour l'insertion relative au curseur). */
 export function fragmentOrigin(frag: Fragment): { x: number; y: number } {
-	const tmp: Folio = { id: '', title: '', ...frag };
+	const tmp: Folio = { id: '', title: '', ...frag, cables: frag.cables ?? [] };
 	const rects = allItems(tmp)
 		.map((r) => itemBounds(tmp, r))
 		.filter((r): r is NonNullable<typeof r> => !!r);
@@ -104,6 +115,10 @@ export function translateFragment(frag: Fragment, dx: number, dy: number): Fragm
 	for (const r of frag.rects) {
 		r.x += dx;
 		r.y += dy;
+	}
+	for (const c of frag.cables ?? []) {
+		c.x += dx;
+		c.y += dy;
 	}
 	return frag;
 }
@@ -173,6 +188,16 @@ export function insertFragment(
 	push('bars', 'bar', 'b');
 	push('texts', 'text', 't');
 	push('rects', 'rect', 'r');
+	// Câbles : nouveau repère (W3…) sauf déplacement (couper/coller) sans conflit.
+	const cableTags = allCableTags(project);
+	for (const c of frag.cables ?? []) {
+		c.id = newId('c');
+		if (opts.devices === 'renumber' || cableTags.includes(c.tag))
+			c.tag = nextFreeTag('W', cableTags);
+		cableTags.push(c.tag);
+		folio.cables.push(c);
+		refs.push({ kind: 'cable', id: c.id });
+	}
 	return refs;
 }
 
@@ -189,9 +214,14 @@ export function duplicateFolio(project: Project, folioId: Id): Folio | null {
 		wires: [],
 		bars: [],
 		texts: [],
-		rects: []
+		rects: [],
+		cables: []
 	};
 	insertFragment(project, copy, frag, { devices: 'renumber' });
+	// Folio d'armoire : même disposition (rails, goulottes), appareils à reposer.
+	if (src.panel) copy.panel = clonePanelLayout(src.panel);
+	// Folio borniers : même filtre (le double affiche la page suivante de la série).
+	if (src.strips) copy.strips = { prefixes: [...src.strips.prefixes] };
 	project.folios.splice(index + 1, 0, copy);
 	return copy;
 }

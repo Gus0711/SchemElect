@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { analyzeProject, projectStrips } from '$lib/model/analysis';
 import { addSymbol } from '$lib/model/edit';
 import { createProject } from '$lib/model/project';
-import { BOM, csvCell, devicesCsv, stripsCsv, toCsv, wiresCsv } from './csv';
+import { BOM, cablesCsv, csvCell, devicesCsv, stripsCsv, toCsv, wiresCsv } from './csv';
 import { pdfFileName, planDossier, safeFileName } from './dossier';
 import { buildSampleProject } from './sample';
 
@@ -69,11 +69,22 @@ describe('projet de démonstration', () => {
 
 	it('stripsCsv', () => {
 		const l = lines(stripsCsv(project, analysis));
-		expect(l[0]).toBe('Bornier;Repère;N° fil / potentiel;Intérieur;Extérieur;Position;Désignation');
+		expect(l[0]).toBe(
+			'Bornier;Repère;N° fil / potentiel;Intérieur;Extérieur;Câble;Position;Désignation'
+		);
 		expect(l).toHaveLength(1 + 4);
 		expect(l.find((x) => x.startsWith('P;P1;'))).toMatch(
-			/;KM1:14;H1:X1;01 - C;Alimentation chaudière$/
+			/;KM1:14;H1:X1;W1 Marron;01 - C;Alimentation chaudière$/
 		);
+	});
+
+	it('cablesCsv : une ligne par conducteur', () => {
+		const l = lines(cablesCsv(project, analysis));
+		expect(l).toEqual([
+			'Câble;Type;Désignation;Conducteur;Couleur;N° fil / potentiel;Position',
+			'W1;U1000 R2V;CABLE U1000 R2V 2X1,5;1;Bleu;Neutre;01 - B',
+			'W1;U1000 R2V;CABLE U1000 R2V 2X1,5;2;Marron;01;01 - B'
+		]);
 	});
 
 	it('devicesCsv : appareils triés, sans renvois', () => {

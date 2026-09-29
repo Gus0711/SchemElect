@@ -1,9 +1,19 @@
 <script lang="ts">
-	import { addFolio, deleteFolio, moveFolio } from '$lib/model/edit';
+	import { addFolio, addPanelFolio, addStripsFolio, deleteFolio, moveFolio } from '$lib/model/edit';
 	import { duplicateFolio } from '$lib/model/fragments';
 	import { folioNumber } from '$lib/model/layout';
-	import { Button } from '$lib/ui';
-	import { ChevronDown, ChevronUp, Copy, Plus, Trash } from '@lucide/svelte';
+	import type { PanelKind } from '$lib/model/types';
+	import { Button, ContextMenu } from '$lib/ui';
+	import {
+		ChevronDown,
+		ChevronUp,
+		Copy,
+		DoorClosed,
+		Cable,
+		LayoutGrid,
+		Plus,
+		Trash
+	} from '@lucide/svelte';
 	import type { Editor } from '../editor.svelte';
 
 	let { editor }: { editor: Editor } = $props();
@@ -11,11 +21,27 @@
 	const folios = $derived(editor.project.folios);
 	const current = $derived(editor.folioIndex);
 
-	function add() {
+	function add(kind: PanelKind | null = null) {
 		let id = '';
-		editor.transact('Ajouter un folio', (p) => (id = addFolio(p, current).id));
+		editor.transact(
+			kind === 'implantation'
+				? 'Ajouter un folio d’implantation'
+				: kind === 'facade'
+					? 'Ajouter un folio de façade'
+					: 'Ajouter un folio',
+			(p) => (id = (kind ? addPanelFolio(p, current, kind) : addFolio(p, current)).id)
+		);
 		editor.setFolio(id);
 	}
+
+	function addStrips() {
+		let id = '';
+		editor.transact('Ajouter un folio borniers', (p) => (id = addStripsFolio(p, current).id));
+		editor.setFolio(id);
+	}
+
+	/** Menu « nouveau folio » : schéma, implantation, façade, borniers. */
+	let addMenu: { x: number; y: number } | null = $state(null);
 
 	function duplicate() {
 		let id = '';
@@ -62,8 +88,15 @@
 
 <div class="folios">
 	<div class="actions">
-		<Button size="sm" variant="ghost" title="Nouveau folio" onclick={add} disabled={editor.readonly}
-			><Plus size={14} /> Folio</Button
+		<Button
+			size="sm"
+			variant="ghost"
+			title="Nouveau folio (schéma, implantation, façade)"
+			onclick={(e: MouseEvent) => {
+				const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+				addMenu = { x: r.left, y: r.bottom + 2 };
+			}}
+			disabled={editor.readonly}><Plus size={14} /> Folio</Button
 		>
 		<span class="spacer"></span>
 		<Button
@@ -120,12 +153,33 @@
 					>
 						<span class="num">{folioNumber(i)}</span>
 						<span class="title">{f.title || 'Sans titre'}</span>
+						{#if f.panel?.kind === 'implantation'}
+							<span class="kind" title="Folio d’implantation"><LayoutGrid size={12} /></span>
+						{:else if f.panel?.kind === 'facade'}
+							<span class="kind" title="Folio de façade"><DoorClosed size={12} /></span>
+						{:else if f.strips}
+							<span class="kind" title="Folio borniers (automatique)"><Cable size={12} /></span>
+						{/if}
 					</button>
 				{/if}
 			</li>
 		{/each}
 	</ol>
 </div>
+
+{#if addMenu}
+	<ContextMenu
+		x={addMenu.x}
+		y={addMenu.y}
+		onclose={() => (addMenu = null)}
+		items={[
+			{ label: 'Folio de schéma', action: () => add() },
+			{ label: 'Folio d’implantation (armoire)', action: () => add('implantation') },
+			{ label: 'Folio de façade (porte)', action: () => add('facade') },
+			{ label: 'Folio borniers (dessin automatique)', action: () => addStrips() }
+		]}
+	/>
+{/if}
 
 <style>
 	.folios {
@@ -187,6 +241,11 @@
 		font-variant-numeric: tabular-nums;
 		font-weight: var(--fw-bold);
 		font-size: var(--fs-sm);
+	}
+	.kind {
+		display: inline-flex;
+		margin-left: auto;
+		color: var(--c-text-muted);
 	}
 	.title {
 		overflow: hidden;

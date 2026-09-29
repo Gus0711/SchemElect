@@ -2,7 +2,9 @@
  * Interactions souris / clavier du canvas. Traduit les gestes en appels aux
  * commandes de l'éditeur ; aucune règle métier ici (elles sont dans $lib/model).
  */
+import { projectStrips } from '$lib/model/analysis';
 import { crossTargets } from '$lib/model/crossrefs';
+import { stripFolioPage, stripTerminalAt } from '$lib/model/stripDrawing';
 import * as edit from '$lib/model/edit';
 import { getSymbolDef } from '$lib/symbols';
 import {
@@ -10,9 +12,16 @@ import {
 	rectFromPoints,
 	samePoint,
 	simplifyPolyline,
-	snapPoint,
 	type Rect
 } from '$lib/model/geometry';
+import {
+	addDuct,
+	addMount,
+	addRailAt,
+	panelTransform,
+	settleOnRails,
+	toReal
+} from '$lib/model/panel';
 import { isConnectionPoint, snapTarget, type SnapResult } from '$lib/model/snap';
 import type { ItemRef, Point } from '$lib/model/types';
 import type { Editor } from './editor.svelte';
@@ -36,13 +45,27 @@ type Drag =
 	| { kind: 'segment'; wireId: string; seg: number; base: Point[]; start: Point; moved: boolean }
 	| { kind: 'box'; start: Point; current: Point; additive: boolean }
 	| { kind: 'rect'; start: Point; current: Point }
+	| { kind: 'cable'; start: Point; current: Point }
+	| { kind: 'rail'; start: Point; current: Point }
+	| { kind: 'duct'; start: Point; current: Point }
 	| { kind: 'scale'; symbolId: string; origin: Point; base: number; d0: number; moved: boolean };
+
+/** Extrémité d'un câble : axe horizontal ou vertical selon le geste. */
+function cableEnd(start: Point, current: Point): Point {
+	return Math.abs(current.x - start.x) >= Math.abs(current.y - start.y)
+		? { x: current.x, y: start.y }
+		: { x: start.x, y: current.y };
+}
 
 export class Interaction {
 	/** Rectangle de sélection en cours (mode `inside` si tiré vers la droite). */
 	box: (Rect & { mode: 'inside' | 'touch' }) | null = $state(null);
 	/** Cadre en cours de tracé (outil cadre). */
 	drawingRect: Rect | null = $state(null);
+	/** Axe du câble en cours de tracé (outil câble). */
+	drawingCable: { a: Point; b: Point } | null = $state(null);
+	/** Rail en cours de tracé (folio d'implantation). */
+	drawingRail: { a: Point; b: Point } | null = $state(null);
 	/** Points validés du fil en cours. */
 	wirePoints: Point[] = $state([]);
 	snapResult: SnapResult | null = $state(null);
@@ -58,6 +81,12 @@ export class Interaction {
 	private horizontalFirst: boolean | null = null;
 
 	constructor(private editor: Editor) {}
+
+	/** Accroche du curseur : bornes / fils sur un schéma, grille réelle sur un folio d'armoire. */
+	private target(p: Point): SnapResult {
+		const ed = this.editor;
+		return ed.panel ? { point: ed.snap(p), kind: 'grid' } : snapTarget(ed.folio, p, this.tol);
+	}
 
 	private get tol() {
 		return HIT_PX / this.editor.viewport.scale;
@@ -105,7 +134,7 @@ export class Interaction {
 		}
 		if (e.button !== 0) return;
 		const tool = ed.tool;
-		const target = snapTarget(ed.folio, p, this.tol);
+		const target = this.target(p);
 
 		switch (tool.kind) {
 			case 'wire':
@@ -115,9 +144,10 @@ export class Interaction {
 					const s = edit.addSymbol(proj, f, tool.defId, target.point, tool.rotation, tool.mirror);
 					ed.selection = [{ kind: 'symbol', id: s.id }];
 				});
+				ed.lastPlacedDefId = tool.defId;
 				return;
 			case 'paste':
-				ed.placeFragment(tool.fragment, snapPoint(p), tool.devices);
+				ed.placeFragment(tool.fragment, ed.snap(p), tool.devices);
 				ed.setTool({ kind: 'select' });
 				return;
 			case 'bar':
@@ -129,15 +159,33 @@ export class Interaction {
 				return;
 			case 'text':
 				ed.transact('Ajouter un texte', (_, f) => {
-					const t = edit.addText(f, snapPoint(p), 'Texte');
+					const t = edit.addText(f, ed.snap(p), 'Texte');
 					ed.selection = [{ kind: 'text', id: t.id }];
 				});
 				ed.setTool({ kind: 'select' });
 				ed.requestFocus('text');
 				return;
 			case 'rect':
-				this.drag = { kind: 'rect', start: snapPoint(p), current: snapPoint(p) };
+				this.drag = { kind: 'rect', start: ed.snap(p), current: ed.snap(p) };
 				return;
+			case 'cable':
+				this.drag = { kind: 'cable', start: ed.snap(p), current: ed.snap(p) };
+				return;
+			case 'rail':
+			case 'duct':
+				this.drag = { kind: tool.kind, start: ed.snap(p), current: ed.snap(p) };
+				return;
+			case 'mount': {
+				const panel = ed.panel;
+				if (!panel) return;
+				const at = toReal(panelTransform(panel), ed.snap(p));
+				ed.transact('Placer un appareil', (_, f) => {
+					const item = addMount(f.panel!, tool.candidate, at);
+					ed.selection = [{ kind: 'mount', id: item.id }];
+				});
+				ed.setTool({ kind: 'select' });
+				return;
+			}
 			default: {
 				const h = ed.scaleHandle;
 				if (h && Math.hypot(p.x - h.x, p.y - h.y) <= this.tol) {
@@ -178,7 +226,7 @@ export class Interaction {
 			return;
 		}
 
-		this.snapResult = snapTarget(ed.folio, p, this.tol);
+		this.snapResult = this.target(p);
 		ed.cursor = this.snapResult.point;
 
 		switch (d.kind) {
@@ -198,14 +246,14 @@ export class Interaction {
 						wireId: wire.id,
 						seg: edit.nearestSegment(wire.points, d.model),
 						base: wire.points.map((q) => ({ ...q })),
-						start: snapPoint(d.model),
+						start: ed.snap(d.model),
 						moved: false
 					};
-				} else this.drag = { kind: 'move', last: snapPoint(d.model), moved: false };
+				} else this.drag = { kind: 'move', last: ed.snap(d.model), moved: false };
 				return this.pointerMove(e, sx, sy);
 			}
 			case 'move': {
-				const g = snapPoint(p);
+				const g = ed.snap(p);
 				const dx = g.x - d.last.x;
 				const dy = g.y - d.last.y;
 				if (!dx && !dy) return;
@@ -216,7 +264,7 @@ export class Interaction {
 				return;
 			}
 			case 'segment': {
-				const g = snapPoint(p);
+				const g = ed.snap(p);
 				const wire = ed.folio.wires.find((w) => w.id === d.wireId);
 				if (!wire) return;
 				const pts = edit.moveWireSegment(d.base, d.seg, g.x - d.start.x, g.y - d.start.y);
@@ -237,7 +285,19 @@ export class Interaction {
 				return;
 			}
 			case 'rect':
-				d.current = snapPoint(p);
+				d.current = ed.snap(p);
+				this.drawingRect = rectFromPoints(d.start, d.current);
+				return;
+			case 'cable':
+				d.current = ed.snap(p);
+				this.drawingCable = { a: d.start, b: cableEnd(d.start, d.current) };
+				return;
+			case 'rail':
+				d.current = ed.snap(p);
+				this.drawingRail = { a: d.start, b: { x: d.current.x, y: d.start.y } };
+				return;
+			case 'duct':
+				d.current = ed.snap(p);
 				this.drawingRect = rectFromPoints(d.start, d.current);
 				return;
 			default: {
@@ -262,8 +322,45 @@ export class Interaction {
 				else if (d.ref && !d.additive && ed.selection.length > 1) ed.select([d.ref]);
 				return;
 			case 'move':
+				// Folio d'implantation : un appareil lâché près d'un rail s'y accroche.
+				if (ed.panel && d.moved) {
+					const ids = ed.selection.filter((r) => r.kind === 'mount').map((r) => r.id);
+					ed.gesture((_, f) => f.panel && settleOnRails(f.panel, ids));
+				}
 				ed.endGesture('Déplacer', d.moved);
 				return;
+			case 'rail': {
+				this.drawingRail = null;
+				const panel = ed.panel;
+				if (panel) {
+					const t = panelTransform(panel);
+					const a = toReal(t, d.start);
+					const b = toReal(t, d.current);
+					ed.transact('Ajouter un rail', (_, f) => {
+						const r = addRailAt(f.panel!, a.x, a.y, b.x);
+						ed.selection = [{ kind: 'rail', id: r.id }];
+					});
+				}
+				ed.setTool({ kind: 'select' });
+				return;
+			}
+			case 'duct': {
+				this.drawingRect = null;
+				const panel = ed.panel;
+				if (panel) {
+					const t = panelTransform(panel);
+					const a = toReal(t, d.start);
+					const b = toReal(t, d.current);
+					const r = rectFromPoints(a, b);
+					if (r.w >= 10 && r.h >= 10)
+						ed.transact('Ajouter une goulotte', (_, f) => {
+							const g = addDuct(f.panel!, r);
+							ed.selection = [{ kind: 'duct', id: g.id }];
+						});
+				}
+				ed.setTool({ kind: 'select' });
+				return;
+			}
 			case 'segment':
 				ed.endGesture('Modifier le tracé', d.moved);
 				return;
@@ -287,6 +384,17 @@ export class Interaction {
 				ed.setTool({ kind: 'select' });
 				return;
 			}
+			case 'cable': {
+				this.drawingCable = null;
+				const b = cableEnd(d.start, d.current);
+				if (Math.hypot(b.x - d.start.x, b.y - d.start.y) >= 5)
+					ed.transact('Ajouter un câble', (proj, f) => {
+						const c = edit.addCable(proj, f, d.start, b);
+						ed.selection = [{ kind: 'cable', id: c.id }];
+					});
+				ed.setTool({ kind: 'select' });
+				return;
+			}
 		}
 	}
 
@@ -297,7 +405,7 @@ export class Interaction {
 		const ref = edit.hitTest(ed.folio, at, this.tol);
 		if (ref && !ed.isSelected(ref)) ed.select([ref]);
 		if (!ref) ed.clearSelection();
-		this.menu = { x, y, at: snapPoint(at), ref };
+		this.menu = { x, y, at: ed.snap(at), ref };
 	}
 
 	doubleClick(sx: number, sy: number) {
@@ -305,6 +413,19 @@ export class Interaction {
 		if (ed.tool.kind === 'wire') {
 			this.finishWire();
 			return;
+		}
+		// Folio borniers : double-clic sur une borne dessinée → son symbole dans le schéma.
+		if (ed.folio.strips) {
+			const page = stripFolioPage(
+				ed.project,
+				ed.folio,
+				projectStrips(ed.project, ed.analysis)
+			).page;
+			const row = page && stripTerminalAt(page, ed.viewport.toModel(sx, sy));
+			if (row) {
+				ed.goToSymbol(row.symbolId);
+				return;
+			}
 		}
 		const ref = edit.hitTest(ed.folio, ed.viewport.toModel(sx, sy), this.tol);
 		if (!ref) return;
@@ -318,6 +439,12 @@ export class Interaction {
 			else ed.requestFocus('tag');
 		}
 		if (ref.kind === 'text') ed.requestFocus('text');
+		if (ref.kind === 'mount') {
+			// Appareil posé en implantation / façade → son symbole dans le schéma.
+			const item = ed.panel?.items.find((i) => i.id === ref.id);
+			const s = item?.deviceId ? edit.symbolsOfDevice(ed.project, item.deviceId)[0] : undefined;
+			if (s) ed.goToSymbol(s.id);
+		}
 	}
 
 	wheel(e: WheelEvent, sx: number, sy: number) {
@@ -428,7 +555,12 @@ export class Interaction {
 			return false;
 		}
 
-		const step = e.shiftKey ? 10 : 2.5;
+		// Flèches : 2,5 mm sur un schéma, 5 mm réels sur un folio d'armoire (Maj : ×4 / ×10).
+		const step = ed.panel
+			? (e.shiftKey ? 50 : 5) * panelTransform(ed.panel).k
+			: e.shiftKey
+				? 10
+				: 2.5;
 		switch (e.key) {
 			case 'Escape':
 				if (this.wirePoints.length) this.cancelWire();
@@ -444,6 +576,29 @@ export class Interaction {
 				return true;
 			case 'Enter':
 				if (this.wirePoints.length) this.finishWire();
+				else if (ed.tool.kind === 'select') return ed.repeatLastSymbol();
+				return true;
+			case 'F2':
+				ed.editSelection();
+				return true;
+			case 'Home':
+				ed.setFolio(ed.project.folios[0].id);
+				return true;
+			case 'End':
+				ed.setFolio(ed.project.folios[ed.project.folios.length - 1].id);
+				return true;
+			case '+':
+			case '=':
+				ed.viewport.zoomBy(1.25);
+				return true;
+			case '-':
+				ed.viewport.zoomBy(1 / 1.25);
+				return true;
+			case '1':
+				ed.viewport.actualSize();
+				return true;
+			case '/':
+				ed.requestFocus('symbolSearch');
 				return true;
 			case 'ArrowLeft':
 				ed.nudge(-step, 0);
@@ -480,6 +635,12 @@ export class Interaction {
 			case 'c':
 				ed.setTool({ kind: 'rect' });
 				return true;
+			case 'k':
+				ed.setTool({ kind: 'cable' });
+				return true;
+			case 'b':
+				ed.setTool({ kind: 'bar', potentialId: ed.barPotential });
+				return true;
 			case 's':
 			case 'v':
 				this.cancelWire();
@@ -489,7 +650,7 @@ export class Interaction {
 				ed.viewport.fit();
 				return true;
 			case 'g':
-				ed.showGrid = !ed.showGrid;
+				ed.setGrid({ show: !ed.grid.show });
 				return true;
 		}
 		return false;

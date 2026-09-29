@@ -677,7 +677,7 @@
 		inset: 0;
 		width: 100%;
 		height: 100%;
-		background: var(--c-surface-2);
+		background: var(--c-drawing-bg);
 		border: 1px dashed var(--c-border-strong);
 		border-radius: var(--radius);
 		cursor: crosshair;

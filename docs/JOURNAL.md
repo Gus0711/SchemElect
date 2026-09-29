@@ -11,6 +11,168 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-09-29 (suite 8) — Folio borniers automatique (dessin)
+
+**Fait** : nouveau type de folio (« + Folio » › Folio borniers) : dessin calculé des borniers
+(`model/stripDrawing.ts`, `render/StripDrawing.svelte`) — bornes en rangée sur rail avec
+butées ; au-dessus n° de fil (bleu), appareils intérieurs, position de la borne (rouge) ; en
+dessous câble + couleur, appareils extérieurs, désignation. Petits borniers sur un même
+bandeau, long bornier « (suite) », 2 bandeaux par page. Filtre par bornier (inspecteur).
+**Un folio = une page** : les folios borniers de même filtre forment une série (page 1, 2…) ;
+s'il en manque, contrôle + bouton « Ajouter la suite » (la numérotation, donc les renvois,
+reste juste). Double-clic sur une borne → son symbole. Outils limités au texte / cadre.
+Export : « Tableaux des borniers (fin de dossier) » décoché par défaut s'il existe un folio
+borniers. 12 parcours e2e.
+
+---
+
+## 2026-09-29 (suite 7) — Grille d'affichage réglable
+
+**Fait** : bouton « Grille : … » en bas à droite (`GridControl`) : afficher (G), type
+**Points / Quadrillage / Cases A–Q** (suit le repérage du cadre), pas 2,5 / 5 / 10 mm, curseur
+de visibilité. Préférence mémorisée dans le navigateur (`editor/grid.ts`, tous projets).
+Folios d'armoire : cases seulement. **Imprimable** : option « Imprimer la grille dans le
+PDF » (panneau Grille et fenêtre d'export) ; rendu commun écran / PDF `render/GridLayer.svelte`
+(écran : taille constante en pixels ; PDF : mm, points réels car les motifs SVG passent mal),
+couleurs dans `schematic.grid`. Correctif : les points étaient invisibles (0,18 mm, gris très
+clair). Bouton « Tous les raccourcis » dans la barre d'état (celui de la barre du haut retiré).
+11 parcours e2e.
+
+---
+
+## 2026-09-29 (suite 6) — Raccourcis clavier et aide
+
+**Fait** : aide des raccourcis (touche **?** ou F1, bouton clavier de la barre d'outils,
+menu clic droit, rappel dans la barre d'état) avec recherche ; liste unique dans
+`editor/shortcuts.ts`. Nouveaux raccourcis : **/** (recherche de symbole, Entrée = 1er
+résultat), **Entrée** (reprendre le dernier symbole posé), **B** (barre, dernier potentiel),
+**F2** (repère / texte / n° de fil), **+ / − / 1** (zoom), **Début / Fin** (premier / dernier
+folio), **Ctrl+E** (exporter). 10 parcours e2e.
+
+**Pièges / à savoir** : toute nouvelle touche doit être ajoutée à `shortcuts.ts` (l'aide
+n'est pas générée depuis `keyDown`). Touches testées par `e.key` : fonctionne en AZERTY.
+Serveur de dev : un fichier réécrit pendant que Vite tourne (dossier OneDrive) peut être lu
+**vide** et mis en cache → navigateur : « does not provide an export named 'Editor' ».
+Remède : `touch` du fichier ou relancer `npm run dev` (le fichier sur disque est intact).
+
+---
+
+## 2026-09-29 (suite 5) — Modèles de cartouche et de page de garde
+
+**Fait** : modèles réutilisables (`model/template.ts`) : logo (image réduite, data URL),
+champs libres propres au modèle (« Lot », « Maître d'ouvrage »…, valeurs saisies par projet
+dans `meta.fields`), **cartouche en cases configurables** (texte 1 à 3 lignes avec libellé,
+taille, gras, bleu, traits ; case logo ; case n° de folio ; largeur, 0 = reste) et **page de
+garde** (bloc société à droite du logo, présentation facultative, titre, pied à 3 cases).
+Textes à champs `{affaire}`, `{plan}`, `{indice}`, `{lot}`… (menu « + champ »). Modèle
+**Standard** = rendu d'origine. Bibliothèque partagée (table `templates`, API
+`/api/templates`, page **Modèles** avec aperçus) ; choix du modèle à la création du projet
+et dans Propriétés du dossier › Modèle (appliquer, personnaliser avec aperçu, enregistrer
+dans la bibliothèque) ; chaque projet garde sa copie (`Project.template`). Rendu :
+`render/TitleBlock.svelte` + `CoverPage` pilotés par le modèle (écran et PDF). 391 tests
+unitaires + 9 parcours e2e.
+
+**Reste / suite** : faire créer par V.R le modèle Dumortier réel (logo, présentation,
+SIRET) ; éventuellement plusieurs hauteurs de cartouche.
+
+**Pièges / à savoir** : `migrateProject` reconstruit le projet champ par champ — tout
+nouveau champ de `Project` doit y être repris (le modèle était perdu à la relecture, attrapé
+par le test). Renommer un champ libre dans l'éditeur renomme sa clé et les `{clé}` des
+textes du modèle.
+
+---
+
+## 2026-09-29 (suite 4) — Folios d'implantation et de façade (phase 13)
+
+**Fait** : deux nouveaux types de folio (menu « + Folio » : Schéma / Implantation / Façade),
+`Folio.panel` en **mm réels** (`model/panel.ts`, `model/footprints.ts`), échelle normalisée
+automatique (armoire 1000 × 600 → 1:6) ou imposée. **Implantation** : armoire debout,
+goulottes + rails oméga générés (nb de rails, largeurs, hauteur de goulotte) puis outils
+Rail / Goulotte ; appareils du schéma et borniers à placer (onglet **Appareils**) au clic,
+accrochage au rail, **placement automatique** par type (protection → commande → borniers),
+rail qui emmène ses appareils, « Serrer à gauche », cotes (largeur, hauteur, chaîne des
+axes de rails), remplissage des rails ; contrôles : rail trop plein, chevauchement, hors
+armoire, appareils restant à placer. **Façade** : porte à l'échelle, grille 5 cm + axe
+horizontal (cotes ± comme le folio 12), voyants colorés / commutateurs / boutons / AU,
+étiquettes (désignation, passage à la ligne), placement auto une rangée par folio du
+schéma. Montage déduit du symbole, modifiable par appareil (`Device.mounting`).
+Double-clic sur un appareil posé → son symbole. Largeur des borniers = nb de bornes
+(recalculée à chaque modification). Même rendu écran / PDF (`render/PanelView.svelte`).
+380 tests unitaires + 7 parcours e2e.
+
+Placement auto : un rail par famille (protection / commande / borniers) s'il y a assez de
+rails, sinon à la suite ; axes de rails générés sur des multiples de 5 mm. **Exemple
+complet** (bouton « Exemple armoire complète » de l'accueil, `export/sampleArmoire.ts`) :
+distribution (IG, différentiel, prise, transfo 230/24V + renvois), chaudière, pompe,
+implantation 800 × 600, façade — aucun contrôle en alerte (test dédié).
+
+**Reste / suite** : faire valider par V.R les encombrements par défaut (`footprints.ts`)
+et l'ordre de rangement ; catalogue matériel (phase 12) pour les vraies dimensions par
+référence ; option « armoire couchée » (comme WinRelais) si demandée.
+
+**Pièges / à savoir** : les éléments d'armoire (`rail`, `duct`, `mount`) sont en mm réels,
+convertis à la volée (`panelTransform`) ; le magnétisme y est de 5 mm réels
+(`Editor.snap`). Les folios d'armoire n'ont ni symboles ni fils : l'analyse électrique ne
+les voit pas.
+
+---
+
+## 2026-09-29 (suite 3) — Thèmes d'interface clair / sombre
+
+**Fait** : 3 maquettes proposées (Marine, Atelier clair, Nuit) ; choix utilisateur =
+**Atelier clair** par défaut + **Nuit** en mode sombre. `tokens.css` réécrit (marine
+`#0b3a66`, doré `#c4921a`, coins 8 px, police Manrope), bloc sombre, sélecteur
+Clair / Sombre / Système (en-tête + barre d'outils éditeur), logo dans l'en-tête. Couleurs
+en dur restantes passées en variables (fond de modale, ombre du folio).
+
+**Reste / suite** : retours V.R sur le thème ; PDF inchangé (non concerné).
+
+**Pièges / à savoir** : les symboles sont dessinés en noir → toute vignette hors folio doit
+avoir un fond `--c-thumb-bg` / `--c-drawing-bg` pour rester lisible en sombre.
+
+---
+
+## 2026-09-29 (suite 2) — Câbles multi-conducteurs (priorité 4, demandée avant le test V.R)
+
+**Fait** : objet câble (`CableItem`, `Folio.cables`, `model/cables.ts`) posé à la souris
+(outil **Câble**, touche K) en travers des fils : conducteurs = fils coupés, dans l'ordre ;
+défaut SYT1 à paires (« CABLE SYT1 3 PAIRES », « Paire Ciel / Jaune »… comme le folio 04).
+Inspecteur : repère W1, type (liste), paires / conducteurs, section, couleurs (une paire
+par ligne), texte affiché, afficher les couleurs, longueur, « Ajuster à n fils », pivoter.
+Colonne **Câble** dans les borniers (écran, PDF, CSV), **carnet de câbles** CSV, contrôles
+(câble plein / vide / repère en double, ellipse rouge à l'écran). Copier/coller, macros,
+duplication de folio (nouveau repère). Câble W1 ajouté au projet de démonstration.
+361 tests unitaires + 6 parcours e2e.
+
+**Reste / suite** : faire valider par V.R l'ordre des couleurs SYT1 au-delà de 3 paires
+(`SYT1_PAIRS`) et la mise en page des libellés. Idée : poignées pour étirer le câble à la
+souris (aujourd'hui : champ Longueur).
+
+**Pièges / à savoir** : une autre session travaillait en parallèle (thème clair/sombre) et
+lançait aussi les e2e sur le port 4299 → échecs en cascade ; relancer seul. Le test
+« symbole maison » cliquait avant la fin de l'enregistrement serveur (course) : corrigé
+(attente de la fermeture de la fenêtre et de l'outil de pose).
+
+---
+
+## 2026-09-29 (suite) — Priorité 1 : commit + sauvegarde de la base
+
+**Fait** : premier commit git (`main`, accord de l'utilisateur). Sauvegarde automatique de
+la base (`src/lib/server/backup.ts`) : `VACUUM INTO` (copie cohérente à chaud) dans
+`backups/` à côté de la base, toutes les 24 h (vérifiée toutes les 15 min, et au démarrage
+via le hook `init`), rotation 30 copies ; réglable par `BACKUP_DIR`,
+`BACKUP_INTERVAL_HOURS` (0 = off), `BACKUP_KEEP`. Page admin **Sauvegardes** (liste,
+« Sauvegarder maintenant », téléchargement). 347 tests unitaires + 5 parcours e2e.
+
+**Reste / suite** : priorité 2 — test par le dessinateur (V.R) sur DW261136 ; priorité 3 —
+mise en service (penser à copier `data/backups/` hors du serveur).
+
+**Pièges / à savoir** : les sauvegardes sont sur le même disque que la base → elles
+protègent d'une fausse manœuvre / corruption, pas d'une panne disque. e2e : sauvegarde
+périodique désactivée (`BACKUP_INTERVAL_HOURS=0`), dossier `test-results/backups` purgé.
+
+---
+
 ## 2026-09-29 (fin de session) — Bilan et priorités
 
 **État** : V1 + symboles maison (image retouchable, bornes au clic, redimensionnement sur le

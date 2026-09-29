@@ -165,6 +165,8 @@
 		max-width: 100%;
 		height: auto;
 		flex: 1;
+		background: var(--c-thumb-bg);
+		border-radius: var(--radius-sm);
 	}
 
 	.bounds {

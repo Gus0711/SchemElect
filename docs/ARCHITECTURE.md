@@ -28,11 +28,12 @@ ADR-001 bis).
 | Type | Rôle |
 |---|---|
 | `Project` | `meta` (cartouche), `revisions`, `potentials`, `devices` (map id → Device), `folios`, `settings` |
-| `Folio` | `symbols`, `wires`, `bars`, `texts`, `rects` |
+| `Folio` | `symbols`, `wires`, `bars`, `texts`, `rects`, `cables` |
 | `Device` | appareil physique : `tag` (KM1), valeur, désignation, référence, fabricant |
 | `SymbolInstance` | symbole posé : `defId`, `deviceId`, position, rotation, miroir |
 | `Wire` | polyligne orthogonale ; `numberOverride` optionnel |
 | `Bar` | barre de potentiel horizontale |
+| `CableItem` | câble posé en travers des fils : repère (W1), axe (x, y, longueur, vertical), type, paires, couleurs, section, texte |
 | `Potential` | Phase 1, Neutre, 24V… : nom, couleur de fil, couleur de tracé |
 
 Unités : **mm**, grille de magnétisme **2,5 mm**. Folio A4 paysage, zone de dessin et
@@ -54,6 +55,14 @@ Format versionné (`schemaVersion`) ; toute lecture passe par `migrateProject`.
   NO|NC ; renvois de fil → position des autres renvois.
 - **Borniers** (`strips.ts`) : bornes de rôle `terminal` groupées par préfixe ; côté
   intérieur / extérieur = appareils câblés directement (par fils) sur la borne haute / basse.
+- **Câbles** (`cables.ts`) : un câble est une ellipse posée en travers des fils ; les fils
+  qu'elle coupe (segments perpendiculaires à son axe) sont ses conducteurs, dans l'ordre de
+  l'axe. Calculés : couleur de chaque conducteur, libellés (nom vertical à gauche, « Paire
+  Ciel / Jaune » le long du 1er fil de chaque paire, comme le folio 04), colonne « Câble »
+  des borniers (« W1 P1 Ciel », par équipotentielle), carnet de câbles CSV, contrôles
+  (câble plein, câble vide, repère en double). Types prédéfinis (`CABLE_TYPES`) : SYT1
+  (paires ; 3 premières d'après l'exemple, suivantes à valider), U1000 R2V / H07RN-F (code
+  couleur normalisé), LiYCY, numéroté. Outil **Câble** (K) : glisser en travers des fils.
 - **Contacts disponibles** (`Device.contacts`, `crossrefs.ts`) : un master déclare ses contacts
   NO/NC ; dépassement signalé (tableau en rouge à l'écran, jamais dans le PDF, + Contrôles).
 - **Alignement** (`edit.ts` : `alignItems`, `distributeItems`) : référence = premier
@@ -85,6 +94,39 @@ enregistrés à l'exécution (`registerCustomSymbols`) et **recopiés dans le pr
 et macros transportent aussi les définitions). Bornes homonymes (deux « 0V ») : id unique
 `0V#2`, libellé `0V`.
 
+## 4 bis. Implantation et façade (`model/panel.ts`, `model/footprints.ts`)
+
+Un folio d'armoire porte `Folio.panel` (`kind` : `implantation` | `facade`) : enveloppe
+L × H × P, rails (axe + longueur), goulottes (emprise + hauteur), éléments posés
+(`PanelItem` : appareil du schéma ou bornier, centre + encombrement). Tout est en **mm
+réels** ; `panelTransform` calcule l'échelle normalisée (auto ou imposée) et la position
+sur la page. Déduit : rail porteur (`railOf`), remplissage, chevauchements, appareils à
+placer (`panelCandidates`), largeur des borniers (`syncPanels`, appelé dans `transact`),
+alertes (`panelIssues`). Encombrement / montage par défaut par symbole
+(`footprints.ts`), montage modifiable par appareil (`Device.mounting`). Placement
+automatique (`autoPlace`) : rails par type d'appareil ; façade une rangée par folio.
+Rendu : `render/PanelView.svelte` (écran et PDF). Éditeur : outils Rail / Goulotte /
+pose d'appareil, onglet **Appareils** (`PanelDevices`), `PanelInspector`, magnétisme 5 mm
+réels (`Editor.snap`).
+
+## 4 ter. Cartouche et page de garde (`model/template.ts`)
+
+`DocTemplate` : logo (data URL), champs libres (`fields`, valeurs dans `meta.fields`),
+cartouche = cases (`text` à lignes, `logo`, `folio` ; largeur 0 = reste), page de garde =
+blocs société / présentation / titre / pied (3 cases). Les textes contiennent des champs
+`{clé}` résolus par `fillText` (projet, folio, champs libres). `projectTemplate(project)`
+= copie du projet ou modèle Standard (rendu d'origine). Rendu : `render/TitleBlock.svelte`
+(dans `FolioFrame`) et `CoverPage`. Bibliothèque : table `templates`, `server/templates.ts`,
+API `/api/templates`, page `/modeles` ; édition : `TemplateEditor` (aperçu en direct),
+onglet Modèle des propriétés du dossier, choix à la création du projet.
+
+## 4 quater. Folio borniers (`model/stripDrawing.ts`)
+
+`Folio.strips = { prefixes }` (vide = tous) : folio sans symboles, dessiné à partir de
+`projectStrips` (`render/StripDrawing.svelte`). Mise en page en bandeaux (`layoutStripPages`),
+un folio = une page ; série = folios borniers de même filtre (`stripFolioPage`,
+`stripSeriesIssues`). Double-clic : `stripTerminalAt` → `goToSymbol`.
+
 ## 5. Éditeur (`src/lib/editor/`)
 
 - `editor.svelte.ts` — `Editor` : projet réactif, folio courant, sélection, outil,
@@ -97,9 +139,12 @@ et macros transportent aussi les définitions). Bornes homonymes (deux « 0V »)
   Macros), `Canvas`, `Inspector`, `ChecksPanel`, `ProjectDialog`, `StripsDialog`,
   `StatusBar`.
 
-Raccourcis : S sélection, W fil, T texte, C cadre, R pivoter, X miroir, Suppr, Ctrl+Z/Y,
-Ctrl+C/X/V/D/A, flèches (Maj ×4), PgPréc/PgSuiv folios, F page entière, G grille,
-Espace (pendant un fil : inverser le coude ; sinon : déplacer la vue), Ctrl+S.
+Raccourcis : liste complète dans `shortcuts.ts`, affichée par l'aide (**?** / F1,
+`ShortcutsDialog`). Principaux : S sélection, W fil, B barre, K câble, T texte, C cadre,
+/ recherche de symbole, Entrée reprendre le dernier symbole, R pivoter, X miroir, F2 modifier,
+Suppr, Ctrl+Z/Y, Ctrl+C/X/V/D/A, flèches (Maj ×4), PgPréc/PgSuiv et Début/Fin folios,
+F page entière, + / − / 1 zoom, G grille, Espace (fil : inverser le coude ; sinon : déplacer
+la vue), Ctrl+S, Ctrl+E exporter.
 Clic droit : menu contextuel (`contextMenu.ts`, composant générique `ui/ContextMenu.svelte`) ;
 clic droit glissé ou bouton du milieu : déplacer la vue ; pendant un fil : terminer.
 Navigation (`crossTargets` dans `crossrefs.ts`, `Editor.goToSymbol`) : double-clic sur un
@@ -111,6 +156,11 @@ SQLite (libSQL) + Drizzle, tables créées au démarrage. Auth maison (Argon2id,
 hachées). Verrou d'édition par projet (expire après 2 min sans heartbeat). API JSON :
 projets (GET/PUT), verrou, macros. Client typé : `src/lib/api/client.ts`.
 
+Sauvegarde automatique (`backup.ts`, démarrée par le hook `init` de `hooks.server.ts`) :
+copie cohérente `VACUUM INTO` dans `backups/` à côté de la base (ou `BACKUP_DIR`), toutes les
+`BACKUP_INTERVAL_HOURS` h (défaut 24, 0 = désactivé), `BACKUP_KEEP` conservées (défaut 30).
+Page admin `/admin/sauvegardes` : liste, « Sauvegarder maintenant », téléchargement.
+
 ## 7. Export (`src/lib/export/`)
 
 PDF (jsPDF + svg2pdf.js) à partir des MÊMES composants SVG : page de garde, folios,
@@ -121,5 +171,12 @@ borniers. CSV (`;`, BOM UTF-8) : borniers, appareils, fils.
 - Interface : **uniquement** les variables de `src/lib/styles/tokens.css` et le kit
   `src/lib/ui/` (Button, Field, Modal, Panel, Card…). Changer le design = modifier ces deux
   endroits.
+- Deux thèmes aux couleurs Dumortier (marine + doré) : **clair « Atelier »** (défaut, bloc
+  `:root`) et **sombre « Nuit »** (bloc `:root[data-theme='dark']`). Choix Clair / Sombre /
+  Système par poste (`localStorage`), bouton `ThemeToggle` dans l'en-tête et la barre
+  d'outils de l'éditeur ; `src/lib/ui/theme.svelte.ts` + script anti-flash dans
+  `src/app.html`. Police d'interface : Manrope (`@fontsource-variable/manrope`, servie
+  localement). Les folios restent blancs dans les deux thèmes ; les vignettes de symboles
+  ont un fond papier en sombre (`--c-thumb-bg`, `--c-drawing-bg`).
 - Schémas : **uniquement** `src/lib/theme/schematic.ts` (traits, couleurs, polices, tailles
   de texte, `signalColors` des voyants) — utilisé à l'écran et dans le PDF.

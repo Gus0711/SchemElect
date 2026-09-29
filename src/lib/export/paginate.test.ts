@@ -96,6 +96,7 @@ describe('paginateStrips', () => {
 		wire: String(i).padStart(2, '0'),
 		inside,
 		outside: [],
+		cable: [],
 		position: '01 - B',
 		designation: ''
 	});

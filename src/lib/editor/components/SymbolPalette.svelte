@@ -10,6 +10,17 @@
 	let { editor }: { editor: Editor } = $props();
 
 	let query = $state('');
+	let searchInput: HTMLInputElement | undefined = $state();
+
+	// Touche / : focus sur la recherche.
+	$effect(() => {
+		const req = editor.focusRequest;
+		if (req?.field !== 'symbolSearch') return;
+		queueMicrotask(() => {
+			searchInput?.focus();
+			searchInput?.select();
+		});
+	});
 
 	const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
@@ -59,7 +70,19 @@
 	<div class="top">
 		<label class="search">
 			<Search size={14} />
-			<input placeholder="Rechercher (disjoncteur, KM, voyant…)" bind:value={query} />
+			<input
+				bind:this={searchInput}
+				placeholder="Rechercher (disjoncteur, KM, voyant…) — touche /"
+				bind:value={query}
+				onkeydown={(e) => {
+					// Entrée : poser le premier symbole trouvé ; Échap : revenir au folio.
+					if (e.key === 'Enter' && groups[0]?.items[0]) {
+						pick(groups[0].items[0].id);
+						e.currentTarget.blur();
+					}
+					if (e.key === 'Escape') e.currentTarget.blur();
+				}}
+			/>
 		</label>
 		<Button
 			size="sm"

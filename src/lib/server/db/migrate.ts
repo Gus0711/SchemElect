@@ -47,6 +47,15 @@ CREATE TABLE IF NOT EXISTS custom_symbols (
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS templates (
+	id TEXT PRIMARY KEY NOT NULL,
+	name TEXT NOT NULL,
+	data TEXT NOT NULL,
+	created_by TEXT,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);
 `;
 
 export async function runMigrations(client: Client): Promise<void> {

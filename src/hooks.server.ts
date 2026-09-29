@@ -1,4 +1,6 @@
-import { json, redirect, type Handle } from '@sveltejs/kit';
+import { building } from '$app/environment';
+import { json, redirect, type Handle, type ServerInit } from '@sveltejs/kit';
+import { startBackupSchedule } from '$lib/server/backup';
 import {
 	SESSION_COOKIE,
 	deleteSessionCookie,
@@ -17,6 +19,11 @@ function isAsset(path: string): boolean {
 		path === '/robots.txt'
 	);
 }
+
+/** Au démarrage du serveur : sauvegarde automatique de la base (voir `backup.ts`). */
+export const init: ServerInit = () => {
+	if (!building) startBackupSchedule();
+};
 
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.user = null;

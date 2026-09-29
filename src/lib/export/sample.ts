@@ -4,13 +4,14 @@
  * et de projet d'exemple.
  *
  * Folio 01 « CHAUDIERE 1 » : barres Phase 1 / Neutre / 24V / 0V, contact KM1 → borne P1 →
- * voyant chaudière H1 → P2 → Neutre ; commande : C1 → contact KA1 → bobine KM1, contact KM1
+ * voyant chaudière H1 → P2 → Neutre (câble W1 U1000 R2V 2X1,5) ; commande : C1 → contact KA1 → bobine KM1, contact KM1
  * → voyant H2 « Marche », renvoi R1 vers le folio 02.
  * Folio 02 « COMMANDE CHAUFFE » : C2 → contact KM1 → bobine KA1 ; arrivée du renvoi R1 →
  * voyant H3 « Demande chauffe ».
  */
 import {
 	addBar,
+	addCable,
 	addFolio,
 	addRect,
 	addSymbol,
@@ -62,17 +63,20 @@ export function buildSampleProject(): Project {
 	const km1Power = addSymbol(project, f1, 'contact-no', p(50, 45));
 	const p1 = addSymbol(project, f1, 'borne-p', p(50, 80));
 	const p2 = addSymbol(project, f1, 'borne-p', p(30, 80));
-	addSymbol(project, f1, 'voyant', p(50, 95)); // H1 : voyant de la chaudière (externe)
+	addSymbol(project, f1, 'voyant', p(50, 110)); // H1 : voyant de la chaudière (externe)
 	addWire(f1, [p(50, 22.5), p(50, 45)]);
 	addWire(f1, [p(50, 60), p(50, 80)]);
-	addWire(f1, [p(50, 85), p(50, 95)]);
-	addWire(f1, [p(50, 110), p(50, 117.5), p(30, 117.5), p(30, 85)]);
+	addWire(f1, [p(50, 85), p(50, 110)]);
+	addWire(f1, [p(50, 125), p(50, 132.5), p(30, 132.5), p(30, 85)]);
 	addWire(f1, [p(30, 30), p(30, 80)]);
 	// Équipement externe (cadre pointillé, comme la chaudière de l'exemple)
-	addRect(f1, { x: 22.5, y: 92.5, w: 65, h: 32.5 });
-	const boxTitle = addText(f1, p(62.5, 110), 'CHAUDIERE 1', 2.6);
+	addRect(f1, { x: 22.5, y: 102.5, w: 65, h: 37.5 });
+	const boxTitle = addText(f1, p(62.5, 125), 'CHAUDIERE 1', 2.6);
 	boxTitle.bold = true;
 	boxTitle.color = schematic.color.reference;
+	// Câble d'alimentation de la chaudière : coupe les fils de P2 (Bleu) et P1 (Marron).
+	const w1 = addCable(project, f1, p(25, 92.5), p(55, 92.5), 'U1000 R2V');
+	w1.section = '1,5';
 
 	// Commande : 24V → C1 → KA1 → KM1 (A1-A2) → 0V
 	const c1 = addSymbol(project, f1, 'borne-c', p(180, 45));

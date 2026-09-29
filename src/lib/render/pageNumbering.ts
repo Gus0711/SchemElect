@@ -14,3 +14,10 @@ export interface PageNumbering {
 export function pageNumberingContext(n: PageNumbering): Map<symbol, PageNumbering> {
 	return new Map([[PAGE_NUMBERING, n]]);
 }
+
+/** Grille imprimée sur les folios (option d'export). */
+export interface PrintGrid {
+	kind: 'points' | 'quadrillage' | 'cases';
+	step: number;
+	opacity: number;
+}

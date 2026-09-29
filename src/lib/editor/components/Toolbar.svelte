@@ -1,15 +1,18 @@
 <script lang="ts">
-	import { Button } from '$lib/ui';
+	import { Button, ThemeToggle } from '$lib/ui';
 	import {
 		ArrowLeft,
 		Cable,
 		Check,
+		Ellipse,
 		FileDown,
 		LoaderCircle,
 		Lock,
 		Maximize,
 		Minus,
 		MousePointer2,
+		RectangleVertical,
+		SeparatorHorizontal,
 		Redo2,
 		Settings,
 		Spline,
@@ -39,7 +42,6 @@
 
 	const tool = $derived(editor.tool.kind);
 	const vp = $derived(editor.viewport);
-	let barPotential = $state('L1');
 
 	const statusText = $derived(
 		{
@@ -100,14 +102,16 @@
 			title="Sélection (S)"
 			onclick={() => editor.setTool({ kind: 'select' })}><MousePointer2 size={16} /></Button
 		>
-		<Button
-			variant="ghost"
-			size="sm"
-			active={tool === 'wire'}
-			title="Fil (W) — Espace : inverser le coude, Entrée : terminer"
-			onclick={() => editor.setTool({ kind: 'wire' })}
-			disabled={editor.readonly}><Spline size={16} /> Fil</Button
-		>
+		{#if !editor.panel && !editor.stripsFolio}
+			<Button
+				variant="ghost"
+				size="sm"
+				active={tool === 'wire'}
+				title="Fil (W) — Espace : inverser le coude, Entrée : terminer"
+				onclick={() => editor.setTool({ kind: 'wire' })}
+				disabled={editor.readonly}><Spline size={16} /> Fil</Button
+			>
+		{/if}
 		<Button
 			variant="ghost"
 			size="sm"
@@ -124,24 +128,53 @@
 			onclick={() => editor.setTool({ kind: 'rect' })}
 			disabled={editor.readonly}><Square size={16} /></Button
 		>
-		<div class="bar-tool">
+		{#if editor.panel}
+			{#if editor.panel.kind === 'implantation'}
+				<Button
+					variant="ghost"
+					size="sm"
+					active={tool === 'rail'}
+					title="Rail oméga — clic : entre les goulottes ; glisser : longueur libre"
+					onclick={() => editor.setTool({ kind: 'rail' })}
+					disabled={editor.readonly}><SeparatorHorizontal size={16} /> Rail</Button
+				>
+				<Button
+					variant="ghost"
+					size="sm"
+					active={tool === 'duct'}
+					title="Goulotte — glisser un rectangle"
+					onclick={() => editor.setTool({ kind: 'duct' })}
+					disabled={editor.readonly}><RectangleVertical size={16} /> Goulotte</Button
+				>
+			{/if}
+		{:else if !editor.stripsFolio}
 			<Button
 				variant="ghost"
 				size="sm"
-				active={tool === 'bar'}
-				title="Barre de potentiel"
-				onclick={() => editor.setTool({ kind: 'bar', potentialId: barPotential })}
-				disabled={editor.readonly}><Minus size={16} /> Barre</Button
+				active={tool === 'cable'}
+				title="Câble (K) — glisser en travers des fils à regrouper"
+				onclick={() => editor.setTool({ kind: 'cable' })}
+				disabled={editor.readonly}><Ellipse size={16} /> Câble</Button
 			>
-			<select
-				bind:value={barPotential}
-				title="Potentiel de la barre"
-				disabled={editor.readonly}
-				onchange={() => editor.setTool({ kind: 'bar', potentialId: barPotential })}
-			>
-				{#each editor.project.potentials as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
-			</select>
-		</div>
+			<div class="bar-tool">
+				<Button
+					variant="ghost"
+					size="sm"
+					active={tool === 'bar'}
+					title="Barre de potentiel (B)"
+					onclick={() => editor.setTool({ kind: 'bar', potentialId: editor.barPotential })}
+					disabled={editor.readonly}><Minus size={16} /> Barre</Button
+				>
+				<select
+					bind:value={editor.barPotential}
+					title="Potentiel de la barre"
+					disabled={editor.readonly}
+					onchange={() => editor.setTool({ kind: 'bar', potentialId: editor.barPotential })}
+				>
+					{#each editor.project.potentials as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+				</select>
+			</div>
+		{/if}
 	</div>
 
 	<div class="spacer"></div>
@@ -166,6 +199,7 @@
 	<Button variant="ghost" size="sm" title="Borniers" onclick={onstrips}
 		><Cable size={16} /> Borniers</Button
 	>
+	<ThemeToggle size="sm" />
 	<Button variant="ghost" size="sm" title="Propriétés du dossier" onclick={onproject}
 		><Settings size={16} /></Button
 	>

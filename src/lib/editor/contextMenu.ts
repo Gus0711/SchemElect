@@ -1,6 +1,7 @@
 /** Contenu du menu contextuel selon l'élément visé (clic droit). */
 import { crossTargets } from '$lib/model/crossrefs';
 import { addText, detachSymbol, symbolsOfDevice } from '$lib/model/edit';
+import { packRail } from '$lib/model/panel';
 import type { ItemRef, Point } from '$lib/model/types';
 import type { MenuEntry } from '$lib/ui';
 import type { Editor } from './editor.svelte';
@@ -28,14 +29,25 @@ export function buildContextMenu(editor: Editor, ref: ItemRef | null, at: Point)
 					editor.requestFocus('text');
 				}
 			},
-			{
-				label: 'Tracer un fil',
-				shortcut: 'W',
-				disabled: ro,
-				action: () => editor.setTool({ kind: 'wire' })
-			},
+			editor.panel
+				? {
+						label: 'Placer automatiquement les appareils',
+						disabled: ro,
+						action: () => editor.autoPlace()
+					}
+				: {
+						label: 'Tracer un fil',
+						shortcut: 'W',
+						disabled: ro,
+						action: () => editor.setTool({ kind: 'wire' })
+					},
 			SEP,
-			{ label: 'Page entière', shortcut: 'F', action: () => editor.viewport.fit() }
+			{ label: 'Page entière', shortcut: 'F', action: () => editor.viewport.fit() },
+			{
+				label: 'Raccourcis clavier',
+				shortcut: '?',
+				action: () => (editor.shortcutsOpen = true)
+			}
 		];
 	}
 
@@ -108,6 +120,36 @@ export function buildContextMenu(editor: Editor, ref: ItemRef | null, at: Point)
 		];
 	}
 
+	if (ref.kind === 'mount' && !multi) {
+		const item = editor.panel?.items.find((i) => i.id === ref.id);
+		const s = item?.deviceId ? symbolsOfDevice(editor.project, item.deviceId)[0] : undefined;
+		return [
+			{
+				label: 'Voir dans le schéma',
+				shortcut: 'Double-clic',
+				disabled: !s,
+				action: () => s && editor.goToSymbol(s.id)
+			},
+			SEP,
+			remove
+		];
+	}
+
+	if (ref.kind === 'rail' && !multi) {
+		return [
+			{
+				label: 'Serrer les appareils à gauche',
+				disabled: ro,
+				action: () =>
+					editor.transact('Serrer le rail', (_, f) => f.panel && packRail(f.panel, ref.id))
+			},
+			SEP,
+			remove
+		];
+	}
+
+	if (ref.kind === 'duct' && !multi) return [remove];
+
 	if (ref.kind === 'wire' && !multi) {
 		return [
 			{
@@ -134,7 +176,7 @@ export function buildContextMenu(editor: Editor, ref: ItemRef | null, at: Point)
 	}
 
 	return [
-		...(sel.some((r) => r.kind === 'symbol' || r.kind === 'text')
+		...(sel.some((r) => r.kind === 'symbol' || r.kind === 'text' || r.kind === 'cable')
 			? [{ label: 'Pivoter', shortcut: 'R', disabled: ro, action: () => editor.rotate() }, SEP]
 			: []),
 		...edition,

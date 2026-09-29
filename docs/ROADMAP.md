@@ -9,15 +9,16 @@ La V1 est codée ; l'ordre ci-dessous prime sur la numérotation des phases.
 
 | # | Priorité | Sujet | Pourquoi |
 |---|---|---|---|
-| 1 | 🔴 | Premier commit git + sauvegarde automatique de la base | Rien n'est commité ; aucune sauvegarde des projets / comptes / symboles |
+| 1 | ✅ | Premier commit git + sauvegarde automatique de la base | Fait le 2026-09-29 (commit initial, `backup.ts`, page Sauvegardes) |
 | 2 | 🔴 | Test par le dessinateur sur DW261136 (jalon V1) | Ses retours réordonnent tout le reste |
 | 3 | 🔴 | Mise en service serveur interne (Docker, ORIGIN, HTTPS, backup `data/`) | Jamais déployé en réel |
-| 4 | 🟠 | Câbles multi-conducteurs (phase 9) | Présents dans l'exemple (folio 04) |
+| 4 | ✅ | Câbles multi-conducteurs (phase 9) | Fait le 2026-09-29 — couleurs SYT1 > 3 paires à valider |
 | 5 | 🟡 | Panneau « Appareils » + recherche dans le dossier | Gain de temps quotidien |
 | 6 | 🟠 | Catalogue matériel + nomenclature PDF (phase 12) | Référence → fabricant, nb de contacts |
-| 7 | 🟠 | Implantation / façade (phase 13) | Folios 11-12 de l'exemple |
+| 7 | ✅ | Implantation / façade (phase 13) | Fait le 2026-09-29 — encombrements à valider par V.R |
 | 8 | 🟠 | Historique par indice de révision | Ressortir le PDF d'un indice, voir les écarts |
-| 9 | 🟡 | Récupération locale (coupure réseau), cartouche personnalisable, import `.xrs` | Confort / reprise de l'existant |
+| 9 | 🟡 | Récupération locale (coupure réseau), import `.xrs` — cartouche / page de garde personnalisables : ✅ 2026-09-29 | Confort / reprise de l'existant |
+| — | ✅ | Hors liste, faits le 2026-09-29 : folio borniers automatique (dessin), grille réglable et imprimable, raccourcis clavier + aide (?), exemple « armoire complète » | Demandes en cours de session |
 
 **Rituel de session** :
 1. Lire `CLAUDE.md`, la phase en cours ci-dessous et la dernière entrée de `docs/JOURNAL.md`.
@@ -183,7 +184,7 @@ duplication du 02.
 
 ---
 
-## Phase 9 — Borniers et câbles 🟡 (borniers ✅ ; câbles et étages à faire)
+## Phase 9 — Borniers et câbles 🟡 (borniers ✅ ; folio borniers dessiné ✅ ; câbles ✅ ; étages à faire)
 
 1. Borniers (P, C, X…) : numérotation auto des bornes, ordre, étages.
 2. Câbles : regrouper des conducteurs, nom, type, couleurs.
@@ -228,7 +229,7 @@ les transformer en tâches avant de continuer.
 
 ---
 
-## Phase 13 — Implantation et façade ⬜
+## Phase 13 — Implantation et façade ✅ (2026-09-29, voir JOURNAL)
 
 Folio à l'échelle (armoire, rails, goulottes), placement des appareils du schéma, contrôle
 de remplissage des rails ; folio façade (voyants, commutateurs, cotes).

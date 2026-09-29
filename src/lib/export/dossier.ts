@@ -11,11 +11,14 @@
 import { projectStrips, type ProjectAnalysis } from '$lib/model/analysis';
 import { folioNumber } from '$lib/model/layout';
 import type { Project, ProjectMeta } from '$lib/model/types';
+import type { PrintGrid } from '$lib/render/pageNumbering';
 import { paginateStrips, type StripPage } from './stripsTable';
 
 export interface ExportOptions {
 	cover?: boolean;
 	strips?: boolean;
+	/** Grille imprimée sur les folios (absente = pas de grille). */
+	grid?: PrintGrid | null;
 }
 
 export interface CoverEntry {

@@ -5,29 +5,36 @@
  * Le style des schémas eux-mêmes est dans src/lib/theme/schematic.ts.
  */
 :root {
-	/* Couleurs */
-	--c-bg: #f3f4f6;
+	/* Couleurs — thème clair « Atelier » (défaut) */
+	--c-bg: #f7f7f5;
 	--c-surface: #ffffff;
-	--c-surface-2: #f8f9fb;
-	--c-border: #dfe3e8;
-	--c-border-strong: #c3cad3;
-	--c-text: #1c2430;
-	--c-text-muted: #667085;
-	--c-primary: #1f5eff;
-	--c-primary-hover: #1848c9;
-	--c-primary-soft: #e6eeff;
+	--c-surface-2: #f4f4f1;
+	--c-border: #e4e4df;
+	--c-border-strong: #cdcdc6;
+	--c-text: #0b2a4a;
+	--c-text-muted: #6b7785;
+	--c-primary: #0b3a66;
+	--c-primary-hover: #082c4f;
+	--c-primary-soft: #f3ecdb;
 	--c-on-primary: #ffffff;
-	--c-danger: #d92d20;
-	--c-danger-soft: #fdecea;
-	--c-success: #12a150;
-	--c-warning: #f79009;
-	--c-canvas: #d9dde3;
-	--c-selection: #1f5eff;
-	--c-selection-fill: rgba(31, 94, 255, 0.08);
-	--c-hover: rgba(31, 94, 255, 0.45);
+	--c-accent: #c4921a;
+	--c-danger: #c8321f;
+	--c-danger-soft: #fbece9;
+	--c-success: #16894a;
+	--c-warning: #d98a0b;
+	--c-canvas: #ebebe7;
+	--c-selection: #0b3a66;
+	--c-selection-fill: rgba(11, 58, 102, 0.07);
+	--c-hover: rgba(11, 58, 102, 0.45);
+	--c-backdrop: rgba(11, 20, 32, 0.35);
+	--c-page-shadow: rgba(0, 0, 0, 0.18);
+	/* Fond des vignettes de symboles (traits noirs) : papier en thème sombre. */
+	--c-thumb-bg: transparent;
+	/* Zone de dessin des symboles maison (traits noirs). */
+	--c-drawing-bg: #f4f4f1;
 
 	/* Typographie */
-	--font-ui: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+	--font-ui: 'Manrope Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
 	--fs-xs: 11px;
 	--fs-sm: 12px;
 	--fs-md: 13px;
@@ -45,15 +52,50 @@
 	--sp-6: 32px;
 
 	/* Formes */
-	--radius-sm: 4px;
-	--radius: 6px;
-	--radius-lg: 10px;
-	--shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
-	--shadow: 0 4px 16px rgba(16, 24, 40, 0.12);
+	--radius-sm: 5px;
+	--radius: 8px;
+	--radius-lg: 12px;
+	--shadow-sm: 0 1px 2px rgba(11, 42, 74, 0.06);
+	--shadow: 0 8px 28px rgba(11, 42, 74, 0.12);
 
 	/* Dimensions de l'éditeur */
 	--topbar-h: 48px;
 	--sidebar-w: 260px;
 	--inspector-w: 280px;
 	--control-h: 30px;
+	color-scheme: light;
+}
+
+/*
+ * Thème sombre « Nuit » : activé par data-theme="dark" sur <html>
+ * (choix de l'utilisateur, voir src/lib/ui/theme.svelte.ts). Les folios restent blancs.
+ */
+:root[data-theme='dark'] {
+	--c-bg: #0f1620;
+	--c-surface: #151e2a;
+	--c-surface-2: #1b2635;
+	--c-border: #243244;
+	--c-border-strong: #34475d;
+	--c-text: #dbe3ec;
+	--c-text-muted: #8595a8;
+	--c-primary: #d6a638;
+	--c-primary-hover: #e3b64d;
+	--c-primary-soft: #2b2718;
+	--c-on-primary: #1a1203;
+	--c-accent: #d6a638;
+	--c-danger: #f0645a;
+	--c-danger-soft: #3a1d1d;
+	--c-success: #3cc27a;
+	--c-warning: #f0a93a;
+	--c-canvas: #0a1017;
+	--c-selection: #e0b040;
+	--c-selection-fill: rgba(224, 176, 64, 0.12);
+	--c-hover: rgba(224, 176, 64, 0.5);
+	--c-backdrop: rgba(0, 0, 0, 0.55);
+	--c-page-shadow: rgba(0, 0, 0, 0.6);
+	--c-thumb-bg: #e6eaef;
+	--c-drawing-bg: #e6eaef;
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+	--shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+	color-scheme: dark;
 }

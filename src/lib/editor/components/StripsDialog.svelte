@@ -23,9 +23,9 @@
 		<table>
 			<thead>
 				<tr
-					><th>Borne</th><th>Fil</th><th>Intérieur</th><th>Extérieur</th><th>Position</th><th
-						>Désignation</th
-					></tr
+					><th>Borne</th><th>Fil</th><th>Intérieur</th><th>Extérieur</th><th>Câble</th><th
+						>Position</th
+					><th>Désignation</th></tr
 				>
 			</thead>
 			<tbody>
@@ -35,6 +35,7 @@
 						<td>{r.wire}</td>
 						<td>{r.inside.join(', ')}</td>
 						<td>{r.outside.join(', ')}</td>
+						<td>{r.cable.join(', ')}</td>
 						<td>{r.position}</td>
 						<td>{r.designation}</td>
 					</tr>

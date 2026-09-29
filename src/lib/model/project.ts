@@ -1,5 +1,6 @@
 import { deepClone, newId } from './ids';
 import { AREA } from './layout';
+import { normalizeTemplate } from './template';
 import { SCHEMA_VERSION, type Bar, type Folio, type Potential, type Project } from './types';
 
 /** Potentiels usuels d'une armoire GTB (repris de l'exemple WinRelais). */
@@ -16,7 +17,16 @@ export function defaultPotentials(): Potential[] {
 }
 
 export function createFolio(title = 'Nouveau folio'): Folio {
-	return { id: newId('f'), title, symbols: [], wires: [], bars: [], texts: [], rects: [] };
+	return {
+		id: newId('f'),
+		title,
+		symbols: [],
+		wires: [],
+		bars: [],
+		texts: [],
+		rects: [],
+		cables: []
+	};
 }
 
 export function createBar(potentialId: string, y: number): Bar {
@@ -64,10 +74,22 @@ export function migrateProject(raw: unknown): Project {
 		devices: p.devices ?? {},
 		folios: (p.folios?.length ? p.folios : base.folios).map((f) => ({
 			...createFolio(f.title),
-			...f
+			...f,
+			...(f.panel
+				? {
+						panel: {
+							...f.panel,
+							rails: f.panel.rails ?? [],
+							ducts: f.panel.ducts ?? [],
+							items: f.panel.items ?? []
+						}
+					}
+				: {})
 		})),
 		settings: { ...base.settings, ...(p.settings ?? {}) },
 		customSymbols: p.customSymbols ?? {}
 	};
+	const template = p.template ? normalizeTemplate(p.template) : null;
+	if (template) project.template = template;
 	return project;
 }

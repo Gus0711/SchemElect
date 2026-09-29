@@ -318,6 +318,9 @@ test('symbole maison depuis une image de documentation', async ({ page }) => {
 	await page.mouse.up();
 	expect(Number(await last.locator('input[type=number]').nth(0).inputValue())).toBeCloseTo(45.5, 0);
 	await page.getByRole('button', { name: 'Enregistrer dans la bibliothèque' }).click();
+	// Enregistrement côté serveur : attendre la fermeture de la fenêtre et l'outil de pose.
+	await expect(page.getByRole('button', { name: 'Enregistrer dans la bibliothèque' })).toBeHidden();
+	await expect.poll(() => evalEditor<string>(page, 'editor.tool.kind')).toBe('place');
 
 	// Le symbole est prêt à être posé
 	await clickAt(page, { x: 150, y: 60 });
@@ -373,4 +376,458 @@ test('symbole maison depuis une image de documentation', async ({ page }) => {
 	const download = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
 	await (await download).saveAs('test-results/export-custom.pdf');
+});
+
+test('câble multi-conducteurs tracé en travers des fils', async ({ page }) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: /Nouveau projet/ }).click();
+	await page.getByLabel('Nom du projet').fill('Pompes ECS');
+	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await expect(page.locator('.status.saved')).toBeVisible();
+
+	// Six fils verticaux (comme C3…C8 du folio 04 de l'exemple)
+	await evalEditor(
+		page,
+		`editor.transact('fils', (_, f) => [60, 70, 80, 90, 100, 110].forEach((x, i) =>
+			f.wires.push({ id: 'wc' + i, points: [{ x, y: 110 }, { x, y: 170 }] })))`
+	);
+
+	// Outil câble : glisser en travers des six fils
+	await page.getByRole('button', { name: /Câble/ }).first().click();
+	const a = await toScreen(page, { x: 55, y: 150 });
+	const b = await toScreen(page, { x: 115, y: 150 });
+	await page.mouse.move(a.x, a.y);
+	await page.mouse.down();
+	await page.mouse.move(b.x, b.y, { steps: 8 });
+	await page.mouse.up();
+
+	const cable = await evalEditor<{ tag: string; colors: string[]; pairs: boolean }>(
+		page,
+		'JSON.parse(JSON.stringify(editor.folio.cables[0]))'
+	);
+	expect(cable.tag).toBe('W1');
+	expect(cable.pairs).toBe(true);
+	expect(cable.colors).toHaveLength(6);
+	await expect(page.locator('.inspector')).toContainText('6 fils coupés');
+	await expect(page.locator('.canvas')).toContainText('CABLE SYT1 3 PAIRES');
+	await expect(page.locator('.canvas')).toContainText('Paire Ciel / Jaune');
+
+	// Passage en câble d'énergie depuis l'inspecteur
+	const type = page.locator('.inspector').getByLabel('Type');
+	await type.fill('U1000 R2V');
+	await type.press('Enter');
+	await type.blur();
+	await expect(page.locator('.canvas')).toContainText('CABLE U1000 R2V 6G');
+	await expect(page.locator('.canvas')).toContainText('Vert/Jaune');
+	await page.keyboard.press('Control+z');
+	await expect(page.locator('.canvas')).toContainText('CABLE SYT1 3 PAIRES');
+	await page.screenshot({ path: 'test-results/cable.png' });
+});
+
+test('sauvegarde manuelle de la base et téléchargement', async ({ page }) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.waitForLoadState('networkidle');
+
+	await page.getByRole('link', { name: /Sauvegardes/ }).click();
+	await expect(page).toHaveURL(/\/admin\/sauvegardes/);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: /Sauvegarder maintenant/ }).click();
+	await expect(page.getByText(/Sauvegarde schemelect-.* créée/)).toBeVisible();
+	await expect(page.locator('tbody tr')).toHaveCount(1);
+
+	const download = page.waitForEvent('download');
+	await page.getByTitle('Télécharger').click();
+	const file = await download;
+	expect(file.suggestedFilename()).toMatch(/^schemelect-.*Z\.db$/);
+});
+
+test('folios d’implantation et de façade : placement automatique et à la main', async ({
+	page
+}) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Projet de démonstration' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+
+	// Nouveau folio d'implantation (après le dernier folio)
+	await page.getByRole('button', { name: 'Folios', exact: true }).click();
+	const last = await evalEditor<number>(page, 'editor.project.folios.length');
+	await evalEditor(page, `editor.setFolio(editor.project.folios[${last - 1}].id)`);
+	await page.getByRole('button', { name: /^Folio$/ }).click();
+	await page.getByRole('menuitem', { name: /implantation/ }).click();
+	expect(await evalEditor<string>(page, 'editor.folio.panel.kind')).toBe('implantation');
+	expect(await evalEditor<number>(page, 'editor.folio.panel.rails.length')).toBe(4);
+
+	// Onglet « Appareils » : placement automatique
+	await page.getByRole('button', { name: 'Appareils', exact: true }).click();
+	await page.getByRole('button', { name: /Placer automatiquement/ }).click();
+	const placed = await evalEditor<number>(page, 'editor.folio.panel.items.length');
+	expect(placed).toBeGreaterThan(2);
+	await expect(page.getByText(/Tout est posé/)).toBeVisible();
+	await page.screenshot({ path: 'test-results/implantation.png' });
+
+	// Glisser un appareil de 50 mm vers la droite et 10 mm plus bas : il reste accroché au rail.
+	const before = await evalEditor<{ id: string; x: number; y: number; scale: number }>(
+		page,
+		`(() => { const f = editor.folio; const it = f.panel.items.find((i) => i.deviceId);
+			editor.goToMount(f.id, it.id);
+			return { id: it.id, x: it.x, y: it.y, scale: editor.viewport.scale }; })()`
+	);
+	const box = (await page.locator('.canvas svg').boundingBox())!;
+	const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+	// Armoire 1000 × 600 : échelle 1:6, 1 mm réel = 1/6 mm de page.
+	const px = before.scale / 6;
+	await page.mouse.move(from.x, from.y);
+	await page.mouse.down();
+	await page.mouse.move(from.x + 25 * px, from.y + 5 * px, { steps: 4 });
+	await page.mouse.move(from.x + 50 * px, from.y + 10 * px, { steps: 4 });
+	await page.mouse.up();
+	const after = await evalEditor<{ x: number; y: number }>(
+		page,
+		`(() => { const it = editor.folio.panel.items.find((i) => i.id === '${before.id}');
+			return { x: it.x, y: it.y }; })()`
+	);
+	// Magnétisme 5 mm : le déplacement est arrondi au pas de la grille.
+	expect(Math.abs(after.x - before.x - 50)).toBeLessThanOrEqual(5);
+	expect(after.y).toBe(before.y);
+
+	// Il chevauche maintenant ses voisins : contrôle signalé, puis annulation.
+	await expect(page.getByText(/Chevauche un autre appareil/)).toBeVisible();
+	await page.keyboard.press('Control+z');
+
+	// Double-clic sur l'appareil posé → son symbole dans le schéma.
+	await page.mouse.dblclick(from.x, from.y);
+	expect(await evalEditor<boolean>(page, '!editor.folio.panel')).toBe(true);
+	await page.keyboard.press('PageDown');
+	await page.keyboard.press('End');
+	await evalEditor(
+		page,
+		'editor.setFolio(editor.project.folios[editor.project.folios.length - 1].id)'
+	);
+
+	// Façade : voyants et commutateurs du schéma
+	await page.getByRole('button', { name: 'Folios', exact: true }).click();
+	await page.getByRole('button', { name: /^Folio$/ }).click();
+	await page.getByRole('menuitem', { name: /façade/ }).click();
+	expect(await evalEditor<string>(page, 'editor.folio.panel.kind')).toBe('facade');
+	await page.getByRole('button', { name: 'Appareils', exact: true }).click();
+	await page.getByRole('button', { name: /Placer automatiquement/ }).click();
+	expect(await evalEditor<number>(page, 'editor.folio.panel.items.length')).toBeGreaterThan(0);
+	await page.keyboard.press('Escape');
+	await page.keyboard.press('f');
+	await page.screenshot({ path: 'test-results/facade.png' });
+	await page.getByRole('button', { name: /Thème : Clair/ }).click();
+	await page.getByRole('button', { name: 'Folios', exact: true }).click();
+	await page.screenshot({ path: 'test-results/facade-sombre.png' });
+	await page.getByRole('button', { name: 'Appareils', exact: true }).click();
+	await page.screenshot({ path: 'test-results/facade-sombre-appareils.png' });
+
+	// Export PDF du dossier avec les folios d'armoire (même rendu qu'à l'écran)
+	await page
+		.locator('.toolbar')
+		.getByRole('button', { name: /Exporter/ })
+		.click();
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
+	await (await download).saveAs('test-results/export-armoire.pdf');
+	await page.keyboard.press('Escape');
+
+	// Annuler / rétablir et sauvegarde
+	await page.keyboard.press('Control+z');
+	expect(await evalEditor<number>(page, 'editor.folio.panel.items.length')).toBe(0);
+	await page.keyboard.press('Control+y');
+	await expect(page.locator('.status.saved')).toBeVisible();
+});
+
+test('exemple armoire complète : ouverture et export PDF', async ({ page }) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Exemple armoire complète' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+	expect(await evalEditor<number>(page, 'editor.project.folios.length')).toBe(5);
+	await expect(page.getByText('Aucun problème détecté.')).toBeVisible();
+	for (let i = 1; i <= 5; i++) {
+		await page.screenshot({ path: `test-results/exemple-${i}.png` });
+		await page.keyboard.press('PageDown');
+	}
+	await page
+		.locator('.toolbar')
+		.getByRole('button', { name: /Exporter/ })
+		.click();
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
+	await (await download).saveAs('test-results/exemple-armoire.pdf');
+});
+
+test('modèle de cartouche et de page de garde : création, choix, champ libre, PDF', async ({
+	page
+}) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+
+	// Bibliothèque : nouveau modèle avec logo, champ libre « Lot », case de cartouche, présentation
+	await page.getByRole('link', { name: /Modèles/ }).click();
+	await expect(page).toHaveURL(/\/modeles/);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: /Nouveau modèle/ }).click();
+	const dialog = page.getByRole('dialog');
+	await dialog.getByLabel('Nom du modèle').fill('Dumortier');
+	await dialog.locator('input[type=file]').setInputFiles('tests/e2e/fixtures/logo-dumortier.png');
+	await expect(dialog.locator('.logo-preview img')).toBeVisible();
+
+	await dialog.getByRole('button', { name: 'Champs libres' }).click();
+	await dialog.getByRole('button', { name: /Ajouter un champ/ }).click();
+	await dialog.locator('.row input.cell').first().fill('Lot');
+	await expect(dialog.getByText('{lot}')).toBeVisible();
+
+	await dialog.getByRole('button', { name: 'Cartouche', exact: true }).click();
+	await dialog.getByRole('button', { name: /Case texte/ }).click();
+	await dialog
+		.getByPlaceholder(/Texte, ex/)
+		.last()
+		.fill('Lot : {lot}');
+
+	await dialog.getByRole('button', { name: 'Page de garde' }).click();
+	await dialog
+		.getByRole('button', { name: /Ajouter une ligne/ })
+		.nth(1)
+		.click();
+	await dialog
+		.getByPlaceholder(/Texte, ex/)
+		.nth(2)
+		.fill('Régulation, GTB et électricité des chaufferies');
+	await dialog.getByRole('button', { name: 'Cartouche', exact: true }).click();
+	await page.screenshot({ path: 'test-results/editeur-modele.png' });
+	await dialog.getByRole('button', { name: 'Enregistrer' }).click();
+	await expect(page.getByText('Dumortier', { exact: true })).toBeVisible();
+	await page.screenshot({ path: 'test-results/modeles.png' });
+
+	// Nouveau projet avec ce modèle
+	await page.getByRole('link', { name: /Projets/ }).click();
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: /Nouveau projet/ }).click();
+	await page.getByLabel('Nom du projet').fill('Chaufferie Lot CVC');
+	await page.locator('select[name=template]').selectOption({ label: 'Dumortier' });
+	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await expect(page.locator('.status.saved')).toBeVisible();
+	expect(await evalEditor<string>(page, 'editor.project.template.name')).toBe('Dumortier');
+
+	// Valeur du champ libre → cartouche
+	await page.getByRole('button', { name: 'Propriétés du dossier' }).click();
+	await page.getByRole('dialog').getByLabel('Lot').fill('CVC');
+	await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
+	await expect(page.locator('.canvas svg text', { hasText: 'Lot : CVC' })).toBeVisible();
+	await page.screenshot({ path: 'test-results/cartouche-modele.png' });
+
+	await page
+		.locator('.toolbar')
+		.getByRole('button', { name: /Exporter/ })
+		.click();
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
+	await (await download).saveAs('test-results/export-modele.pdf');
+});
+
+test('raccourcis clavier : aide, recherche de symbole, reprise de pose, barre, F2', async ({
+	page
+}) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: /Nouveau projet/ }).click();
+	await page.getByLabel('Nom du projet').fill('Raccourcis');
+	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await expect(page.locator('.status.saved')).toBeVisible();
+
+	// ? : aide, filtrable
+	await page.locator('.canvas svg').click({ position: { x: 5, y: 5 } });
+	await page.keyboard.press('?');
+	const help = page.getByRole('dialog');
+	await expect(help.getByText('Raccourcis clavier')).toBeVisible();
+	await page.keyboard.type('zoom');
+	await expect(help.getByText('Zoom avant / arrière')).toBeVisible();
+	await expect(help.getByText('Couper')).toHaveCount(0);
+	await page.screenshot({ path: 'test-results/raccourcis.png' });
+	await page.keyboard.press('Escape');
+	await expect(help).toHaveCount(0);
+
+	// Bouton de la barre d'état
+	await page.getByRole('button', { name: /Tous les raccourcis/ }).click();
+	await expect(page.getByRole('dialog').getByText('Raccourcis clavier')).toBeVisible();
+	await page.keyboard.press('Escape');
+	await page.locator('.canvas svg').click({ position: { x: 5, y: 5 } });
+
+	// / : recherche de symbole, Entrée = 1er résultat, clic = pose
+	await page.keyboard.press('/');
+	await expect(page.getByPlaceholder(/Rechercher \(disjoncteur/)).toBeFocused();
+	await page.keyboard.type('bobine de contacteur');
+	await page.keyboard.press('Enter');
+	expect(await evalEditor<string>(page, 'editor.tool.defId')).toBe('bobine-contacteur');
+	await clickAt(page, { x: 100, y: 80 });
+	await page.keyboard.press('Escape');
+	await page.keyboard.press('Escape');
+	expect(await evalEditor<number>(page, 'editor.folio.symbols.length')).toBe(1);
+
+	// Entrée : reprendre la pose du dernier symbole
+	await page.keyboard.press('Enter');
+	expect(await evalEditor<string>(page, 'editor.tool.kind')).toBe('place');
+	await clickAt(page, { x: 140, y: 80 });
+	expect(await evalEditor<number>(page, 'editor.folio.symbols.length')).toBe(2);
+	await page.keyboard.press('Escape');
+
+	// B : outil Barre ; F2 : modifier le repère du symbole sélectionné
+	await page.keyboard.press('b');
+	expect(await evalEditor<string>(page, 'editor.tool.kind')).toBe('bar');
+	await page.keyboard.press('Escape');
+	await evalEditor(page, `editor.select([{ kind: 'symbol', id: editor.folio.symbols[0].id }])`);
+	await page.keyboard.press('F2');
+	await expect(page.locator('.inspector input').first()).toBeFocused();
+});
+
+test('grille d’affichage : type, pas, visibilité, mémorisée', async ({ page }) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Projet de démonstration' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await expect(page.locator('.status.saved')).toBeVisible();
+
+	// Points : visibles (taille constante à l'écran)
+	await expect(page.locator('.canvas svg pattern#grid-points circle').first()).toBeAttached();
+	await page.screenshot({ path: 'test-results/grille-points.png' });
+
+	// Cases A–Q
+	await page.getByRole('button', { name: /Grille : Points/ }).click();
+	const panel = page.getByRole('dialog', { name: 'Grille d’affichage' });
+	await panel.getByRole('button', { name: 'Cases A–Q' }).click();
+	await expect(page.locator('.canvas svg .grid-layer line')).toHaveCount(16 + 10);
+	await page.screenshot({ path: 'test-results/grille-cases.png' });
+
+	// Quadrillage 10 mm, visibilité 30 %
+	await panel.getByRole('button', { name: 'Quadrillage' }).click();
+	await panel.getByRole('button', { name: '10 mm' }).click();
+	await panel.getByRole('slider').fill('0.3');
+	expect(await evalEditor<object>(page, 'JSON.parse(JSON.stringify(editor.grid))')).toEqual({
+		show: true,
+		kind: 'quadrillage',
+		step: 10,
+		opacity: 0.3,
+		print: false
+	});
+	await page.screenshot({ path: 'test-results/grille-quadrillage.png' });
+
+	// Fermeture au clic ailleurs ; G masque ; réglage conservé au rechargement
+	await page.locator('.canvas svg').click({ position: { x: 5, y: 5 } });
+	await expect(panel).toHaveCount(0);
+	await page.keyboard.press('g');
+	await expect(page.getByRole('button', { name: /Grille : masquée/ })).toBeVisible();
+	await page.keyboard.press('g');
+	await page.reload();
+	await expect(page.locator('.status.saved')).toBeVisible();
+	await expect(page.getByRole('button', { name: /Grille : Quadrillage/ })).toBeVisible();
+	expect(await evalEditor<number>(page, 'editor.grid.step')).toBe(10);
+
+	// Grille imprimable : cases A–Q dans le PDF
+	await page.getByRole('button', { name: /Grille : Quadrillage/ }).click();
+	await page
+		.getByRole('dialog', { name: 'Grille d’affichage' })
+		.getByRole('button', { name: 'Cases A–Q' })
+		.click();
+	await page.getByLabel('Imprimer la grille dans le PDF').check();
+	await page.locator('.canvas svg').click({ position: { x: 5, y: 5 } });
+	await page
+		.locator('.toolbar')
+		.getByRole('button', { name: /Exporter/ })
+		.click();
+	await expect(page.getByLabel(/Grille sur les folios/)).toBeChecked();
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
+	await (await download).saveAs('test-results/export-grille.pdf');
+});
+
+test('folio borniers automatique : dessin, filtre, double-clic, PDF', async ({ page }) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Exemple armoire complète' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await expect(page.locator('.status.saved')).toBeVisible();
+
+	// Ajout après le folio 03 (pompe)
+	await page.getByRole('button', { name: 'Folios', exact: true }).click();
+	await evalEditor(page, 'editor.setFolio(editor.project.folios[2].id)');
+	await page.getByRole('button', { name: /^Folio$/ }).click();
+	await page.getByRole('menuitem', { name: /Folio borniers/ }).click();
+	expect(await evalEditor<number>(page, 'editor.folioIndex')).toBe(3);
+	const svg = page.locator('.canvas svg');
+	await expect(svg.locator('text', { hasText: 'Bornier C' })).toBeVisible();
+	await expect(svg.locator('text', { hasText: 'Bornier P' })).toBeVisible();
+	await expect(svg.locator('text', { hasText: 'KM1:2/T1' })).toBeVisible();
+	await page.keyboard.press('f');
+	await page.screenshot({ path: 'test-results/folio-borniers.png' });
+
+	// Filtre : bornier P seul
+	await page.getByLabel(/Bornier P/).check();
+	await expect(svg.locator('text', { hasText: 'Bornier C' })).toHaveCount(0);
+	await page.getByLabel('Tous').check();
+	await expect(svg.locator('text', { hasText: 'Bornier C' })).toBeVisible();
+
+	// Double-clic sur la borne P3 → son symbole dans le schéma (folio 02)
+	await svg.locator('text', { hasText: /^P3$/ }).dblclick();
+	expect(await evalEditor<number>(page, 'editor.folioIndex')).toBe(1);
+	expect(await evalEditor<string>(page, 'editor.selection[0].kind')).toBe('symbol');
+
+	// Export : les tableaux en fin de dossier sont décochés (le folio borniers suffit)
+	await page
+		.locator('.toolbar')
+		.getByRole('button', { name: /Exporter/ })
+		.click();
+	await expect(page.getByLabel(/Tableaux des borniers/)).not.toBeChecked();
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
+	await (await download).saveAs('test-results/export-folio-borniers.pdf');
 });

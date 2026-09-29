@@ -3,8 +3,10 @@
 	import { itemBounds } from '$lib/model/edit';
 	import { fragmentOrigin } from '$lib/model/fragments';
 	import { AREA } from '$lib/model/layout';
+	import { panelTransform } from '$lib/model/panel';
 	import type { ItemRef } from '$lib/model/types';
 	import FolioContent from '$lib/render/FolioContent.svelte';
+	import GridLayer from '$lib/render/GridLayer.svelte';
 	import SymbolView from '$lib/render/SymbolView.svelte';
 	import type { Editor } from '../editor.svelte';
 	import type { Interaction } from '../interaction.svelte';
@@ -49,6 +51,8 @@
 		return { x: b.x - m, y: b.y - m, w: b.w + 2 * m, h: b.h + 2 * m };
 	}
 
+	const grid = $derived(editor.grid);
+
 	const tool = $derived(editor.tool);
 	const cursor = $derived(editor.cursor);
 	const px = $derived(1 / vp.scale);
@@ -83,18 +87,7 @@
 		}}
 		oncontextmenu={(e) => e.preventDefault()}
 	>
-		<defs>
-			<pattern
-				id="grid-dots"
-				width="5"
-				height="5"
-				patternUnits="userSpaceOnUse"
-				x={AREA.x}
-				y={AREA.y}
-			>
-				<circle cx="0" cy="0" r={0.18} fill="var(--c-border-strong)" />
-			</pattern>
-		</defs>
+		<defs> </defs>
 
 		<g class="page-shadow">
 			<rect x="0" y="0" width="297" height="210" />
@@ -108,15 +101,9 @@
 			showWarnings
 		/>
 
-		{#if editor.showGrid}
-			<rect
-				x={AREA.x}
-				y={AREA.y}
-				width={AREA.w}
-				height={AREA.h}
-				fill="url(#grid-dots)"
-				pointer-events="none"
-			/>
+		<!-- Grille d'affichage (aide à l'écran, non exportée). Folios d'armoire : cases seulement. -->
+		{#if grid.show && (grid.kind === 'cases' || !editor.panel)}
+			<GridLayer kind={grid.kind} step={grid.step} opacity={grid.opacity} px={vp.scale} />
 		{/if}
 
 		<!-- Surcouches d'édition (non exportées) -->
@@ -160,6 +147,22 @@
 				<rect class="box inside" x={r.x} y={r.y} width={r.w} height={r.h} />
 			{/if}
 
+			{#if interaction.drawingCable}
+				{@const c = interaction.drawingCable}
+				<ellipse
+					class="box inside"
+					cx={(c.a.x + c.b.x) / 2}
+					cy={(c.a.y + c.b.y) / 2}
+					rx={Math.max(Math.abs(c.b.x - c.a.x) / 2, 1.1)}
+					ry={Math.max(Math.abs(c.b.y - c.a.y) / 2, 1.1)}
+				/>
+			{/if}
+
+			{#if interaction.drawingRail}
+				{@const r = interaction.drawingRail}
+				<line class="wire-preview" x1={r.a.x} y1={r.a.y} x2={r.b.x} y2={r.b.y} />
+			{/if}
+
 			{#if interaction.wirePreview.length}
 				<polyline
 					class="wire-preview"
@@ -185,6 +188,24 @@
 				<g transform="translate({cursor.x - o.x} {cursor.y - o.y})">
 					<FragmentView fragment={tool.fragment} ghost />
 				</g>
+			{:else if cursor && tool.kind === 'mount' && editor.panel}
+				{@const k = panelTransform(editor.panel).k}
+				{@const c = tool.candidate}
+				<rect
+					class="box inside"
+					x={cursor.x - (c.w * k) / 2}
+					y={cursor.y - (c.h * k) / 2}
+					width={c.w * k}
+					height={c.h * k}
+				/>
+			{:else if cursor && tool.kind === 'rail' && editor.panel && !interaction.drawingRail}
+				<line
+					class="wire-preview"
+					x1={cursor.x - 8}
+					y1={cursor.y}
+					x2={cursor.x + 8}
+					y2={cursor.y}
+				/>
 			{:else if cursor && tool.kind === 'bar'}
 				<line class="wire-preview" x1={AREA.x} y1={cursor.y} x2={AREA.x + AREA.w} y2={cursor.y} />
 			{/if}
@@ -249,7 +270,7 @@
 	}
 	.page-shadow rect {
 		fill: #fff;
-		filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.25));
+		filter: drop-shadow(0 1px 3px var(--c-page-shadow));
 	}
 	.overlay :global(*) {
 		vector-effect: non-scaling-stroke;

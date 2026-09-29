@@ -3,6 +3,7 @@
  * `ApiError` si la réponse n'est pas OK (401 non connecté, 404, 409 verrou…).
  */
 import type { Fragment } from '$lib/model/fragments';
+import type { DocTemplate } from '$lib/model/template';
 import type { Project } from '$lib/model/types';
 import type { SymbolDef } from '$lib/symbols/types';
 import type { LockInfo, Macro } from './types';
@@ -99,4 +100,18 @@ export async function saveCustomSymbol(def: SymbolDef): Promise<SymbolDef> {
 
 export async function deleteCustomSymbol(id: string): Promise<void> {
 	await request('DELETE', `/api/symbols/${encodeURIComponent(id)}`);
+}
+
+// --- Modèles de cartouche / page de garde --------------------------------------
+
+export async function listTemplates(): Promise<DocTemplate[]> {
+	return request('GET', '/api/templates');
+}
+
+export async function saveTemplate(t: DocTemplate): Promise<DocTemplate> {
+	return request('POST', '/api/templates', t);
+}
+
+export async function deleteTemplate(id: string): Promise<void> {
+	await request('DELETE', `/api/templates/${encodeURIComponent(id)}`);
 }

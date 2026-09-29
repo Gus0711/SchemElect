@@ -2,9 +2,11 @@
  * Borniers générés depuis les bornes dessinées (symboles de rôle `terminal`).
  * Un bornier = toutes les bornes de même préfixe (P, C, X…), triées par numéro.
  * Côté intérieur / extérieur : appareils câblés directement (par fils) sur la borne
- * haute / basse du symbole de borne.
+ * haute / basse du symbole de borne. Colonne « Câble » : conducteurs de câble portés par
+ * l'équipotentielle de la borne (« W1 P1 Ciel »).
  */
 import { getSymbolDef } from '$lib/symbols';
+import { netCableLabels, type CableAnalysis } from './cables';
 import { folioRef } from './layout';
 import { directlyConnected, type NetAnalysis } from './nets';
 import { symbolTerminals } from './symbolGeometry';
@@ -18,6 +20,8 @@ export interface StripRow {
 	wire: string;
 	inside: string[];
 	outside: string[];
+	/** Conducteurs de câble (« W1 P1 Ciel »). */
+	cable: string[];
 	position: string;
 	designation: string;
 }
@@ -27,7 +31,11 @@ export interface TerminalStrip {
 	rows: StripRow[];
 }
 
-export function computeStrips(project: Project, nets: NetAnalysis): TerminalStrip[] {
+export function computeStrips(
+	project: Project,
+	nets: NetAnalysis,
+	cables?: CableAnalysis
+): TerminalStrip[] {
 	const symbolById = new Map<Id, { s: SymbolInstance; folioIndex: number }>();
 	project.folios.forEach((f, folioIndex) =>
 		f.symbols.forEach((s) => symbolById.set(s.id, { s, folioIndex }))
@@ -67,6 +75,7 @@ export function computeStrips(project: Project, nets: NetAnalysis): TerminalStri
 			wire: net?.number ?? (net?.potentialId ? (potName.get(net.potentialId) ?? '') : ''),
 			inside,
 			outside,
+			cable: cables ? netCableLabels(nets, cables, net?.id) : [],
 			position: folioRef(folioIndex, s.x),
 			designation: device.designation ?? ''
 		});

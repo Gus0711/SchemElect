@@ -2,18 +2,35 @@
 	/** Fenêtre d'export du dossier : PDF (page de garde, borniers) et listes CSV. */
 	import type { ProjectAnalysis } from '$lib/model/analysis';
 	import type { Project } from '$lib/model/types';
+	import type { PrintGrid } from '$lib/render/pageNumbering';
 	import { Button, Modal } from '$lib/ui';
-	import { devicesCsv, downloadText, stripsCsv, wiresCsv } from './csv';
+	import { cablesCsv, devicesCsv, downloadText, stripsCsv, wiresCsv } from './csv';
 	import { safeFileName } from './dossier';
 
 	let {
 		open = $bindable(false),
 		project,
-		analysis
-	}: { open?: boolean; project: Project; analysis: ProjectAnalysis } = $props();
+		analysis,
+		grid = null,
+		printGrid = $bindable(false)
+	}: {
+		open?: boolean;
+		project: Project;
+		analysis: ProjectAnalysis;
+		/** Grille réglée dans l'éditeur (imprimable sur demande). */
+		grid?: PrintGrid | null;
+		printGrid?: boolean;
+	} = $props();
+
+	const GRID_LABEL = { points: 'points', quadrillage: 'quadrillage', cases: 'cases A–Q' };
 
 	let cover = $state(true);
 	let strips = $state(true);
+	// À chaque ouverture : tableaux de borniers en fin de dossier seulement si le dossier n'a
+	// pas de folio borniers (dessin).
+	$effect(() => {
+		if (open) strips = !project.folios.some((f) => f.strips);
+	});
 	let busy = $state(false);
 	let error = $state('');
 
@@ -27,7 +44,11 @@
 		try {
 			// Chargé à la demande : jsPDF / svg2pdf ne pèsent pas sur l'éditeur.
 			const { downloadProjectPdf } = await import('./pdf');
-			await downloadProjectPdf(project, analysis, { cover, strips });
+			await downloadProjectPdf(project, analysis, {
+				cover,
+				strips,
+				grid: printGrid ? grid : null
+			});
 		} catch (e) {
 			console.error(e);
 			error = `Échec de la génération du PDF : ${e instanceof Error ? e.message : String(e)}`;
@@ -36,15 +57,15 @@
 		}
 	}
 
-	function exportCsv(kind: 'strips' | 'devices' | 'wires') {
-		const content =
-			kind === 'strips'
-				? stripsCsv(project, analysis)
-				: kind === 'devices'
-					? devicesCsv(project)
-					: wiresCsv(project, analysis);
-		const suffix = kind === 'strips' ? 'borniers' : kind === 'devices' ? 'nomenclature' : 'fils';
-		downloadText(`${base} - ${suffix}.csv`, content);
+	const CSV = {
+		strips: { suffix: 'borniers', make: () => stripsCsv(project, analysis) },
+		devices: { suffix: 'nomenclature', make: () => devicesCsv(project) },
+		wires: { suffix: 'fils', make: () => wiresCsv(project, analysis) },
+		cables: { suffix: 'câbles', make: () => cablesCsv(project, analysis) }
+	};
+
+	function exportCsv(kind: keyof typeof CSV) {
+		downloadText(`${base} - ${CSV[kind].suffix}.csv`, CSV[kind].make());
 	}
 </script>
 
@@ -55,8 +76,18 @@
 			><input type="checkbox" bind:checked={cover} disabled={busy} /> Page de garde</label
 		>
 		<label class="check"
-			><input type="checkbox" bind:checked={strips} disabled={busy} /> Borniers</label
+			><input type="checkbox" bind:checked={strips} disabled={busy} /> Tableaux des borniers (fin de dossier)</label
 		>
+		{#if grid}
+			<label class="check"
+				><input type="checkbox" bind:checked={printGrid} disabled={busy} /> Grille sur les folios
+				<span class="muted"
+					>({GRID_LABEL[grid.kind]}{grid.kind === 'cases'
+						? ''
+						: ` ${String(grid.step).replace('.', ',')} mm`}, {Math.round(grid.opacity * 100)} %)</span
+				></label
+			>
+		{/if}
 		<div class="row">
 			<Button variant="primary" onclick={exportPdf} disabled={busy}>
 				{busy ? 'Génération…' : 'Exporter le PDF'}
@@ -71,6 +102,7 @@
 			<Button onclick={() => exportCsv('strips')}>Borniers</Button>
 			<Button onclick={() => exportCsv('devices')}>Nomenclature des appareils</Button>
 			<Button onclick={() => exportCsv('wires')}>Liste des fils</Button>
+			<Button onclick={() => exportCsv('cables')}>Carnet de câbles</Button>
 		</div>
 	</section>
 

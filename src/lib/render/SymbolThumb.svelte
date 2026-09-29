@@ -24,6 +24,10 @@
 </svg>
 
 <style>
+	.thumb {
+		background: var(--c-thumb-bg);
+		border-radius: var(--radius-sm);
+	}
 	/* Vignettes lisibles quelle que soit la taille : trait constant à l'écran. */
 	.thumb :global(line),
 	.thumb :global(path),

@@ -14,13 +14,13 @@
 		type StripPage
 	} from '$lib/export/stripsTable';
 	import { AREA, PAGE } from '$lib/model/layout';
-	import type { ProjectMeta } from '$lib/model/types';
+	import type { Project } from '$lib/model/types';
 	import { schematic } from '$lib/theme/schematic';
 	import FolioFrame from './FolioFrame.svelte';
 	import Label from './Label.svelte';
 
 	let {
-		meta,
+		project,
 		page,
 		index,
 		total,
@@ -28,7 +28,7 @@
 		width = `${PAGE.w}mm`,
 		height = `${PAGE.h}mm`
 	}: {
-		meta: ProjectMeta;
+		project: Project;
 		page: StripPage;
 		/** Index 0-based de la page dans la numérotation des folios. */
 		index: number;
@@ -70,7 +70,7 @@
 </script>
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {PAGE.w} {PAGE.h}" {width} {height}>
-	<FolioFrame {meta} {title} {index} {total} />
+	<FolioFrame {project} {title} {index} {total} />
 
 	{#each blocks as b (b.key)}
 		<Label

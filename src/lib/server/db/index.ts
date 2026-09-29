@@ -31,7 +31,7 @@ function open(): { client: Client; db: Db } {
 	return { client, db };
 }
 
-export async function getDb(): Promise<Db> {
+async function ensureReady(): Promise<{ client: Client; db: Db }> {
 	const conn = open();
 	if (!ready) {
 		ready = runMigrations(conn.client).catch((e) => {
@@ -40,7 +40,16 @@ export async function getDb(): Promise<Db> {
 		});
 	}
 	await ready;
-	return conn.db;
+	return conn;
+}
+
+export async function getDb(): Promise<Db> {
+	return (await ensureReady()).db;
+}
+
+/** Client libSQL brut (requêtes hors Drizzle : `VACUUM INTO` des sauvegardes). */
+export async function getClient(): Promise<Client> {
+	return (await ensureReady()).client;
 }
 
 export { schema };

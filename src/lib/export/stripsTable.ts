@@ -10,8 +10,9 @@ import { paginateGroups, wrapText, type Page } from './paginate';
 export const STRIP_COLUMNS = [
 	{ key: 'tag', label: 'Repère', width: 20 },
 	{ key: 'wire', label: 'N° fil / potentiel', width: 32 },
-	{ key: 'inside', label: 'Intérieur', width: 62 },
-	{ key: 'outside', label: 'Extérieur', width: 62 },
+	{ key: 'inside', label: 'Intérieur', width: 50 },
+	{ key: 'outside', label: 'Extérieur', width: 50 },
+	{ key: 'cable', label: 'Câble', width: 24 },
 	{ key: 'position', label: 'Position', width: 22 },
 	{ key: 'designation', label: 'Désignation', width: 73 }
 ] as const;
@@ -33,6 +34,7 @@ export function stripCellTexts(row: StripRow): string[] {
 		row.wire,
 		row.inside.join(', '),
 		row.outside.join(', '),
+		row.cable.join(', '),
 		row.position,
 		row.designation
 	];

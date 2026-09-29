@@ -3,6 +3,7 @@
  * Les fonctions de génération sont pures ; seul `downloadText` touche au DOM.
  */
 import { projectStrips, type ProjectAnalysis } from '$lib/model/analysis';
+import { cableName, cablePosition, conductorLabel } from '$lib/model/cables';
 import { folioNumber, folioRef } from '$lib/model/layout';
 import { compareTags } from '$lib/model/tags';
 import type { Project } from '$lib/model/types';
@@ -33,6 +34,7 @@ export function stripsCsv(project: Project, analysis: ProjectAnalysis): string {
 			r.wire,
 			list(r.inside),
 			list(r.outside),
+			list(r.cable),
 			r.position,
 			r.designation
 		])
@@ -44,9 +46,39 @@ export function stripsCsv(project: Project, analysis: ProjectAnalysis): string {
 			'N° fil / potentiel',
 			'Intérieur',
 			'Extérieur',
+			'Câble',
 			'Position',
 			'Désignation'
 		],
+		rows
+	);
+}
+
+/** Carnet de câbles : une ligne par conducteur (repère, couleur, fil raccordé). */
+export function cablesCsv(project: Project, analysis: ProjectAnalysis): string {
+	const potentials = new Map(project.potentials.map((p) => [p.id, p.name]));
+	const infos = [...analysis.cables.cables].sort((a, b) => compareTags(a.cable.tag, b.cable.tag));
+	const rows = infos.flatMap((info) => {
+		const c = info.cable;
+		const wireOf = new Map(info.crossings.map((k) => [k.index, k.wireId]));
+		const count = Math.max(c.colors.length, info.crossings.length);
+		return Array.from({ length: count }, (_, i) => {
+			const wireId = wireOf.get(i);
+			const net = wireId ? analysis.nets.netOfWire.get(wireId) : undefined;
+			const wire = net?.number ?? (net?.potentialId ? (potentials.get(net.potentialId) ?? '') : '');
+			return [
+				c.tag,
+				c.type,
+				cableName(c),
+				i + 1,
+				i < c.colors.length ? conductorLabel(c, i) : 'en trop',
+				wireId ? wire || '—' : 'libre',
+				cablePosition(info)
+			];
+		});
+	});
+	return toCsv(
+		['Câble', 'Type', 'Désignation', 'Conducteur', 'Couleur', 'N° fil / potentiel', 'Position'],
 		rows
 	);
 }

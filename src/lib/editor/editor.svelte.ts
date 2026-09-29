@@ -15,6 +15,13 @@ import {
 	type Fragment
 } from '$lib/model/fragments';
 import { snapPoint } from '$lib/model/geometry';
+import {
+	autoPlace,
+	snapPanelPoint,
+	syncPanels,
+	type AutoPlaceResult,
+	type Candidate
+} from '$lib/model/panel';
 import { symbolBounds } from '$lib/model/symbolGeometry';
 import { deepClone } from '$lib/model/ids';
 import type { Folio, Id, ItemRef, Point, Project, Rotation } from '$lib/model/types';
@@ -23,6 +30,7 @@ import { registerCustomSymbols } from '$lib/symbols';
 import type { CustomSymbolSpec } from '$lib/symbols/custom';
 import type { SymbolDef } from '$lib/symbols/types';
 import { bumpCustomSymbols } from '$lib/symbols/version.svelte';
+import { DEFAULT_GRID, loadGrid, saveGrid, type GridPrefs } from './grid';
 import { History } from './history';
 import { Viewport } from './viewport.svelte';
 
@@ -33,7 +41,18 @@ export type Tool =
 	| { kind: 'paste'; fragment: Fragment; devices: 'renumber' | 'keep' }
 	| { kind: 'bar'; potentialId: Id }
 	| { kind: 'text' }
-	| { kind: 'rect' };
+	| { kind: 'rect' }
+	| { kind: 'cable' }
+	/** Folio d'implantation : rail oméga (clic : entre goulottes ; glisser : longueur libre). */
+	| { kind: 'rail' }
+	/** Folio d'implantation : goulotte (glisser un rectangle). */
+	| { kind: 'duct' }
+	/** Folio d'armoire : pose d'un appareil / bornier de la liste « à placer ». */
+	| { kind: 'mount'; candidate: Candidate };
+
+/** Outils propres aux folios de schéma / aux folios d'armoire. */
+const SCHEMA_TOOLS = new Set<Tool['kind']>(['wire', 'place', 'paste', 'bar', 'cable']);
+const PANEL_TOOLS = new Set<Tool['kind']>(['rail', 'duct', 'mount']);
 
 const CLIPBOARD_KEY = 'schemelect:clipboard';
 
@@ -49,8 +68,15 @@ export class Editor {
 	revision = $state(0);
 	canUndo = $state(false);
 	canRedo = $state(false);
-	showGrid = $state(true);
+	/** Grille d'affichage (préférence de l'utilisateur, mémorisée dans le navigateur). */
+	grid: GridPrefs = $state(typeof localStorage === 'undefined' ? { ...DEFAULT_GRID } : loadGrid());
 	showOpenTerminals = $state(true);
+	/** Aide des raccourcis clavier ouverte (touche ?). */
+	shortcutsOpen = $state(false);
+	/** Dernier symbole posé (Entrée : reprendre la pose). */
+	lastPlacedDefId: string | null = $state(null);
+	/** Potentiel de l'outil Barre (touche B, liste de la barre d'outils). */
+	barPotential = $state('L1');
 	/** Demande de focus sur un champ de l'inspecteur (ex. repère après double-clic). */
 	focusRequest = $state<{ field: string; at: number } | null>(null);
 
@@ -64,6 +90,18 @@ export class Editor {
 		this.project.folios.find((f) => f.id === this.folioId) ?? this.project.folios[0]
 	);
 	folioIndex = $derived(this.project.folios.findIndex((f) => f.id === this.folio.id));
+	/** Folio d'implantation / de façade courant (null sur un folio de schéma). */
+	panel = $derived(this.folio.panel ?? null);
+	/** Folio borniers automatique courant (dessin calculé : texte et cadre seulement). */
+	stripsFolio = $derived(!!this.folio.strips);
+	/** Outils sans objet sur le folio courant. */
+	private blockedTools = $derived(
+		this.folio.strips
+			? new Set([...SCHEMA_TOOLS, ...PANEL_TOOLS])
+			: this.panel
+				? SCHEMA_TOOLS
+				: PANEL_TOOLS
+	);
 
 	/**
 	 * Poignée de redimensionnement : coin opposé à l'origine du symbole maison
@@ -127,6 +165,8 @@ export class Editor {
 		if (this.readonly) return;
 		const before = this.snapshot();
 		fn(this.project, this.folio);
+		// Déduit : largeur des borniers posés en implantation (nombre de bornes).
+		syncPanels(this.project);
 		this.history.push(label, before);
 		this.changed();
 		this.pruneSelection();
@@ -212,7 +252,9 @@ export class Editor {
 		if (id === this.folioId) return;
 		this.folioId = id;
 		this.selection = [];
-		if (this.tool.kind === 'wire') this.setTool({ kind: 'select' });
+		const allowed = !this.blockedTools.has(this.tool.kind);
+		if (this.tool.kind === 'wire' || this.tool.kind === 'mount' || !allowed)
+			this.setTool({ kind: 'select' });
 	}
 
 	stepFolio(delta: number) {
@@ -232,7 +274,34 @@ export class Editor {
 	}
 
 	setTool(tool: Tool) {
+		// Pas de fil ni de symbole sur un folio d'armoire, pas de rail sur un schéma.
+		if (this.blockedTools.has(tool.kind)) return;
 		this.tool = tool;
+	}
+
+	/** Magnétisme du folio courant : grille de 2,5 mm (schéma) ou de 5 mm réels (armoire). */
+	snap(p: Point): Point {
+		return this.panel ? snapPanelPoint(this.panel, p) : snapPoint(p);
+	}
+
+	/** Va à un élément posé en implantation / façade (autre folio si besoin). */
+	goToMount(folioId: Id, itemId: Id) {
+		this.setFolio(folioId);
+		this.selection = [{ kind: 'mount', id: itemId }];
+		const b = edit.itemBounds(this.folio, { kind: 'mount', id: itemId });
+		if (b) this.viewport.centerOn(b.x + b.w / 2, b.y + b.h / 2);
+	}
+
+	/** Pose automatiquement les appareils restants sur le folio d'armoire courant. */
+	autoPlace(): AutoPlaceResult | null {
+		if (!this.panel || this.readonly) return null;
+		let res: AutoPlaceResult = { placed: 0, remaining: [] };
+		const before = new Set(this.panel.items.map((i) => i.id));
+		this.transact('Placer automatiquement', (p, f) => (res = autoPlace(p, f)));
+		this.selection = (this.panel?.items ?? [])
+			.filter((i) => !before.has(i.id))
+			.map((i) => ({ kind: 'mount' as const, id: i.id }));
+		return res;
 	}
 
 	// ------------------------------------------------------------ commandes
@@ -312,6 +381,10 @@ export class Editor {
 			/* ignore */
 		}
 		if (!frag || isEmptyFragment(frag)) return;
+		// Folio d'armoire : seuls textes et cadres se collent.
+		if (this.panel || this.folio.strips)
+			frag = { ...frag, symbols: [], wires: [], bars: [], cables: [], devices: {} };
+		if (isEmptyFragment(frag)) return;
 		this.tool = { kind: 'paste', fragment: frag, devices: this.clipboardMode };
 		this.clipboardMode = 'renumber';
 	}
@@ -376,6 +449,34 @@ export class Editor {
 	async deleteCustomSymbol(id: string) {
 		await deleteCustomSymbol(id);
 		this.customLibrary = this.customLibrary.filter((d) => d.id !== id);
+	}
+
+	/** Change la grille d'affichage et mémorise le réglage. */
+	setGrid(change: Partial<GridPrefs>) {
+		this.grid = { ...this.grid, ...change };
+		saveGrid(this.grid);
+	}
+
+	/** F2 : modifier ce qui est sélectionné (repère, texte, numéro de fil). */
+	editSelection() {
+		const ref = this.selection.length === 1 ? this.selection[0] : null;
+		if (!ref) return;
+		const field =
+			ref.kind === 'symbol'
+				? 'tag'
+				: ref.kind === 'text'
+					? 'text'
+					: ref.kind === 'wire'
+						? 'wireNumber'
+						: null;
+		if (field) this.requestFocus(field);
+	}
+
+	/** Entrée : reprendre la pose du dernier symbole posé. */
+	repeatLastSymbol(): boolean {
+		if (!this.lastPlacedDefId || this.readonly || this.panel) return false;
+		this.setTool({ kind: 'place', defId: this.lastPlacedDefId, rotation: 0, mirror: false });
+		return true;
 	}
 
 	requestFocus(field: string) {

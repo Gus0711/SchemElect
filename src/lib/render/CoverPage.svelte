@@ -5,6 +5,7 @@
 	 */
 	import { ellipsize, wrapText } from '$lib/export/paginate';
 	import { PAGE, folioNumber } from '$lib/model/layout';
+	import { fillText, projectTemplate, type TemplateLine, type TextSize } from '$lib/model/template';
 	import type { Project } from '$lib/model/types';
 	import { schematic } from '$lib/theme/schematic';
 	import Label from './Label.svelte';
@@ -33,7 +34,6 @@
 	const box = { rx: K.radius, fill: 'none', stroke: C.frame, 'stroke-width': K.stroke };
 	const thin = { stroke: C.ink, 'stroke-width': TB.stroke };
 
-	const meta = $derived(project.meta);
 	const list = $derived(
 		entries ?? project.folios.map((f, i) => ({ number: folioNumber(i), title: f.title }))
 	);
@@ -82,54 +82,84 @@
 	const revBottom = $derived(revBox.y + rowH * (revRows.length + 1));
 	const fy = bottom - footerH;
 
-	// Blocs société et titre : se partagent la hauteur restante.
+	// Blocs société, présentation (facultatif) et titre : se partagent la hauteur restante.
+	const tpl = $derived(projectTemplate(project));
+	const ctx = $derived({ folioCount: count });
+	const hasAbout = $derived(tpl.cover.about.some((l) => l.value.trim() || l.label));
 	const upper = $derived(revBox.y - GAP - M);
-	const companyBox = $derived({ x: rx, y: M, w: colW, h: (upper - GAP) * 0.55 });
-	const titleBox = $derived({
-		x: rx,
-		y: M + companyBox.h + GAP,
-		w: colW,
-		h: upper - GAP - companyBox.h
+	const boxes = $derived.by(() => {
+		const shares = hasAbout ? [0.34, 0.33, 0.33] : [0.55, 0, 0.45];
+		const free = upper - GAP * (hasAbout ? 2 : 1);
+		const [hc, ha, ht] = shares.map((k) => free * k);
+		const company = { x: rx, y: M, w: colW, h: hc };
+		const about = { x: rx, y: M + hc + GAP, w: colW, h: ha };
+		const title = { x: rx, y: M + hc + (hasAbout ? ha + 2 * GAP : GAP), w: colW, h: ht };
+		return { company, about, title };
 	});
 
-	const companyLines = $derived(wrapText(meta.company, colW - 12, T.company, cw).slice(0, 3));
-	const addressLines = $derived(
-		wrapText(meta.companyAddress, colW - 12, T.address, cw).slice(0, 3)
-	);
-	const titleLines = $derived(wrapText(meta.name, colW - 12, T.title, cw).slice(0, 3));
+	/** Tailles de texte par bloc (petit / normal / grand). */
+	const SIZES = {
+		company: { small: T.address, normal: T.client, big: T.company },
+		about: { small: T.summary, normal: T.address, big: T.client },
+		title: { small: T.address, normal: T.client, big: T.title }
+	};
 
-	function stackY(b: { y: number; h: number }, blocks: { n: number; size: number }[], gap: number) {
-		const lh = (s: number) => s * 1.2;
-		const total =
-			blocks.reduce((a, bl) => a + bl.n * lh(bl.size), 0) +
-			gap * (blocks.filter((bl) => bl.n).length - 1);
-		let y = b.y + (b.h - total) / 2;
-		return blocks.map((bl) => {
-			const ys = Array.from({ length: bl.n }, (_, i) => y + lh(bl.size) * i + bl.size);
-			if (bl.n) y += bl.n * lh(bl.size) + gap;
-			return ys;
+	/** Lignes d'un bloc : texte rempli, coupé à la largeur, centré verticalement. */
+	function block(
+		lines: TemplateLine[],
+		b: { x: number; y: number; w: number; h: number },
+		sizes: Record<TextSize, number>,
+		width: number
+	) {
+		const rows = lines.flatMap((l) => {
+			const size = sizes[l.size ?? 'normal'];
+			const t = fillText(`${l.label ? `${l.label} ` : ''}${l.value}`, project, ctx);
+			return t
+				? wrapText(t, width, size, cw)
+						.slice(0, 3)
+						.map((text) => ({ text, size, l }))
+				: [];
+		});
+		const lh = (sz: number) => sz * 1.25;
+		const total = rows.reduce((a, r) => a + lh(r.size), 0);
+		// Trop haut : tout est réduit proportionnellement.
+		const k = Math.min(1, (b.h - 4) / Math.max(1, total));
+		let y = b.y + (b.h - total * k) / 2;
+		return rows.map((r) => {
+			const size = r.size * k;
+			const out = { ...r, size, y: y + size };
+			y += lh(size);
+			return out;
 		});
 	}
 
-	const companyY = $derived(
-		stackY(
-			companyBox,
-			[
-				{ n: companyLines.length, size: T.company },
-				{ n: addressLines.length, size: T.address }
-			],
-			4
-		)
+	/** Logo à gauche du bloc société (si présent), texte à droite. */
+	const logoBox = $derived.by(() => {
+		if (!tpl.logo) return null;
+		const b = boxes.company;
+		const h = b.h - 8;
+		const w = Math.min(colW * 0.42, h / (tpl.logoRatio ?? 1));
+		return { x: b.x + 5, y: b.y + 4, w, h };
+	});
+	const companyTextX = $derived(logoBox ? logoBox.x + logoBox.w + 4 : rx + 6);
+	const companyTextW = $derived(rx + colW - 6 - companyTextX);
+	const companyRows = $derived(
+		block(tpl.cover.company, boxes.company, SIZES.company, companyTextW)
 	);
-	const titleY = $derived(
-		stackY(
-			titleBox,
-			[
-				{ n: titleLines.length, size: T.title },
-				{ n: meta.client ? 1 : 0, size: T.client }
-			],
-			4
-		)
+	const aboutRows = $derived(
+		hasAbout ? block(tpl.cover.about, boxes.about, SIZES.about, colW - 10) : []
+	);
+	const titleRows = $derived(block(tpl.cover.title, boxes.title, SIZES.title, colW - 12));
+	const footer = $derived(
+		[0, 1, 2].map((i) => {
+			const l = tpl.cover.footer[i];
+			return {
+				label: l?.label ?? '',
+				value: l ? fillText(l.value, project, ctx) : '',
+				size: l?.size === 'big' ? T.folioCount : T.footerValue,
+				bold: !!l?.bold
+			};
+		})
 	);
 </script>
 
@@ -169,23 +199,66 @@
 		stroke-width={K.tableStroke}
 	/>
 
-	<!-- Société -->
-	<rect x={companyBox.x} y={companyBox.y} width={companyBox.w} height={companyBox.h} {...box} />
-	{#each companyLines as t, i (i)}
-		<Label x={rx + colW / 2} y={companyY[0][i]} text={t} size={T.company} anchor="middle" bold />
-	{/each}
-	{#each addressLines as t, i (i)}
-		<Label x={rx + colW / 2} y={companyY[1][i]} text={t} size={T.address} anchor="middle" />
+	<!-- Société : logo + lignes du modèle -->
+	<rect
+		x={boxes.company.x}
+		y={boxes.company.y}
+		width={boxes.company.w}
+		height={boxes.company.h}
+		{...box}
+	/>
+	{#if logoBox && tpl.logo}
+		<image
+			x={logoBox.x}
+			y={logoBox.y}
+			width={logoBox.w}
+			height={logoBox.h}
+			href={tpl.logo}
+			preserveAspectRatio="xMidYMid meet"
+		/>
+	{/if}
+	{#each companyRows as r, i (i)}
+		<Label
+			x={companyTextX + companyTextW / 2}
+			y={r.y}
+			text={r.text}
+			size={r.size}
+			anchor="middle"
+			bold={r.l.bold}
+			color={r.l.accent ? C.reference : C.ink}
+		/>
 	{/each}
 
-	<!-- Titre -->
-	<rect x={titleBox.x} y={titleBox.y} width={titleBox.w} height={titleBox.h} {...box} />
-	{#each titleLines as t, i (i)}
-		<Label x={rx + colW / 2} y={titleY[0][i]} text={t} size={T.title} anchor="middle" bold />
-	{/each}
-	{#if meta.client}
-		<Label x={rx + colW / 2} y={titleY[1][0]} text={meta.client} size={T.client} anchor="middle" />
+	<!-- Présentation (facultative) -->
+	{#if hasAbout}
+		{@const ab = boxes.about}
+		<rect x={ab.x} y={ab.y} width={ab.w} height={ab.h} {...box} />
+		{#each aboutRows as r, i (i)}
+			<Label
+				x={rx + colW / 2}
+				y={r.y}
+				text={r.text}
+				size={r.size}
+				anchor="middle"
+				bold={r.l.bold}
+				color={r.l.accent ? C.reference : C.ink}
+			/>
+		{/each}
 	{/if}
+
+	<!-- Titre -->
+	<rect x={boxes.title.x} y={boxes.title.y} width={boxes.title.w} height={boxes.title.h} {...box} />
+	{#each titleRows as r, i (i)}
+		<Label
+			x={rx + colW / 2}
+			y={r.y}
+			text={r.text}
+			size={r.size}
+			anchor="middle"
+			bold={r.l.bold}
+			color={r.l.accent ? C.reference : C.ink}
+		/>
+	{/each}
 
 	<!-- Indices -->
 	<rect x={revBox.x} y={revBox.y} width={revBox.w} height={revBox.h} {...box} />
@@ -242,47 +315,17 @@
 	<line x1={rx} y1={fy} x2={rx + colW} y2={fy} {...thin} />
 	<line x1={rx + footCols[1]} y1={fy} x2={rx + footCols[1]} y2={bottom} {...thin} />
 	<line x1={rx + footCols[2]} y1={fy} x2={rx + footCols[2]} y2={bottom} {...thin} />
-	<Label
-		x={rx + footCols[1] / 2}
-		y={fy + 4.6}
-		text="N° d'affaire :"
-		size={T.footerLabel}
-		anchor="middle"
-	/>
-	<Label
-		x={rx + footCols[1] / 2}
-		y={fy + 9.8}
-		text={meta.affaireNumber}
-		size={T.footerValue}
-		anchor="middle"
-	/>
-	<Label
-		x={rx + (footCols[1] + footCols[2]) / 2}
-		y={fy + 4.6}
-		text="N° de plan"
-		size={T.footerLabel}
-		anchor="middle"
-	/>
-	<Label
-		x={rx + (footCols[1] + footCols[2]) / 2}
-		y={fy + 9.8}
-		text={meta.planNumber}
-		size={T.footerValue}
-		anchor="middle"
-	/>
-	<Label
-		x={rx + (footCols[2] + colW) / 2}
-		y={fy + 4.6}
-		text="NB DE FOLIOS :"
-		size={T.footerLabel}
-		anchor="middle"
-	/>
-	<Label
-		x={rx + (footCols[2] + colW) / 2}
-		y={fy + 10.4}
-		text={String(count)}
-		size={T.folioCount}
-		anchor="middle"
-		bold
-	/>
+	{#each footer as f, i (i)}
+		{@const x0 = rx + footCols[i]}
+		{@const x1 = rx + (footCols[i + 1] ?? colW)}
+		<Label x={(x0 + x1) / 2} y={fy + 4.6} text={f.label} size={T.footerLabel} anchor="middle" />
+		<Label
+			x={(x0 + x1) / 2}
+			y={fy + (f.size > T.footerValue ? 10.4 : 9.8)}
+			text={ellipsize(f.value, x1 - x0 - 2, f.size, cw)}
+			size={f.size}
+			anchor="middle"
+			bold={f.bold}
+		/>
+	{/each}
 </svg>

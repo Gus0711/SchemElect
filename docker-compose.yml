@@ -7,7 +7,7 @@ services:
     ports:
       - '3000:3000'
     volumes:
-      # Base SQLite persistante (sauvegarder ce dossier).
+      # Base SQLite persistante + copies automatiques dans data/backups (sauvegarder ce dossier).
       - ./data:/app/data
     environment:
       DATABASE_URL: file:/app/data/schemelect.db

@@ -9,5 +9,7 @@ export { default as Modal } from './Modal.svelte';
 export { default as Panel } from './Panel.svelte';
 export { default as Alert } from './Alert.svelte';
 export { default as AppHeader } from './AppHeader.svelte';
+export { default as ThemeToggle } from './ThemeToggle.svelte';
+export { theme, type ThemePref } from './theme.svelte';
 export { default as AuthLayout } from './AuthLayout.svelte';
 export { default as ContextMenu, type MenuEntry } from './ContextMenu.svelte';

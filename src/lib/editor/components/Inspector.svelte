@@ -1,9 +1,19 @@
 <script lang="ts">
 	/** Panneau de propriétés de la sélection (ou du folio si rien n'est sélectionné). */
+	import {
+		CABLE_TYPES,
+		cableType,
+		colorsToLines,
+		defaultCableColors,
+		defaultCableName,
+		linesToColors
+	} from '$lib/model/cables';
 	import { detachSymbol, scaleSymbol, setSymbolTag, symbolsOfDevice } from '$lib/model/edit';
 	import { folioRef } from '$lib/model/layout';
+	import { isPanelKind } from '$lib/model/panel';
+	import { deviceFootprint } from '$lib/model/footprints';
 	import { parseTag } from '$lib/model/tags';
-	import type { Device, SymbolInstance } from '$lib/model/types';
+	import type { CableItem, Device, SymbolInstance } from '$lib/model/types';
 	import SymbolThumb from '$lib/render/SymbolThumb.svelte';
 	import { getSymbolDef } from '$lib/symbols';
 	import { specOf } from '$lib/symbols/custom';
@@ -13,6 +23,8 @@
 	import type { Editor } from '../editor.svelte';
 	import AlignTools from './AlignTools.svelte';
 	import ChecksPanel from './ChecksPanel.svelte';
+	import PanelInspector from './PanelInspector.svelte';
+	import StripsFolioInspector from './StripsFolioInspector.svelte';
 
 	let { editor }: { editor: Editor } = $props();
 
@@ -34,6 +46,10 @@
 	const rect = $derived(
 		single?.kind === 'rect' ? folio.rects.find((r) => r.id === single.id) : undefined
 	);
+	const cable = $derived(
+		single?.kind === 'cable' ? folio.cables.find((c) => c.id === single.id) : undefined
+	);
+	const cableInfo = $derived(cable ? editor.analysis.cables.byId.get(cable.id) : undefined);
 	const device = $derived(symbol ? editor.project.devices[symbol.deviceId] : undefined);
 	const def = $derived(symbol ? getSymbolDef(symbol.defId) : undefined);
 	/** Symbole coloré par sa valeur (voyant) : la valeur est une couleur. */
@@ -73,7 +89,10 @@
 		});
 	});
 
+	const MOUNTING = { rail: 'sur rail', porte: 'en porte', externe: 'hors armoire' } as const;
+
 	const val = (e: Event) => (e.currentTarget as HTMLInputElement).value;
+	const NL = '\n';
 
 	function setTag(s: SymbolInstance, value: string) {
 		editor.transact('Changer le repère', (p) => setSymbolTag(p, s, value));
@@ -104,6 +123,31 @@
 		editor.transact('Redimensionner', (_, f) => scaleSymbol(f, id, k));
 	}
 
+	function setCable(label: string, fn: (c: CableItem) => void) {
+		if (!cable) return;
+		const id = cable.id;
+		editor.transact(label, (_, f) => {
+			const c = f.cables.find((x) => x.id === id);
+			if (c) fn(c);
+		});
+	}
+
+	/** Nombre de conducteurs : les couleurs déjà saisies sont conservées. */
+	function resizeCable(c: CableItem, count: number) {
+		const next = defaultCableColors(c.type, c.pairs, count);
+		c.colors = next.map((x, i) => c.colors[i] ?? x);
+	}
+
+	function setCableType(value: string) {
+		const t = cableType(value);
+		setCable('Type de câble', (c) => {
+			c.type = value.trim();
+			if (!t) return;
+			c.pairs = t.pairs;
+			c.colors = defaultCableColors(c.type, c.pairs, c.colors.length);
+		});
+	}
+
 	function locate(s: SymbolInstance) {
 		editor.goToSymbol(s.id);
 	}
@@ -115,7 +159,13 @@
 </script>
 
 <aside class="inspector">
-	{#if !sel.length}
+	{#if editor.stripsFolio && !sel.length}
+		<!-- Folio borniers automatique : titre, filtre, série. -->
+		<StripsFolioInspector {editor} />
+	{:else if editor.panel && (!sel.length || (single && isPanelKind(single.kind)))}
+		<!-- Folio d'implantation / de façade : armoire, rail, goulotte, appareil posé. -->
+		<PanelInspector {editor} />
+	{:else if !sel.length}
 		<Panel title="Folio">
 			<Field label="Titre du folio">
 				<input
@@ -188,6 +238,26 @@
 							disabled={ro}
 							onchange={(e) => setDevice('manufacturer', val(e))}
 						/>
+					</Field>
+					<Field label="Montage" hint="Pour les folios d’implantation et de façade">
+						<select
+							value={device.mounting ?? ''}
+							disabled={ro}
+							onchange={(e) =>
+								setDevice(
+									'mounting',
+									((e.currentTarget as HTMLSelectElement).value || undefined) as Device['mounting']
+								)}
+						>
+							<option value=""
+								>Automatique ({MOUNTING[
+									deviceFootprint(editor.project, device.id, true).mounting
+								]})</option
+							>
+							<option value="rail">Sur rail (armoire)</option>
+							<option value="porte">En porte (façade)</option>
+							<option value="externe">Hors armoire</option>
+						</select>
 					</Field>
 				{/if}
 				{#if def.role === 'master'}
@@ -388,6 +458,151 @@
 					/>
 					Gras
 				</label>
+			</div>
+		</Panel>
+	{:else if cable}
+		{@const crossed = cableInfo?.crossings.length ?? 0}
+		{@const unit = cable.pairs ? 2 : 1}
+		<Panel title="Câble">
+			<div class="row">
+				<Field label="Repère">
+					<input
+						class="control"
+						value={cable.tag}
+						disabled={ro}
+						onchange={(e) => {
+							const v = val(e).trim();
+							if (v) setCable('Repère du câble', (c) => (c.tag = v));
+						}}
+					/>
+				</Field>
+				<Field label="Type">
+					<input
+						class="control"
+						list="cable-types"
+						value={cable.type}
+						disabled={ro}
+						onchange={(e) => setCableType(val(e))}
+					/>
+					<datalist id="cable-types">
+						{#each CABLE_TYPES as t (t.type)}<option value={t.type}>{t.hint}</option>{/each}
+					</datalist>
+				</Field>
+			</div>
+			<div class="row">
+				<Field label={cable.pairs ? 'Paires' : 'Conducteurs'}>
+					<input
+						class="control"
+						type="number"
+						min="1"
+						value={cable.colors.length / unit}
+						disabled={ro}
+						onchange={(e) => {
+							const n = Math.max(1, Math.round(Number(val(e))) || 1);
+							setCable('Conducteurs du câble', (c) => resizeCable(c, n * unit));
+						}}
+					/>
+				</Field>
+				<Field label="Section">
+					<input
+						class="control"
+						value={cable.section ?? ''}
+						placeholder="ex. 1,5"
+						disabled={ro}
+						onchange={(e) => {
+							const v = val(e).trim();
+							setCable('Section du câble', (c) => (c.section = v || undefined));
+						}}
+					/>
+				</Field>
+			</div>
+			<label class="check">
+				<input
+					type="checkbox"
+					checked={cable.pairs}
+					disabled={ro}
+					onchange={(e) => {
+						const v = (e.currentTarget as HTMLInputElement).checked;
+						setCable('Câble à paires', (c) => {
+							c.pairs = v;
+							if (v && c.colors.length % 2) resizeCable(c, c.colors.length + 1);
+						});
+					}}
+				/>
+				Câble à paires
+			</label>
+			<Field label={cable.pairs ? 'Couleurs (une paire par ligne)' : 'Couleurs (une par ligne)'}>
+				<textarea
+					class="control"
+					rows={Math.min(8, Math.max(2, cable.colors.length / unit))}
+					value={colorsToLines(cable.colors, cable.pairs).join(NL)}
+					disabled={ro}
+					onchange={(e) => {
+						const lines = (e.currentTarget as HTMLTextAreaElement).value.split(NL);
+						setCable('Couleurs du câble', (c) => {
+							const colors = linesToColors(lines, c.pairs);
+							if (colors.length) c.colors = colors;
+						});
+					}}></textarea>
+			</Field>
+			<Field label="Texte affiché">
+				<input
+					class="control"
+					value={cable.name ?? ''}
+					placeholder={defaultCableName(cable)}
+					disabled={ro}
+					onchange={(e) => {
+						const v = val(e).trim();
+						setCable('Texte du câble', (c) => (c.name = v || undefined));
+					}}
+				/>
+			</Field>
+			<label class="check">
+				<input
+					type="checkbox"
+					checked={cable.showColors !== false}
+					disabled={ro}
+					onchange={(e) => {
+						const v = (e.currentTarget as HTMLInputElement).checked;
+						setCable('Couleurs affichées', (c) => (c.showColors = v ? undefined : false));
+					}}
+				/>
+				Afficher les couleurs sur le schéma
+			</label>
+			<Field label="Longueur (mm)">
+				<input
+					class="control"
+					type="number"
+					min="5"
+					step="2.5"
+					value={cable.length}
+					disabled={ro}
+					onchange={(e) => {
+						const n = Number(val(e));
+						if (n >= 5) setCable('Longueur du câble', (c) => (c.length = n));
+					}}
+				/>
+			</Field>
+			<p class="small" class:warn={!!cableInfo?.overflow}>
+				{crossed} fil{crossed > 1 ? 's' : ''} coupé{crossed > 1 ? 's' : ''} ·
+				{cable.colors.length} conducteurs{#if cableInfo?.overflow}
+					— {cableInfo.overflow} en trop{/if}
+			</p>
+			<div class="row">
+				{#if crossed && crossed !== cable.colors.length}
+					<Button
+						size="sm"
+						disabled={ro}
+						onclick={() => setCable('Ajuster le câble', (c) => resizeCable(c, crossed))}
+						>Ajuster à {crossed} fils</Button
+					>
+				{/if}
+				<Button size="sm" onclick={() => editor.rotate()} disabled={ro}
+					><RotateCw size={14} /> Pivoter</Button
+				>
+				<Button size="sm" variant="danger" onclick={() => editor.deleteSelection()} disabled={ro}
+					><Trash size={14} /></Button
+				>
 			</div>
 		</Panel>
 	{:else if rect}

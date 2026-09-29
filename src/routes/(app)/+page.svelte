@@ -76,6 +76,13 @@
 			>Projet de démonstration</Button
 		>
 	</form>
+	<form method="POST" action="?/demoArmoire">
+		<Button
+			type="submit"
+			title="Dossier d'exemple complet : distribution, chaudière, pompe, implantation et façade"
+			>Exemple armoire complète</Button
+		>
+	</form>
 	<Button variant="primary" onclick={() => (createOpen = true)}
 		><FilePlus2 size={16} /> Nouveau projet</Button
 	>
@@ -165,6 +172,12 @@
 			<Field label="N° de plan" name="planNumber" />
 		</div>
 		<Field label="Client" name="client" />
+		<Field label="Modèle de cartouche et de page de garde">
+			<select name="template">
+				<option value="">Standard</option>
+				{#each data.templates as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
+			</select>
+		</Field>
 		{#if errorFor('create')}<Alert>{errorFor('create')}</Alert>{/if}
 	</form>
 	{#snippet actions()}

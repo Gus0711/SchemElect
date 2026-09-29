@@ -68,10 +68,11 @@ export async function buildProjectPdf(
 	try {
 		if (plan.cover)
 			await renderPage(CoverPage, { project, entries: plan.entries, folioCount: plan.folioCount });
-		for (const folio of project.folios) await renderPage(FolioPage, { project, folio, analysis });
+		for (const folio of project.folios)
+			await renderPage(FolioPage, { project, folio, analysis, grid: opts.grid ?? null });
 		for (const [k, page] of plan.stripPages.entries())
 			await renderPage(StripsPage, {
-				meta: project.meta,
+				project,
 				page,
 				index: project.folios.length + k,
 				total: plan.totalPages,

@@ -23,24 +23,29 @@ dépôt** (en particulier DumTools — interdit d'y toucher).
 alignement, alerte de contacts, navigation par renvois (double-clic), voyants colorés,
 **symboles maison** (image de documentation retouchable — rogner / gommer / fond
 transparent — ou cadre titré, bornes posées au clic, bibliothèque partagée) et
-redimensionnement des symboles maison sur le folio. Détail : `docs/JOURNAL.md`.
+redimensionnement des symboles maison sur le folio, câbles, **folios d'implantation et de
+façade** (armoire à l'échelle, rails, goulottes, placement auto), **modèles de cartouche et
+de page de garde** (logo, champs libres, cases configurables, bibliothèque « Modèles »),
+**folio borniers automatique** (dessin des borniers), **grille** réglable et imprimable,
+**raccourcis clavier** avec aide (touche ?), exemple « armoire complète ». Détail :
+`docs/JOURNAL.md`.
 
 ## Priorités (à traiter dans cet ordre — voir `docs/ROADMAP.md` § Priorités)
 
-1. 🔴 **Sécuriser** : premier commit git (rien n'est commité ! demander l'accord de
-   l'utilisateur avant de committer) + sauvegarde automatique de la base SQLite (`data/`).
+1. ✅ **Sécuriser** : fait (commit initial + sauvegarde automatique de la base, page
+   admin « Sauvegardes »). Toujours demander l'accord avant de committer.
 2. 🔴 **Test par le dessinateur (V.R)** sur le dossier DW261136 → ses retours priment sur
    tout le reste de la liste.
 3. 🔴 **Mise en service** sur le serveur interne (Docker : `ORIGIN`, HTTPS éventuel,
    sauvegarde du volume `data/`).
-4. 🟠 **Câbles** multi-conducteurs (nom, type, paires + couleurs ; ex. folio 04 « CABLE SYT1
-   3 PAIRES »).
+4. ✅ **Câbles** multi-conducteurs : fait (outil Câble, `model/cables.ts`). Reste à faire
+   valider par V.R les couleurs SYT1 au-delà de 3 paires.
 5. 🟡 **Panneau « Appareils »** (liste de tous les repères, recherche, appareils sans
    référence) + **recherche** dans le dossier (« KM3 », « P12 »).
-6. 🟠 Selon les retours : catalogue matériel + nomenclature par référence dans le PDF ;
-   folios implantation / façade ; historique par indice de révision.
-7. 🟡 Plus tard : récupération locale en cas de coupure réseau, cartouche / page de garde
-   personnalisables, import `.xrs` WinRelais.
+6. 🟠 Selon les retours : catalogue matériel (vraies dimensions et contacts par référence)
+   + nomenclature par référence dans le PDF ; historique par indice de révision.
+   (Implantation / façade, modèles de cartouche et folio borniers : faits le 2026-09-29.)
+7. 🟡 Plus tard : récupération locale en cas de coupure réseau, import `.xrs` WinRelais.
 
 ## Documents de référence
 
@@ -101,4 +106,7 @@ Avant de terminer une session : `npm run check && npm run lint && npm test && np
 
 Pièges : OneDrive peut verrouiller des fichiers (EBUSY) → réessayer ; les ports 5182–5281 sont
 réservés par Windows (le e2e utilise 4299). Ne pas utiliser `structuredClone` sur l'état
-Svelte (Proxy) → `deepClone` de `$lib/model/ids`.
+Svelte (Proxy) → `deepClone` de `$lib/model/ids`. Serveur de dev : un fichier réécrit
+pendant que Vite tourne (OneDrive) peut être lu vide et mis en cache (« does not provide an
+export named… ») → `touch` du fichier ou relancer `npm run dev`. Tout nouveau champ de
+`Project` doit être repris dans `migrateProject`.
