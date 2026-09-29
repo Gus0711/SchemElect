@@ -1,0 +1,16 @@
+node_modules
+.svelte-kit
+build
+data
+*.db
+*.db-*
+.env
+.env.*
+!.env.example
+.git
+.vscode
+exemple_schema
+test-results
+playwright-report
+Dockerfile
+docker-compose.yml

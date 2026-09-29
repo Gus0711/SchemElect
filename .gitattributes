@@ -1,0 +1,5 @@
+* text=auto eol=lf
+# Fichiers WinRelais : Latin-1 + CRLF, ne jamais convertir
+*.xrs -text
+*.pdf binary
+*.png binary

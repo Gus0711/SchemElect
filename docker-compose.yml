@@ -1,0 +1,20 @@
+services:
+  schemelect:
+    build: .
+    image: schemelect:latest
+    container_name: schemelect
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    volumes:
+      # Base SQLite persistante (sauvegarder ce dossier).
+      - ./data:/app/data
+    environment:
+      DATABASE_URL: file:/app/data/schemelect.db
+      # URL exacte par laquelle les postes accèdent à l'application (obligatoire pour
+      # les formulaires : protection CSRF de SvelteKit). À adapter.
+      ORIGIN: http://schemelect.local:3000
+      # Taille max. d'une requête (documents projet volumineux).
+      BODY_SIZE_LIMIT: 50M
+      # Cookie de session `secure` : automatique si ORIGIN est en https://.
+      # COOKIE_SECURE: 'true'
