@@ -16,7 +16,8 @@ dans la société : ce qui était « à valider par V.R » est à valider par l'
 | 3 | ✅ | Panneau « Appareils » + recherche dans le dossier (Ctrl+F) | Fait le 2026-10-01 — à tester |
 | 4 | ✅ | Catalogue matériel + nomenclature CSV / PDF (phase 12) | Fait le 2026-10-01 — catalogue de départ à vérifier |
 | 5 | ✅ | Historique des versions + duplication | Fait le 2026-10-01 — reste : comparaison de deux versions (écarts) |
-| 6 | 🟡 | Récupération locale (coupure réseau), import `.xrs` | Confort / reprise de l'existant |
+| 6 | 🔴 | Nomenclature de commande | ✅ accessoires liés + section des fils (2026-10-01) ; reste : matériel d'armoire, câbles, lignes libres, sortie par fabricant |
+| 7 | 🟡 | Récupération locale (coupure réseau), import `.xrs` | Confort / reprise de l'existant |
 | — | ✅ | Faits le 2026-09-29 : câbles (phase 9), implantation / façade (phase 13), cartouche / page de garde personnalisables, folio borniers automatique, grille, raccourcis + aide (?), exemple « armoire complète » | — |
 
 **À valider par l'utilisateur** : couleurs SYT1 au-delà de 3 paires ; encombrements par

@@ -262,3 +262,41 @@ describe('navigation entre renvois', () => {
 		expect(crossTargets(project, coil.id).map((t) => t.kind)).toEqual(['contact']);
 	});
 });
+
+describe('sections des fils', () => {
+	it('fil imposé > potentiel > défaut du dossier ; affichage réglable', () => {
+		const project = createProject('Sections');
+		const folio = project.folios[0];
+		addBar(folio, 'L1', 30);
+		const h = addSymbol(project, folio, 'voyant', { x: 100, y: 60 });
+		const [x1, x2] = symbolTerminals(h);
+		const pw = addWire(folio, [{ x: 100, y: 30 }, x1])!;
+		const cw = addWire(folio, [x2, { x: 100, y: 100 }])!;
+
+		// Rien de réglé : pas de section.
+		let a = analyzeProject(project);
+		expect(a.wireStyle.get(cw.id)?.section).toBeUndefined();
+
+		project.settings.wireSection = '0.75';
+		project.potentials.find((p) => p.id === 'L1')!.section = '2,5';
+		a = analyzeProject(project);
+		expect(a.nets.netOfWire.get(pw.id)?.section).toBe('2,5');
+		expect(a.wireStyle.get(pw.id)?.section).toBe('2,5²');
+		expect(a.wireStyle.get(cw.id)?.section).toBe('0,75²');
+		expect(a.nets.netOfWire.get(cw.id)?.sectionImposed).toBe(false);
+
+		// Section imposée sur un fil : toute l'équipotentielle.
+		cw.section = '1,5';
+		project.settings.sectionDisplay = 'imposed';
+		a = analyzeProject(project);
+		expect(a.wireStyle.get(cw.id)?.section).toBe('1,5²');
+		expect(a.wireStyle.get(pw.id)?.section).toBeUndefined();
+
+		project.settings.sectionDisplay = 'none';
+		expect(analyzeProject(project).wireStyle.get(cw.id)?.section).toBeUndefined();
+		// Texte libre conservé tel quel.
+		cw.section = '2x1,5';
+		project.settings.sectionDisplay = 'all';
+		expect(analyzeProject(project).wireStyle.get(cw.id)?.section).toBe('2x1,5');
+	});
+});

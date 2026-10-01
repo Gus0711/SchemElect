@@ -11,6 +11,32 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-01 (suite 2) — Section des fils, accessoires liés
+
+**Fait** :
+- **Section des fils** (mm²) : par potentiel (onglet Potentiels), par défaut pour les fils
+  hors potentiel, ou imposée sur un fil (inspecteur, s'applique à l'équipotentielle).
+  Affichée sur le dessin en petit, du côté opposé au numéro (évite les chevauchements entre
+  fils voisins) ; affichage réglable (toutes / imposées / aucune) dans Propriétés ›
+  Numérotation et sections. Liste des fils CSV : colonne Section.
+- **Accessoires liés** dans le catalogue (embase de relais, bloc additif…) : champ
+  « Accessoires » de la fiche et colonne CSV ; ajoutés automatiquement à la nomenclature.
+  Catalogue de départ : embases Zelio RXZE2S108M / RXZE2S114M, support Finder 95.05, liés aux
+  relais (à vérifier).
+- Correctif : boucle d'effets Svelte (`effect_update_depth_exceeded`) à l'ouverture de
+  Propriétés du dossier (relecture de `meta` dans l'effet) — la page pouvait se figer.
+- Tests : 434 unitaires + 14 parcours e2e.
+
+**Reste / suite** (nomenclature de commande, dans l'ordre convenu) : matériel d'armoire
+calculé (rails, goulottes, butées), câbles par type / section, lignes libres, sortie groupée
+par fabricant. Pas de prix. Section dans les borniers : à voir.
+
+**Pièges / à savoir** : un catalogue de départ déjà importé n'est pas modifié par
+« Importer le catalogue de départ » (seules les fiches manquantes sont ajoutées) : lier les
+accessoires à la main sur les fiches existantes.
+
+---
+
 ## 2026-10-01 (suite) — Historique des versions et duplication
 
 **Décisions de l'utilisateur** : versions automatiques (15 min de travail + fermeture ;

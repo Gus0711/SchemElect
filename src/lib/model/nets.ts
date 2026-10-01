@@ -48,6 +48,10 @@ export interface Net {
 	/** Potentiels différents court-circuités sur ce réseau (erreur de schéma). */
 	shortedPotentials: Id[];
 	number?: string;
+	/** Section en mm² : imposée sur un fil, sinon celle du potentiel, sinon celle du dossier. */
+	section?: string;
+	/** La section est imposée sur un fil (pas reprise du potentiel ni du dossier). */
+	sectionImposed?: boolean;
 	wires: { folioId: Id; wireId: Id }[];
 	terminals: TerminalRef[];
 }
@@ -137,6 +141,7 @@ export function analyzeNets(project: Project): NetAnalysis {
 
 	const nets = [...byRoot.values()];
 	numberNets(project, nets);
+	sectionNets(project, nets);
 	return { nets, netOfWire, netOfTerminal, junctions, openTerminals };
 }
 
@@ -250,6 +255,33 @@ export function folioJunctions(folio: Folio): Point[] {
 	}
 	for (const { p, n } of endCount.values()) if (n >= 3) add(p);
 	return out;
+}
+
+/** Section de chaque équipotentielle : fil imposé > potentiel > défaut du dossier. */
+function sectionNets(project: Project, nets: Net[]) {
+	const imposed = new Map<Id, string>();
+	for (const f of project.folios)
+		for (const w of f.wires) if (w.section?.trim()) imposed.set(w.id, w.section.trim());
+	const potSection = new Map(project.potentials.map((p) => [p.id, p.section?.trim() || '']));
+	const def = project.settings.wireSection?.trim() || '';
+	for (const n of nets) {
+		if (!n.wires.length) continue;
+		const own = n.wires.map((w) => imposed.get(w.wireId)).find(Boolean);
+		const pot = n.potentialId ? potSection.get(n.potentialId) : '';
+		const section = own || pot || (n.potentialId ? '' : def);
+		if (!section) continue;
+		n.section = section;
+		n.sectionImposed = !!own;
+	}
+}
+
+/** Sections usuelles proposées à la saisie (mm²). */
+export const WIRE_SECTIONS = ['0,5', '0,75', '1', '1,5', '2,5', '4', '6', '10', '16', '25'];
+
+/** Texte d'une section sur le dessin : « 1,5 » → « 1,5² » (texte libre laissé tel quel). */
+export function sectionLabel(section: string): string {
+	const s = section.trim().replace('.', ',');
+	return /^\d+(,\d+)?$/.test(s) ? `${s}²` : s;
 }
 
 /**

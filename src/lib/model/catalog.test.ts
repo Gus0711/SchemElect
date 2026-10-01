@@ -6,8 +6,10 @@ import {
 	catalogUpdates,
 	deviceContacts,
 	findCatalogItem,
+	formatAccessories,
 	importCatalogCsv,
 	normalizeCatalogItem,
+	parseAccessories,
 	parseCsv,
 	parseMounting,
 	referenceKey,
@@ -18,7 +20,7 @@ import { addSymbol, setSymbolTag } from './edit';
 import { deviceFootprint } from './footprints';
 import { extractFragment, insertFragment } from './fragments';
 import { createProject, migrateProject } from './project';
-import { compressTags, computeNomenclature } from './nomenclature';
+import { bomTagsText, compressTags, computeNomenclature } from './nomenclature';
 import { listDevices, searchProject } from './inventory';
 import { STARTER_CATALOG } from './catalogStarter';
 
@@ -270,5 +272,79 @@ describe('catalogue de départ', () => {
 		expect(findCatalogItem(items as CatalogItem[], 'A9F74210')?.designation).toBe(
 			'Disjoncteur Acti9 iC60N 2P C10'
 		);
+	});
+});
+
+describe('accessoires liés', () => {
+	const RELAIS: CatalogItem = {
+		id: 'r',
+		reference: 'RXM4AB2B7',
+		manufacturer: 'Schneider Electric',
+		designation: 'Relais 4 OF',
+		accessories: [{ reference: 'RXZE2S114M', quantity: 1 }]
+	};
+	const EMBASE: CatalogItem = {
+		id: 'e',
+		reference: 'RXZE2S114M',
+		manufacturer: 'Schneider Electric',
+		designation: 'Embase relais 4 OF'
+	};
+
+	it('lit et écrit la liste en texte', () => {
+		expect(parseAccessories('2 × LADN11\nRXZE2S114M, gvae11 x3; 1*LADN11')).toEqual([
+			{ reference: 'LADN11', quantity: 3 },
+			{ reference: 'RXZE2S114M', quantity: 1 },
+			{ reference: 'gvae11', quantity: 3 }
+		]);
+		expect(
+			formatAccessories([
+				{ reference: 'LADN11', quantity: 2 },
+				{ reference: 'X', quantity: 1 }
+			])
+		).toBe('2 × LADN11, X');
+		// Pas d'auto-référence, texte accepté à la normalisation.
+		expect(
+			normalizeCatalogItem({ reference: 'A1', accessories: 'A1, 2 x B2' })?.accessories
+		).toEqual([{ reference: 'B2', quantity: 2 }]);
+	});
+
+	it('CSV : colonne Accessoires', () => {
+		const res = importCatalogCsv('Référence;Accessoires\nRXM4AB2B7;RXZE2S114M');
+		expect(res.items[0].accessories).toEqual([{ reference: 'RXZE2S114M', quantity: 1 }]);
+	});
+
+	it('recopie la fiche de l’accessoire et l’ajoute à la nomenclature', () => {
+		const { project, folio } = setup();
+		const k1 = addSymbol(project, folio, 'bobine-relais', { x: 100, y: 50 });
+		const k2 = addSymbol(project, folio, 'bobine-relais', { x: 150, y: 50 });
+		assignReference(project, k1.deviceId, 'RXM4AB2B7', [RELAIS, EMBASE]);
+		assignReference(project, k2.deviceId, 'RXM4AB2B7', [RELAIS, EMBASE]);
+		expect(Object.keys(project.catalog ?? {}).sort()).toEqual(['RXM4AB2B7', 'RXZE2S114M']);
+
+		const bom = computeNomenclature(project);
+		expect(bom.map((l) => [l.reference, l.quantity, bomTagsText(l)])).toEqual([
+			['RXM4AB2B7', 2, 'KA1, KA2'],
+			['RXZE2S114M', 2, 'accessoire de KA1, KA2']
+		]);
+		expect(bom[1].designation).toBe('Embase relais 4 OF');
+
+		// Fiche modifiée dans la bibliothèque : l'accessoire aussi est signalé.
+		const embase2 = { ...EMBASE, designation: 'Embase (corrigée)' };
+		expect(catalogUpdates(project, [RELAIS, embase2]).map((i) => i.reference)).toEqual([
+			'RXZE2S114M'
+		]);
+		// Plus aucun relais référencé : les deux fiches sont retirées.
+		assignReference(project, k1.deviceId, '', [RELAIS, EMBASE]);
+		assignReference(project, k2.deviceId, '', [RELAIS, EMBASE]);
+		expect(project.catalog).toEqual({});
+	});
+});
+
+describe('catalogue de départ : accessoires', () => {
+	it('chaque accessoire cité a sa fiche', () => {
+		const keys = new Set(STARTER_CATALOG.map((s) => referenceKey(s.reference)));
+		const cited = STARTER_CATALOG.flatMap((s) => s.accessories ?? []);
+		expect(cited.length).toBeGreaterThan(0);
+		for (const a of cited) expect(keys.has(referenceKey(a.reference))).toBe(true);
 	});
 });

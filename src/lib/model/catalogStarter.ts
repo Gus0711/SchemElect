@@ -186,7 +186,8 @@ export const STARTER_CATALOG: Starter[] = [
 		category: 'Relais',
 		contacts: { no: 2, nc: 2 },
 		mounting: 'rail',
-		notes: `${CHECK} — embase à commander à part`
+		accessories: [{ reference: 'RXZE2S108M', quantity: 1 }],
+		notes: CHECK
 	},
 	{
 		reference: 'RXM4AB2B7',
@@ -195,7 +196,8 @@ export const STARTER_CATALOG: Starter[] = [
 		category: 'Relais',
 		contacts: { no: 4, nc: 4 },
 		mounting: 'rail',
-		notes: `${CHECK} — embase à commander à part`
+		accessories: [{ reference: 'RXZE2S114M', quantity: 1 }],
+		notes: CHECK
 	},
 	{
 		reference: 'RXM2AB2BD',
@@ -204,7 +206,8 @@ export const STARTER_CATALOG: Starter[] = [
 		category: 'Relais',
 		contacts: { no: 2, nc: 2 },
 		mounting: 'rail',
-		notes: `${CHECK} — embase à commander à part`
+		accessories: [{ reference: 'RXZE2S108M', quantity: 1 }],
+		notes: CHECK
 	},
 	{
 		reference: 'RXM4AB2BD',
@@ -213,7 +216,8 @@ export const STARTER_CATALOG: Starter[] = [
 		category: 'Relais',
 		contacts: { no: 4, nc: 4 },
 		mounting: 'rail',
-		notes: `${CHECK} — embase à commander à part`
+		accessories: [{ reference: 'RXZE2S114M', quantity: 1 }],
+		notes: CHECK
 	},
 	{
 		reference: '40.52.8.024.0000',
@@ -222,7 +226,8 @@ export const STARTER_CATALOG: Starter[] = [
 		category: 'Relais',
 		contacts: { no: 2, nc: 2 },
 		mounting: 'rail',
-		notes: `${CHECK} — support à commander à part`
+		accessories: [{ reference: '95.05', quantity: 1 }],
+		notes: CHECK
 	},
 	{
 		reference: '40.52.9.024.0000',
@@ -231,7 +236,33 @@ export const STARTER_CATALOG: Starter[] = [
 		category: 'Relais',
 		contacts: { no: 2, nc: 2 },
 		mounting: 'rail',
-		notes: `${CHECK} — support à commander à part`
+		accessories: [{ reference: '95.05', quantity: 1 }],
+		notes: CHECK
+	},
+
+	{
+		reference: 'RXZE2S108M',
+		manufacturer: SE,
+		designation: 'Embase à contacts séparés pour relais Zelio RXM 2 OF',
+		category: 'Relais',
+		mounting: 'rail',
+		notes: CHECK
+	},
+	{
+		reference: 'RXZE2S114M',
+		manufacturer: SE,
+		designation: 'Embase à contacts séparés pour relais Zelio RXM 4 OF',
+		category: 'Relais',
+		mounting: 'rail',
+		notes: CHECK
+	},
+	{
+		reference: '95.05',
+		manufacturer: 'Finder',
+		designation: 'Support à vis pour relais 40.52',
+		category: 'Relais',
+		mounting: 'rail',
+		notes: CHECK
 	},
 
 	// --- Alimentations

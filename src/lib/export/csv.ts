@@ -5,7 +5,7 @@
 import { projectStrips, type ProjectAnalysis } from '$lib/model/analysis';
 import { cableName, cablePosition, conductorLabel } from '$lib/model/cables';
 import { folioNumber, folioRef } from '$lib/model/layout';
-import { compressTags, computeNomenclature } from '$lib/model/nomenclature';
+import { bomTagsText, computeNomenclature } from '$lib/model/nomenclature';
 import { compareTags } from '$lib/model/tags';
 import type { Project } from '$lib/model/types';
 import { getSymbolDef } from '$lib/symbols';
@@ -126,7 +126,7 @@ export function nomenclatureCsv(project: Project): string {
 		l.manufacturer,
 		l.designation,
 		l.category,
-		compressTags(l.tags)
+		bomTagsText(l)
 	]);
 	return toCsv(['Quantité', 'Référence', 'Fabricant', 'Désignation', 'Catégorie', 'Repères'], rows);
 }
@@ -165,9 +165,18 @@ export function wiresCsv(project: Project, analysis: ProjectAnalysis): string {
 			(a, b) =>
 				compareTags(a.split(':')[0], b.split(':')[0]) || a.localeCompare(b, 'fr', { numeric: true })
 		);
-		return [label, pot?.wireColor ?? '', list(folios.map(folioNumber)), list(terms)];
+		return [
+			label,
+			pot?.wireColor ?? '',
+			n.section ?? '',
+			list(folios.map(folioNumber)),
+			list(terms)
+		];
 	});
-	return toCsv(['N° fil / potentiel', 'Couleur', 'Folios', 'Bornes raccordées'], rows);
+	return toCsv(
+		['N° fil / potentiel', 'Couleur', 'Section (mm²)', 'Folios', 'Bornes raccordées'],
+		rows
+	);
 }
 
 /** Téléchargement d'un fichier texte (navigateur uniquement). */

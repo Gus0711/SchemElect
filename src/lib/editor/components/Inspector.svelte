@@ -10,6 +10,7 @@
 	} from '$lib/model/cables';
 	import { detachSymbol, scaleSymbol, setSymbolTag, symbolsOfDevice } from '$lib/model/edit';
 	import { folioRef } from '$lib/model/layout';
+	import { WIRE_SECTIONS } from '$lib/model/nets';
 	import { isPanelKind } from '$lib/model/panel';
 	import { deviceCatalogItem, type CatalogItem } from '$lib/model/catalog';
 	import { deviceFootprint } from '$lib/model/footprints';
@@ -395,6 +396,33 @@
 			{#if wireNet?.shortedPotentials.length}
 				<p class="warn small">Court-circuit entre potentiels !</p>
 			{/if}
+			<Field
+				label="Section (mm²)"
+				hint={wire.section?.trim()
+					? 'Imposée sur ce fil : s’applique à toute l’équipotentielle.'
+					: wireNet?.section
+						? `Vide = ${wireNet.section} mm² (${wireNet.potentialId ? 'section du potentiel' : 'section par défaut du dossier'}).`
+						: 'Vide = pas de section (réglages : Propriétés du dossier).'}
+			>
+				<input
+					class="control"
+					value={wire.section ?? ''}
+					placeholder={wireNet?.section ?? '—'}
+					list="inspector-wire-sections"
+					disabled={ro}
+					onchange={(e) => {
+						const v = val(e).trim();
+						const id = wire.id;
+						editor.transact('Section de fil', (_, f) => {
+							const w = f.wires.find((x) => x.id === id);
+							if (w) w.section = v || undefined;
+						});
+					}}
+				/>
+				<datalist id="inspector-wire-sections">
+					{#each WIRE_SECTIONS as s (s)}<option value={s}></option>{/each}
+				</datalist>
+			</Field>
 			{#if !wireNet?.potentialId}
 				<Field
 					label="Numéro imposé"

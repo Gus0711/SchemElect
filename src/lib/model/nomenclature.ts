@@ -17,8 +17,17 @@ export interface BomLine {
 	category: string;
 	quantity: number;
 	tags: string[];
+	/** Appareils qui appellent cette référence comme accessoire (embase de KA1…). */
+	accessoryOf: string[];
 	/** Faux pour les appareils sans référence (à compléter). */
 	referenced: boolean;
+}
+
+/** Colonne « Repères » : « KA1 à KA4 », « accessoire de KA1 à KA4 », ou les deux. */
+export function bomTagsText(line: BomLine): string {
+	const own = compressTags(line.tags);
+	const acc = line.accessoryOf.length ? `accessoire de ${compressTags(line.accessoryOf)}` : '';
+	return [own, acc].filter(Boolean).join(' + ');
 }
 
 /**
@@ -46,7 +55,11 @@ export function compressTags(tags: string[]): string {
 	return parts.join(', ');
 }
 
-/** Nomenclature du dossier (bornes comprises : elles se commandent aussi). */
+/**
+ * Nomenclature du dossier (bornes comprises : elles se commandent aussi). Les accessoires
+ * des fiches catalogue (embases, blocs additifs…) sont ajoutés : quantité × nombre
+ * d'appareils, regroupés avec la même référence si elle est aussi dessinée.
+ */
 export function computeNomenclature(project: Project): BomLine[] {
 	const entries = listDevices(project);
 	const referenced = new Map<string, DeviceEntry[]>();
@@ -73,11 +86,44 @@ export function computeNomenclature(project: Project): BomLine[] {
 			category: cat?.category ?? first.family,
 			quantity: list.length,
 			tags: list.map((e) => e.tag),
+			accessoryOf: [],
 			referenced: true
 		});
 	}
-	const byFirstTag = (a: BomLine, b: BomLine) => compareTags(a.tags[0] ?? '', b.tags[0] ?? '');
-	lines.sort(byFirstTag);
+
+	// Accessoires appelés par les fiches des appareils.
+	const byKey = new Map(lines.map((l) => [l.key, l]));
+	for (const list of referenced.values())
+		for (const e of list)
+			for (const a of e.catalog?.accessories ?? []) {
+				const key = referenceKey(a.reference);
+				let line = byKey.get(key);
+				if (!line) {
+					const fiche = project.catalog?.[key];
+					line = {
+						key,
+						reference: fiche?.reference ?? a.reference,
+						manufacturer: fiche?.manufacturer ?? '',
+						designation: fiche?.designation || 'Accessoire',
+						category: fiche?.category ?? '',
+						quantity: 0,
+						tags: [],
+						accessoryOf: [],
+						referenced: true
+					};
+					byKey.set(key, line);
+					lines.push(line);
+				}
+				line.quantity += a.quantity;
+				if (!line.accessoryOf.includes(e.tag)) line.accessoryOf.push(e.tag);
+			}
+
+	const firstTag = (l: BomLine) => l.tags[0] ?? l.accessoryOf[0] ?? '';
+	// Un accessoire seul se range juste après son appareil.
+	lines.sort(
+		(a, b) =>
+			compareTags(firstTag(a), firstTag(b)) || Number(!a.tags.length) - Number(!b.tags.length)
+	);
 
 	const rest: BomLine[] = [];
 	for (const [key, list] of missing) {
@@ -90,9 +136,10 @@ export function computeNomenclature(project: Project): BomLine[] {
 			category: list[0].family,
 			quantity: list.length,
 			tags: list.map((e) => e.tag),
+			accessoryOf: [],
 			referenced: false
 		});
 	}
-	rest.sort(byFirstTag);
+	rest.sort((a, b) => compareTags(firstTag(a), firstTag(b)));
 	return [...lines, ...rest];
 }

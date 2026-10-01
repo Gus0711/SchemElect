@@ -47,6 +47,12 @@ Format versionné (`schemaVersion`) ; toute lecture passe par `migrateProject`.
 - **Connectivité géométrique** (`nets.ts`) : une extrémité de fil connecte ce qu'elle touche
   (borne, fil, barre). Bornes pontées d'un symbole (`bridges`), renvois de même repère et
   barres de même potentiel relient entre folios. Union-find.
+- **Sections des fils** (`sectionNets` dans `nets.ts`) : par équipotentielle — section
+  imposée sur un fil (`Wire.section`) > section du potentiel (`Potential.section`) > section
+  par défaut du dossier (`settings.wireSection`, fils hors potentiel). Affichage réglable
+  (`settings.sectionDisplay` : toutes / imposées / aucune) : `WireStyle.section`, dessinée par
+  `WireView` du côté opposé au numéro (verticale à gauche d'un fil vertical, sous un fil
+  horizontal). Colonne « Section » de la liste des fils CSV.
 - **Numérotation des fils** : séquentielle sur tout le dossier, ordre folio → x → y ; les
   réseaux reliés à un potentiel ne sont pas numérotés ; `numberOverride` imposable.
 - **Repères** (`tags.ts`, `edit.ts`) : repère auto par préfixe à la pose. Taper le repère
@@ -91,6 +97,9 @@ Format versionné (`schemaVersion`) ; toute lecture passe par `migrateProject`.
   décors, famille = catégorie du symbole principal, emplacements, problèmes « sans
   référence » / « contacts ») et `searchProject` (recherche Ctrl+F : repères, références,
   désignations, n° de fils, bornes, câbles, folios, textes ; classement par pertinence).
+- **Accessoires liés** (`CatalogItem.accessories` : référence + quantité, saisis en texte
+  « 2 × LADN11, RXZE2S114M ») : recopiés dans le projet avec la fiche, ajoutés à la
+  nomenclature (quantité × appareils, « accessoire de KA1 à KA4 »). Un seul niveau.
 - **Nomenclature** (`model/nomenclature.ts`) : une ligne par référence (quantité, repères
   compactés « KA1 à KA4 » par `compressTags`), puis les appareils sans référence par préfixe
   (« À compléter »). Bornes comprises.

@@ -26,6 +26,8 @@ export interface Potential {
 	/** Couleur du tracé (CSS). */
 	stroke: string;
 	dashed?: boolean;
+	/** Section des fils de ce potentiel en mm² (« 2,5 ») ; absente = section par défaut. */
+	section?: string;
 }
 
 /** Appareil physique (KM1, Q1, P12…). Plusieurs symboles peuvent le représenter. */
@@ -64,6 +66,8 @@ export interface Wire {
 	points: Point[];
 	/** Numéro imposé à l'équipotentielle (sinon numérotation automatique). */
 	numberOverride?: string;
+	/** Section imposée à l'équipotentielle, en mm² (« 1,5 ») ; sinon potentiel / défaut. */
+	section?: string;
 }
 
 /** Barre de potentiel horizontale. */
@@ -226,9 +230,16 @@ export interface Revision {
 	date: string;
 }
 
+/** Affichage des sections sur les fils : toutes, seulement celles imposées sur un fil, aucune. */
+export type SectionDisplay = 'all' | 'imposed' | 'none';
+
 export interface ProjectSettings {
 	wireNumberDigits: number;
 	wireNumberStart: number;
+	/** Section par défaut des fils hors potentiel (commande), en mm² ; vide = non renseignée. */
+	wireSection?: string;
+	/** Affichage des sections sur le dessin (défaut : toutes). */
+	sectionDisplay?: SectionDisplay;
 }
 
 export const SCHEMA_VERSION = 1;

@@ -2,7 +2,7 @@
  * Mise en page des folios « NOMENCLATURE » : colonnes, césure des cellules, pagination.
  * Pur (sans DOM) : partagé par BomPage.svelte (rendu) et l'export PDF (nombre de pages).
  */
-import { compressTags, type BomLine } from '$lib/model/nomenclature';
+import { bomTagsText, type BomLine } from '$lib/model/nomenclature';
 import { schematic } from '$lib/theme/schematic';
 import { paginateGroups, wrapText, type Page } from './paginate';
 import { STRIP_CAPACITY, STRIP_HEADER_LINES, STRIP_PAD } from './stripsTable';
@@ -23,7 +23,7 @@ export function bomCellTexts(line: BomLine): string[] {
 		line.reference || 'À compléter',
 		line.manufacturer,
 		line.designation,
-		compressTags(line.tags)
+		bomTagsText(line)
 	];
 }
 

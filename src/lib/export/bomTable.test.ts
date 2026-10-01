@@ -51,6 +51,7 @@ describe('nomenclature : export', () => {
 			category: '',
 			quantity: 1,
 			tags: [`Q${i}`],
+			accessoryOf: [],
 			referenced: true
 		}));
 		const pages = paginateBom(many);

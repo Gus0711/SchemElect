@@ -2,7 +2,7 @@
 	/** Aperçu de la nomenclature par référence du dossier, avec export CSV. */
 	import { downloadText, nomenclatureCsv } from '$lib/export/csv';
 	import { safeFileName } from '$lib/export/dossier';
-	import { compressTags, computeNomenclature } from '$lib/model/nomenclature';
+	import { bomTagsText, computeNomenclature } from '$lib/model/nomenclature';
 	import type { Project } from '$lib/model/types';
 	import { Button, Modal } from '$lib/ui';
 	import { Download } from '@lucide/svelte';
@@ -48,7 +48,7 @@
 						<td class="ref">{l.reference || 'À compléter'}</td>
 						<td>{l.manufacturer}</td>
 						<td>{l.designation}</td>
-						<td>{compressTags(l.tags)}</td>
+						<td>{bomTagsText(l)}</td>
 					</tr>
 				{:else}
 					<tr><td colspan="5" class="muted">Aucun appareil dans le dossier.</td></tr>

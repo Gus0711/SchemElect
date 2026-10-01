@@ -30,7 +30,69 @@ export interface CatalogItem {
 	mounting?: Mounting;
 	/** Remarque libre (« à vérifier », lien fiche technique…). */
 	notes?: string;
+	/**
+	 * Accessoires appelés par la référence (embase d'un relais, bloc additif…) : ajoutés
+	 * automatiquement à la nomenclature, quantité par appareil.
+	 */
+	accessories?: CatalogAccessory[];
 	updatedAt?: string;
+}
+
+export interface CatalogAccessory {
+	reference: string;
+	quantity: number;
+}
+
+const MAX_ACCESSORIES = 20;
+
+/**
+ * Accessoires saisis en texte : un par ligne ou séparés par des virgules, quantité
+ * facultative avant ou après la référence (« 2 × LADN11 », « LADN11 x2 », « RXZE2S114M »).
+ */
+export function parseAccessories(text: string): CatalogAccessory[] {
+	const out: CatalogAccessory[] = [];
+	for (const raw of text.split(/[\n,;]+/)) {
+		const s = raw.trim();
+		if (!s) continue;
+		const before = /^(\d+)\s*[x×*]\s*(.+)$/i.exec(s);
+		const after = /^(.+?)\s*[x×*]\s*(\d+)$/i.exec(s);
+		const [reference, q] = before
+			? [before[2], before[1]]
+			: after
+				? [after[1], after[2]]
+				: [s, '1'];
+		const acc = normalizeAccessory({ reference, quantity: q });
+		if (acc) out.push(acc);
+	}
+	return mergeAccessories(out);
+}
+
+/** Texte d'une liste d'accessoires (« 2 × LADN11, RXZE2S114M »). */
+export function formatAccessories(list: CatalogAccessory[] | undefined): string {
+	return (list ?? [])
+		.map((a) => (a.quantity > 1 ? `${a.quantity} × ${a.reference}` : a.reference))
+		.join(', ');
+}
+
+function normalizeAccessory(raw: unknown): CatalogAccessory | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const r = raw as Record<string, unknown>;
+	const reference = str(r.reference).replace(/\s+/g, ' ').slice(0, 80);
+	const q = Math.round(Number(str(r.quantity) || 1));
+	if (!reference || !referenceKey(reference)) return null;
+	return { reference, quantity: Number.isFinite(q) && q > 0 ? Math.min(q, 99) : 1 };
+}
+
+/** Même référence citée deux fois : quantités additionnées. */
+function mergeAccessories(list: CatalogAccessory[]): CatalogAccessory[] {
+	const map = new Map<string, CatalogAccessory>();
+	for (const a of list) {
+		const k = referenceKey(a.reference);
+		const cur = map.get(k);
+		if (cur) cur.quantity = Math.min(99, cur.quantity + a.quantity);
+		else map.set(k, { ...a });
+	}
+	return [...map.values()].slice(0, MAX_ACCESSORIES);
 }
 
 /** Clé de comparaison d'une référence : sans espaces, points ni tirets, en majuscules. */
@@ -95,6 +157,19 @@ export function normalizeCatalogItem(raw: unknown): CatalogItem | null {
 	if (mounting) item.mounting = mounting;
 	const notes = str(r.notes).slice(0, 500);
 	if (notes) item.notes = notes;
+	const accessories = mergeAccessories(
+		(Array.isArray(r.accessories)
+			? r.accessories
+			: typeof r.accessories === 'string'
+				? parseAccessories(r.accessories)
+				: []
+		)
+			.map(normalizeAccessory)
+			.filter((a): a is CatalogAccessory => !!a)
+			// Une référence ne s'appelle pas elle-même.
+			.filter((a) => referenceKey(a.reference) !== referenceKey(reference))
+	);
+	if (accessories.length) item.accessories = accessories;
 	if (typeof r.updatedAt === 'string') item.updatedAt = r.updatedAt;
 	return item;
 }
@@ -146,7 +221,7 @@ export function assignReference(
 		findCatalogItem(library, ref) ?? findCatalogItem(Object.values(project.catalog ?? {}), ref);
 	if (item) {
 		device.reference = item.reference;
-		(project.catalog ??= {})[referenceKey(item.reference)] = { ...item };
+		copyWithAccessories(project, item, library);
 		if (!device.manufacturer || device.manufacturer === previous?.manufacturer)
 			device.manufacturer = item.manufacturer || undefined;
 	} else {
@@ -157,14 +232,47 @@ export function assignReference(
 	return item;
 }
 
-/** Retire du projet les fiches qu'aucun appareil n'utilise plus. */
+/**
+ * Recopie une fiche dans le projet, avec les fiches de ses accessoires (et des accessoires
+ * de ceux-ci) trouvées dans la bibliothèque ou déjà dans le projet.
+ */
+function copyWithAccessories(project: Project, item: CatalogItem, library: Iterable<CatalogItem>) {
+	const lib = [...library];
+	const todo = [item];
+	const seen = new Set<string>();
+	while (todo.length) {
+		const it = todo.pop()!;
+		const key = referenceKey(it.reference);
+		if (seen.has(key)) continue;
+		seen.add(key);
+		(project.catalog ??= {})[key] = { ...it };
+		for (const a of it.accessories ?? []) {
+			const acc = findCatalogItem(lib, a.reference) ?? project.catalog[referenceKey(a.reference)];
+			if (acc) todo.push(acc);
+		}
+	}
+}
+
+/** Références nécessaires au projet : celles des appareils et de leurs accessoires. */
+function neededKeys(project: Project, library: CatalogItem[] = []): Set<string> {
+	const keys = new Set<string>();
+	const todo = Object.values(project.devices)
+		.map((d) => (d.reference ? referenceKey(d.reference) : ''))
+		.filter(Boolean);
+	while (todo.length) {
+		const key = todo.pop()!;
+		if (keys.has(key)) continue;
+		keys.add(key);
+		const item = project.catalog?.[key] ?? library.find((i) => referenceKey(i.reference) === key);
+		for (const a of item?.accessories ?? []) todo.push(referenceKey(a.reference));
+	}
+	return keys;
+}
+
+/** Retire du projet les fiches qu'aucun appareil (ni accessoire) n'utilise plus. */
 export function pruneProjectCatalog(project: Project): void {
 	if (!project.catalog) return;
-	const used = new Set(
-		Object.values(project.devices)
-			.map((d) => (d.reference ? referenceKey(d.reference) : ''))
-			.filter(Boolean)
-	);
+	const used = neededKeys(project);
 	for (const key of Object.keys(project.catalog)) if (!used.has(key)) delete project.catalog[key];
 }
 
@@ -174,12 +282,8 @@ export function pruneProjectCatalog(project: Project): void {
  */
 export function catalogUpdates(project: Project, library: CatalogItem[]): CatalogItem[] {
 	const out: CatalogItem[] = [];
-	const seen = new Set<string>();
-	for (const d of Object.values(project.devices)) {
-		const key = d.reference ? referenceKey(d.reference) : '';
-		if (!key || seen.has(key)) continue;
-		seen.add(key);
-		const lib = findCatalogItem(library, d.reference);
+	for (const key of neededKeys(project, library)) {
+		const lib = library.find((i) => referenceKey(i.reference) === key);
 		if (!lib) continue;
 		const copy = project.catalog?.[key];
 		if (!copy || !sameItem(copy, lib)) out.push(lib);
@@ -223,6 +327,7 @@ export const CATALOG_CSV_HEADER = [
 	'Largeur (mm)',
 	'Hauteur (mm)',
 	'Montage',
+	'Accessoires',
 	'Remarque'
 ];
 
@@ -236,7 +341,8 @@ type Field =
 	| 'w'
 	| 'h'
 	| 'mounting'
-	| 'notes';
+	| 'notes'
+	| 'accessories';
 
 const norm = (s: string) =>
 	s
@@ -267,6 +373,7 @@ function headerField(h: string): Field | null {
 	if (/^(hauteur|h|height)$/.test(s)) return 'h';
 	if (/^(montage|mounting|pose)$/.test(s)) return 'mounting';
 	if (/^(remarque|remarques|note|notes|commentaire|observations?)$/.test(s)) return 'notes';
+	if (/^(accessoires?|options?|accessories)$/.test(s)) return 'accessories';
 	return null;
 }
 
@@ -349,7 +456,8 @@ export function importCatalogCsv(text: string): CatalogImport {
 			w: rec.w,
 			h: rec.h,
 			mounting: rec.mounting,
-			notes: rec.notes
+			notes: rec.notes,
+			accessories: rec.accessories
 		});
 		if (!item) out.skipped.push({ line: k + 2, reason: 'Référence vide' });
 		else byKey.set(referenceKey(item.reference), item);
@@ -371,6 +479,7 @@ export function catalogCsvRow(item: CatalogItem): (string | number | undefined)[
 		item.w,
 		item.h,
 		item.mounting ? MOUNT[item.mounting] : '',
+		formatAccessories(item.accessories),
 		item.notes
 	];
 }

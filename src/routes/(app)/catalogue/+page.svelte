@@ -8,6 +8,7 @@
 		CATALOG_CSV_HEADER,
 		catalogCsvRow,
 		compareCatalogItems,
+		formatAccessories,
 		importCatalogCsv,
 		normalizeCatalogItem,
 		referenceKey,
@@ -248,7 +249,11 @@
 					<tr ondblclick={() => open(i)}>
 						<td class="ref">{i.reference}</td>
 						<td>{i.manufacturer}</td>
-						<td>{i.designation}</td>
+						<td
+							>{i.designation}{#if i.accessories?.length}<div class="acc">
+									+ {formatAccessories(i.accessories)}
+								</div>{/if}</td
+						>
 						<td>{i.category ?? ''}</td>
 						<td class="nowrap">{contacts(i)}</td>
 						<td class="nowrap">{size(i)}</td>
@@ -390,6 +395,10 @@
 	.nowrap {
 		white-space: nowrap;
 		font-variant-numeric: tabular-nums;
+	}
+	.acc {
+		font-size: var(--fs-xs);
+		color: var(--c-text-muted);
 	}
 	.notes {
 		max-width: 220px;

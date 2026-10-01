@@ -912,9 +912,26 @@ test('catalogue matériel, panneau Appareils, recherche Ctrl+F et nomenclature',
 	expect(await evalEditor<string>(page, 'editor.folioId')).toBe(target.folioId);
 	expect(await evalEditor<number>(page, 'editor.selection.length')).toBe(1);
 
+	// Relais avec embase : l'accessoire arrive dans la nomenclature.
+	await evalEditor(
+		page,
+		`(() => { const d = Object.values(editor.project.devices).find((d) => d.tag === 'S1');
+			editor.setReference(d.id, 'RXM4AB2B7'); })()`
+	);
+	expect(await evalEditor<boolean>(page, '!!editor.project.catalog.RXZE2S114M')).toBe(true);
+
+	// Section par défaut des fils : affichée à côté du numéro.
+	await page.getByTitle('Propriétés du dossier').click();
+	await page.getByRole('button', { name: 'Numérotation et sections' }).click();
+	await page.getByRole('combobox', { name: /Section par défaut/ }).fill('0,75');
+	await page.getByRole('button', { name: 'Enregistrer' }).click();
+	await expect(page.locator('.canvas svg text', { hasText: '0,75²' }).first()).toBeVisible();
+	await page.screenshot({ path: 'test-results/sections.png' });
+
 	// Nomenclature : aperçu, puis PDF avec la nomenclature en fin de dossier.
 	await page.getByRole('button', { name: /^Nomenclature$/ }).click();
 	await expect(page.getByRole('cell', { name: 'LC1D09B7' })).toBeVisible();
+	await expect(page.getByRole('cell', { name: 'accessoire de S1' })).toBeVisible();
 	await page.screenshot({ path: 'test-results/nomenclature.png' });
 	await page.getByRole('button', { name: 'Fermer' }).click();
 	await page

@@ -1,6 +1,7 @@
 <script lang="ts">
 	/** Propriétés du dossier : cartouche, indices de révision, potentiels. */
 	import { deepClone, newId } from '$lib/model/ids';
+	import { WIRE_SECTIONS } from '$lib/model/nets';
 	import type { Potential, ProjectMeta, ProjectSettings, Revision } from '$lib/model/types';
 	import { Button, Field, Modal } from '$lib/ui';
 	import { listTemplates, saveTemplate } from '$lib/api/client';
@@ -12,6 +13,7 @@
 	} from '$lib/model/template';
 	import TemplateEditor from './TemplateEditor.svelte';
 	import { Plus, Trash } from '@lucide/svelte';
+	import { untrack } from 'svelte';
 	import type { Editor } from '../editor.svelte';
 
 	let { editor, open = $bindable(false) }: { editor: Editor; open?: boolean } = $props();
@@ -27,16 +29,19 @@
 	let chosen = $state('');
 	let libraryMessage = $state('');
 
+	// À l'ouverture : copie locale du dossier. Les écritures sont hors suivi (`untrack`) :
+	// relire `meta` après l'avoir écrit relançait l'effet en boucle.
 	$effect(() => {
 		if (!open) return;
 		const p = $state.snapshot(editor.project);
-		meta = deepClone(p.meta);
-		revisions = deepClone(p.revisions);
-		potentials = deepClone(p.potentials);
-		settings = deepClone(p.settings);
-		meta.fields ??= {};
-		template = deepClone(projectTemplate(p));
-		libraryMessage = '';
+		untrack(() => {
+			meta = { ...deepClone(p.meta), fields: deepClone(p.meta.fields ?? {}) };
+			revisions = deepClone(p.revisions);
+			potentials = deepClone(p.potentials);
+			settings = { sectionDisplay: 'all', ...deepClone(p.settings) };
+			template = deepClone(projectTemplate(p));
+			libraryMessage = '';
+		});
 		listTemplates()
 			.then((l) => (library = l))
 			.catch(() => (library = []));
@@ -103,7 +108,11 @@
 			p.potentials = pots;
 			p.settings = {
 				wireNumberStart: Math.max(0, Math.round(st.wireNumberStart) || 0),
-				wireNumberDigits: Math.min(6, Math.max(1, Math.round(st.wireNumberDigits) || 1))
+				wireNumberDigits: Math.min(6, Math.max(1, Math.round(st.wireNumberDigits) || 1)),
+				...(st.wireSection?.trim() ? { wireSection: st.wireSection.trim() } : {}),
+				...(st.sectionDisplay && st.sectionDisplay !== 'all'
+					? { sectionDisplay: st.sectionDisplay }
+					: {})
 			};
 		});
 		open = false;
@@ -126,7 +135,7 @@
 			>Potentiels</button
 		>
 		<button class:active={tab === 'numbering'} onclick={() => (tab = 'numbering')}
-			>Numérotation</button
+			>Numérotation et sections</button
 		>
 	</nav>
 
@@ -216,10 +225,34 @@
 				hint="2 → 01, 02… ; 3 → 001, 002…"
 			/>
 		</div>
+		<h4>Sections des fils (mm²)</h4>
+		<p class="muted">
+			Section d’un fil : celle imposée sur le fil (inspecteur), sinon celle de son potentiel (onglet
+			Potentiels), sinon la section par défaut ci-dessous. Affichée sur le fil (« 1,5² »), du côté
+			opposé au numéro.
+		</p>
+		<div class="grid2">
+			<Field
+				label="Section par défaut (fils hors potentiel)"
+				bind:value={settings.wireSection}
+				placeholder="0,75"
+				list="wire-sections"
+				hint="Vide = pas de section"
+			/>
+			<Field label="Afficher sur le dessin">
+				<select class="control" bind:value={settings.sectionDisplay}>
+					<option value="all">Toutes les sections</option>
+					<option value="imposed">Seulement les sections imposées sur un fil</option>
+					<option value="none">Aucune</option>
+				</select>
+			</Field>
+		</div>
 	{:else}
 		<table>
 			<thead
-				><tr><th>Nom</th><th>Couleur de fil</th><th>Tracé</th><th>Pointillé</th><th></th></tr
+				><tr
+					><th>Nom</th><th>Couleur de fil</th><th>Section (mm²)</th><th>Tracé</th><th>Pointillé</th
+					><th></th></tr
 				></thead
 			>
 			<tbody>
@@ -227,6 +260,14 @@
 					<tr>
 						<td><input class="cell" bind:value={pot.name} /></td>
 						<td><input class="cell" bind:value={pot.wireColor} /></td>
+						<td
+							><input
+								class="cell narrow"
+								bind:value={pot.section}
+								placeholder="—"
+								list="wire-sections"
+							/></td
+						>
 						<td><input class="swatch" type="color" bind:value={pot.stroke} /></td>
 						<td><input type="checkbox" bind:checked={pot.dashed} /></td>
 						<td>
@@ -256,6 +297,10 @@
 			</Button>
 		</div>
 	{/if}
+
+	<datalist id="wire-sections">
+		{#each WIRE_SECTIONS as s (s)}<option value={s}></option>{/each}
+	</datalist>
 
 	{#snippet actions()}
 		<Button onclick={() => (open = false)}>Annuler</Button>
@@ -320,6 +365,9 @@
 	}
 	td {
 		padding: 2px var(--sp-1);
+	}
+	.cell.narrow {
+		width: 70px;
 	}
 	.cell {
 		width: 100%;

@@ -4,7 +4,7 @@
 	 * « Catalogue » et l'éditeur (« Ajouter au catalogue » depuis un appareil).
 	 */
 	import { saveCatalogItem } from '$lib/api/client';
-	import { normalizeCatalogItem, type CatalogItem } from '$lib/model/catalog';
+	import { formatAccessories, normalizeCatalogItem, type CatalogItem } from '$lib/model/catalog';
 	import type { Mounting } from '$lib/model/types';
 	import { Alert, Button, Field, Modal } from '$lib/ui';
 
@@ -38,7 +38,8 @@
 			w: '',
 			h: '',
 			mounting: '' as Mounting | '',
-			notes: ''
+			notes: '',
+			accessories: ''
 		};
 	}
 
@@ -58,7 +59,8 @@
 			w: s(i.w),
 			h: s(i.h),
 			mounting: i.mounting ?? '',
-			notes: i.notes ?? ''
+			notes: i.notes ?? '',
+			accessories: formatAccessories(i.accessories)
 		};
 		error = '';
 	});
@@ -77,7 +79,8 @@
 			w: f.w,
 			h: f.h,
 			mounting: f.mounting,
-			notes: f.notes
+			notes: f.notes,
+			accessories: f.accessories
 		});
 		if (!item) {
 			error = 'La référence est obligatoire.';
@@ -143,6 +146,12 @@
 			<Field label="Largeur (mm)" bind:value={form.w} inputmode="decimal" hint="Encombrement" />
 			<Field label="Hauteur (mm)" bind:value={form.h} inputmode="decimal" />
 		</div>
+		<Field
+			label="Accessoires (ajoutés à la nomenclature, par appareil)"
+			bind:value={form.accessories}
+			placeholder="RXZE2S114M, 2 × LADN11"
+			hint="Embase, bloc additif… : références séparées par des virgules, quantité facultative."
+		/>
 		<Field
 			label="Remarque"
 			bind:value={form.notes}
