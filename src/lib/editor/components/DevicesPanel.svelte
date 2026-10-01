@@ -184,7 +184,7 @@
 	</div>
 </div>
 
-<NomenclatureDialog bind:open={bomOpen} project={editor.project} />
+<NomenclatureDialog bind:open={bomOpen} {editor} />
 
 <style>
 	.devices {

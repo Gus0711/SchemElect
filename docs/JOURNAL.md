@@ -11,6 +11,25 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-01 (suite 3) — Liste de commande complète
+
+**Fait** :
+- **Liste de commande par fabricant** (onglet de la fenêtre Nomenclature, CSV, pages PDF en
+  option) : appareils et bornes + accessoires ; **matériel d'armoire** calculé depuis
+  l'implantation (enveloppe, rails en barres de 2 m, goulottes en mètres par dimension, 2
+  butées + 1 flasque par bornier) avec leurs références saisissables (catalogue) ;
+  **câbles** regroupés par référence / désignation, longueur saisie sur chaque câble
+  (inspecteur : Longueur (m), Référence), câbles sans longueur signalés ; **lignes libres**
+  (presse-étoupes, visserie…). Pas de prix.
+- Correctif : `(x ??= {})[k] = …` sur l'état Svelte modifiait l'objet brut (fiches catalogue
+  recopiées dans un dossier neuf, lignes libres) — remplacé partout.
+- Tests : 439 unitaires + 14 parcours e2e.
+
+**Reste / suite** : retours de l'utilisateur après test. Idées : section dans les borniers,
+comparaison de deux versions, export .xlsx natif.
+
+---
+
 ## 2026-10-01 (suite 2) — Section des fils, accessoires liés
 
 **Fait** :

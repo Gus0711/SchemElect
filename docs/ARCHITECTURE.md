@@ -104,6 +104,24 @@ Format versionné (`schemaVersion`) ; toute lecture passe par `migrateProject`.
   compactés « KA1 à KA4 » par `compressTags`), puis les appareils sans référence par préfixe
   (« À compléter »). Bornes comprises.
 
+## 3 bis-2. Liste de commande (`model/orderList.ts`)
+
+Tout ce qu'il faut acheter, groupé par fabricant (`groupByManufacturer` : fabricants, puis
+« Sans fabricant », puis « À compléter » = lignes sans référence). Sources : nomenclature
+(appareils, bornes, accessoires) ; matériel d'armoire calculé depuis les folios
+d'implantation — enveloppe (`Panel.reference`), rails en barres de 2 m, goulottes en mètres
+par dimension (`ductSize`), 2 butées + 1 flasque par bornier ; câbles par référence ou
+désignation, longueur `CableItem.cableLength` (m) ; lignes libres `Project.orderExtras`.
+Références du matériel : `Project.materials` ; leurs fiches sont recopiées par
+`linkReference` et gardées par `pruneProjectCatalog` (`orderReferences`). Pas de prix.
+Sorties : onglet « Liste de commande » de la fenêtre Nomenclature (saisie des références et
+lignes libres), CSV, pages « LISTE DE COMMANDE » en fin de PDF (`export/orderTable.ts`,
+`render/OrderPage.svelte`).
+
+**Piège Svelte** : sur l'état réactif, ne pas écrire `(p.x ??= {})[k] = v` ni
+`(p.list ??= []).push(…)` — `??=` renvoie l'objet brut, la modification n'est pas vue (et
+peut être perdue). Écrire `p.x ??= {}; p.x[k] = v`.
+
 ## 3 ter. Historique des versions et duplication
 
 - Règles pures (`model/versions.ts`, testées) : version **automatique** à l'enregistrement si

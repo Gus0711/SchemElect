@@ -151,8 +151,10 @@ export function insertFragment(
 	// Symboles maison transportés par le fragment : recopiés dans le projet cible.
 	for (const def of Object.values(frag.symbolDefs ?? {})) project.customSymbols[def.id] ??= def;
 	// Fiches catalogue : la copie du projet cible prime.
-	for (const [key, item] of Object.entries(frag.catalog ?? {}))
-		(project.catalog ??= {})[key] ??= item;
+	for (const [key, item] of Object.entries(frag.catalog ?? {})) {
+		project.catalog ??= {};
+		project.catalog[key] ??= item;
+	}
 
 	if (opts.devices === 'renumber') {
 		// Ordre naturel des repères conservé : KM1, KM2 → KM5, KM6.

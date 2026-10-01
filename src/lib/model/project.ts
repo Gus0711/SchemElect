@@ -92,6 +92,8 @@ export function migrateProject(raw: unknown): Project {
 	};
 	const template = p.template ? normalizeTemplate(p.template) : null;
 	if (template) project.template = template;
+	if (p.materials && typeof p.materials === 'object') project.materials = p.materials;
+	if (Array.isArray(p.orderExtras) && p.orderExtras.length) project.orderExtras = p.orderExtras;
 	if (p.catalog && typeof p.catalog === 'object') {
 		const catalog: Record<string, CatalogItem> = {};
 		for (const raw of Object.values(p.catalog)) {

@@ -5,7 +5,15 @@
 	import type { PrintGrid } from '$lib/render/pageNumbering';
 	import { Button, Modal } from '$lib/ui';
 	import { computeNomenclature } from '$lib/model/nomenclature';
-	import { cablesCsv, devicesCsv, downloadText, nomenclatureCsv, stripsCsv, wiresCsv } from './csv';
+	import {
+		cablesCsv,
+		devicesCsv,
+		downloadText,
+		nomenclatureCsv,
+		orderCsv,
+		stripsCsv,
+		wiresCsv
+	} from './csv';
 	import { safeFileName } from './dossier';
 
 	let {
@@ -28,6 +36,7 @@
 	let cover = $state(true);
 	let strips = $state(true);
 	let nomenclature = $state(false);
+	let orderList = $state(false);
 	// À chaque ouverture : tableaux de borniers en fin de dossier seulement si le dossier n'a
 	// pas de folio borniers (dessin) ; nomenclature dès qu'un appareil a une référence.
 	$effect(() => {
@@ -52,6 +61,7 @@
 				cover,
 				strips,
 				nomenclature,
+				orderList,
 				grid: printGrid ? grid : null
 			});
 		} catch (e) {
@@ -66,6 +76,7 @@
 		strips: { suffix: 'borniers', make: () => stripsCsv(project, analysis) },
 		devices: { suffix: 'appareils', make: () => devicesCsv(project) },
 		bom: { suffix: 'nomenclature', make: () => nomenclatureCsv(project) },
+		order: { suffix: 'liste de commande', make: () => orderCsv(project) },
 		wires: { suffix: 'fils', make: () => wiresCsv(project, analysis) },
 		cables: { suffix: 'câbles', make: () => cablesCsv(project, analysis) }
 	};
@@ -86,6 +97,10 @@
 		>
 		<label class="check"
 			><input type="checkbox" bind:checked={nomenclature} disabled={busy} /> Nomenclature par référence
+			(fin de dossier)</label
+		>
+		<label class="check"
+			><input type="checkbox" bind:checked={orderList} disabled={busy} /> Liste de commande par fabricant
 			(fin de dossier)</label
 		>
 		{#if grid}
@@ -111,6 +126,7 @@
 		<div class="row">
 			<Button onclick={() => exportCsv('strips')}>Borniers</Button>
 			<Button onclick={() => exportCsv('bom')}>Nomenclature par référence</Button>
+			<Button onclick={() => exportCsv('order')}>Liste de commande</Button>
 			<Button onclick={() => exportCsv('devices')}>Liste des appareils</Button>
 			<Button onclick={() => exportCsv('wires')}>Liste des fils</Button>
 			<Button onclick={() => exportCsv('cables')}>Carnet de câbles</Button>

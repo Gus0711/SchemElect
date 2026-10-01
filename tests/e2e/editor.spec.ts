@@ -933,12 +933,28 @@ test('catalogue matériel, panneau Appareils, recherche Ctrl+F et nomenclature',
 	await expect(page.getByRole('cell', { name: 'LC1D09B7' })).toBeVisible();
 	await expect(page.getByRole('cell', { name: 'accessoire de S1' })).toBeVisible();
 	await page.screenshot({ path: 'test-results/nomenclature.png' });
+
+	// Liste de commande : matériel d'armoire calculé, référence du rail, ligne libre.
+	await page.getByRole('button', { name: 'Liste de commande' }).click();
+	await expect(page.getByRole('cell', { name: /^Rail oméga/ })).toBeVisible();
+	await page.getByLabel('Référence du rail').fill('NSYSDR200');
+	await page.getByLabel('Référence du rail').press('Tab');
+	await expect(page.getByRole('cell', { name: 'NSYSDR200' })).toBeVisible();
+	await page.getByRole('button', { name: /Ajouter une ligne/ }).click();
+	await page.getByLabel('Désignation de la ligne libre').fill('Presse-étoupe M20');
+	await page.getByLabel('Désignation de la ligne libre').press('Tab');
+	await page.getByLabel('Quantité de la ligne libre').fill('6');
+	await page.getByLabel('Quantité de la ligne libre').press('Tab');
+	await expect(page.locator('.wrap td', { hasText: 'Presse-étoupe M20' })).toBeVisible();
+	expect(await evalEditor<number>(page, 'editor.project.orderExtras[0].quantity')).toBe(6);
+	await page.screenshot({ path: 'test-results/liste-commande.png' });
 	await page.getByRole('button', { name: 'Fermer' }).click();
 	await page
 		.locator('.toolbar')
 		.getByRole('button', { name: /Exporter/ })
 		.click();
 	await expect(page.getByLabel(/Nomenclature par référence/)).toBeChecked();
+	await page.getByLabel(/Liste de commande par/).check();
 	const download = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
 	await (await download).saveAs('test-results/nomenclature.pdf');

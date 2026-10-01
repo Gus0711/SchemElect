@@ -126,6 +126,10 @@ export interface CableItem {
 	name?: string;
 	/** Afficher la couleur des conducteurs sur le schéma (défaut : oui). */
 	showColors?: boolean;
+	/** Référence à commander (liste de commande). */
+	reference?: string;
+	/** Longueur à commander, en mètres (liste de commande) ; à ne pas confondre avec `length`. */
+	cableLength?: number;
 }
 
 // ---------------------------------------------------------------- implantation / façade
@@ -187,6 +191,8 @@ export interface Panel {
 	enclosure: Enclosure;
 	/** Échelle imposée (dénominateur : 8 = 1:8) ; absente = automatique. */
 	scale?: number;
+	/** Référence de l'enveloppe (implantation) : liste de commande. */
+	reference?: string;
 	rails: Rail[];
 	ducts: Duct[];
 	items: PanelItem[];
@@ -242,6 +248,32 @@ export interface ProjectSettings {
 	sectionDisplay?: SectionDisplay;
 }
 
+/**
+ * Références du matériel d'armoire calculé (liste de commande). Vide = ligne « à compléter »
+ * avec une désignation générique.
+ */
+export interface MaterialRefs {
+	/** Rail oméga, vendu en barres de 2 m. */
+	rail?: string;
+	/** Butée d'arrêt (2 par bornier). */
+	endClamp?: string;
+	/** Flasque d'extrémité (1 par bornier). */
+	endPlate?: string;
+	/** Goulottes : référence par dimension (« 40×60 »). */
+	ducts?: Record<string, string>;
+}
+
+/** Ligne ajoutée à la main dans la liste de commande (presse-étoupes, visserie…). */
+export interface OrderExtra {
+	id: Id;
+	reference: string;
+	manufacturer: string;
+	designation: string;
+	quantity: number;
+	/** Unité libre : « pce », « m », « lot »… (défaut pce). */
+	unit?: string;
+}
+
 export const SCHEMA_VERSION = 1;
 
 export interface Project {
@@ -267,6 +299,10 @@ export interface Project {
 	 * `referenceKey(reference)` (voir `catalog.ts`). Absent = aucune.
 	 */
 	catalog?: Record<string, CatalogItem>;
+	/** Références du matériel d'armoire (liste de commande). */
+	materials?: MaterialRefs;
+	/** Lignes libres de la liste de commande. */
+	orderExtras?: OrderExtra[];
 }
 
 /** Élément sélectionnable d'un folio. */

@@ -245,7 +245,10 @@ function copyWithAccessories(project: Project, item: CatalogItem, library: Itera
 		const key = referenceKey(it.reference);
 		if (seen.has(key)) continue;
 		seen.add(key);
-		(project.catalog ??= {})[key] = { ...it };
+		// Deux accès (et non `(project.catalog ??= {})[key]`) : sur l'état Svelte, l'objet
+		// renvoyé par `??=` est l'objet brut, pas le proxy réactif.
+		project.catalog ??= {};
+		project.catalog[key] = { ...it };
 		for (const a of it.accessories ?? []) {
 			const acc = findCatalogItem(lib, a.reference) ?? project.catalog[referenceKey(a.reference)];
 			if (acc) todo.push(acc);
@@ -253,11 +256,50 @@ function copyWithAccessories(project: Project, item: CatalogItem, library: Itera
 	}
 }
 
-/** Références nécessaires au projet : celles des appareils et de leurs accessoires. */
+/**
+ * Références du projet hors appareils : matériel d'armoire, enveloppes, câbles, lignes libres
+ * (liste de commande).
+ */
+export function orderReferences(project: Project): string[] {
+	const m = project.materials;
+	return [
+		m?.rail,
+		m?.endClamp,
+		m?.endPlate,
+		...Object.values(m?.ducts ?? {}),
+		...project.folios.map((f) => f.panel?.reference),
+		...project.folios.flatMap((f) => f.cables.map((c) => c.reference)),
+		...(project.orderExtras ?? []).map((x) => x.reference)
+	].filter((r): r is string => !!r?.trim());
+}
+
+/**
+ * Recopie dans le projet la fiche d'une référence (et de ses accessoires) si elle est
+ * dans la bibliothèque, puis retire les fiches devenues inutiles. Pour les références hors
+ * appareils (matériel d'armoire, câbles, lignes libres).
+ */
+export function linkReference(
+	project: Project,
+	reference: string,
+	library: Iterable<CatalogItem> = []
+): CatalogItem | undefined {
+	const lib = [...library];
+	const item =
+		findCatalogItem(lib, reference) ??
+		findCatalogItem(Object.values(project.catalog ?? {}), reference);
+	if (item) copyWithAccessories(project, item, lib);
+	pruneProjectCatalog(project);
+	return item;
+}
+
+/** Références nécessaires au projet : appareils, liste de commande, et leurs accessoires. */
 function neededKeys(project: Project, library: CatalogItem[] = []): Set<string> {
 	const keys = new Set<string>();
-	const todo = Object.values(project.devices)
-		.map((d) => (d.reference ? referenceKey(d.reference) : ''))
+	const todo = [
+		...Object.values(project.devices).map((d) => d.reference ?? ''),
+		...orderReferences(project)
+	]
+		.map((r) => (r.trim() ? referenceKey(r) : ''))
 		.filter(Boolean);
 	while (todo.length) {
 		const key = todo.pop()!;
@@ -303,7 +345,8 @@ export function applyCatalogUpdates(project: Project, items: CatalogItem[]): num
 	for (const item of items) {
 		const key = referenceKey(item.reference);
 		const old = project.catalog?.[key];
-		(project.catalog ??= {})[key] = { ...item };
+		project.catalog ??= {};
+		project.catalog[key] = { ...item };
 		for (const d of Object.values(project.devices)) {
 			if (!d.reference || referenceKey(d.reference) !== key) continue;
 			if (!d.manufacturer || d.manufacturer === old?.manufacturer)

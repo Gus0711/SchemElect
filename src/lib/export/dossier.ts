@@ -13,7 +13,9 @@ import { folioNumber } from '$lib/model/layout';
 import type { Project, ProjectMeta } from '$lib/model/types';
 import type { PrintGrid } from '$lib/render/pageNumbering';
 import { computeNomenclature } from '$lib/model/nomenclature';
+import { computeOrderList, groupByManufacturer } from '$lib/model/orderList';
 import { BOM_TITLE, paginateBom, type BomPage } from './bomTable';
+import { ORDER_TITLE, paginateOrder, type OrderPage } from './orderTable';
 import { paginateStrips, type StripPage } from './stripsTable';
 
 export interface ExportOptions {
@@ -21,6 +23,8 @@ export interface ExportOptions {
 	strips?: boolean;
 	/** Nomenclature par référence en fin de dossier (défaut : non). */
 	nomenclature?: boolean;
+	/** Liste de commande par fabricant en fin de dossier (défaut : non). */
+	orderList?: boolean;
 	/** Grille imprimée sur les folios (absente = pas de grille). */
 	grid?: PrintGrid | null;
 }
@@ -37,6 +41,8 @@ export interface DossierPlan {
 	stripPages: StripPage[];
 	/** Pages « NOMENCLATURE » (après les borniers). */
 	bomPages: BomPage[];
+	/** Pages « LISTE DE COMMANDE » (après la nomenclature). */
+	orderPages: OrderPage[];
 	/** Sommaire (page de garde). */
 	entries: CoverEntry[];
 	/** Folios numérotés (schémas + borniers), hors page de garde. */
@@ -53,6 +59,9 @@ export function planDossier(
 	const cover = opts.cover ?? true;
 	const stripPages = (opts.strips ?? true) ? paginateStrips(projectStrips(project, analysis)) : [];
 	const bomPages = opts.nomenclature ? paginateBom(computeNomenclature(project)) : [];
+	const orderPages = opts.orderList
+		? paginateOrder(groupByManufacturer(computeOrderList(project)))
+		: [];
 	const entries: CoverEntry[] = [
 		...project.folios.map((f, i) => ({ number: folioNumber(i), title: f.title })),
 		...stripPages.map((_, k) => ({
@@ -62,6 +71,10 @@ export function planDossier(
 		...bomPages.map((_, k) => ({
 			number: folioNumber(project.folios.length + stripPages.length + k),
 			title: BOM_TITLE
+		})),
+		...orderPages.map((_, k) => ({
+			number: folioNumber(project.folios.length + stripPages.length + bomPages.length + k),
+			title: ORDER_TITLE
 		}))
 	];
 	const folioCount = entries.length;
@@ -69,6 +82,7 @@ export function planDossier(
 		cover,
 		stripPages,
 		bomPages,
+		orderPages,
 		entries,
 		folioCount,
 		totalPages: folioCount + (cover ? 1 : 0)

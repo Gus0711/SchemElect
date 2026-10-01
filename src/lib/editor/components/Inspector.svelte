@@ -12,7 +12,7 @@
 	import { folioRef } from '$lib/model/layout';
 	import { WIRE_SECTIONS } from '$lib/model/nets';
 	import { isPanelKind } from '$lib/model/panel';
-	import { deviceCatalogItem, type CatalogItem } from '$lib/model/catalog';
+	import { deviceCatalogItem, linkReference, type CatalogItem } from '$lib/model/catalog';
 	import { deviceFootprint } from '$lib/model/footprints';
 	import { parseTag } from '$lib/model/tags';
 	import type { CableItem, Device, SymbolInstance } from '$lib/model/types';
@@ -238,11 +238,6 @@
 							disabled={ro}
 							onchange={(e) => editor.setReference(device.id, val(e))}
 						/>
-						<datalist id="catalog-references">
-							{#each editor.catalog as c (c.id)}<option value={c.reference}
-									>{[c.manufacturer, c.designation].filter(Boolean).join(' — ')}</option
-								>{/each}
-						</datalist>
 					</Field>
 					{#if catalogItem}
 						<p class="small muted catalog">
@@ -577,6 +572,41 @@
 					/>
 				</Field>
 			</div>
+			<div class="row">
+				<Field label="Longueur (m)" hint="Liste de commande">
+					<input
+						class="control"
+						type="number"
+						min="0"
+						step="0.5"
+						value={cable.cableLength ?? ''}
+						placeholder="—"
+						disabled={ro}
+						onchange={(e) => {
+							const n = Number(val(e).replace(',', '.'));
+							setCable('Longueur du câble', (c) => (c.cableLength = n > 0 ? n : undefined));
+						}}
+					/>
+				</Field>
+				<Field label="Référence">
+					<input
+						class="control"
+						value={cable.reference ?? ''}
+						list="catalog-references"
+						placeholder="Catalogue…"
+						disabled={ro}
+						onchange={(e) => {
+							const v = val(e).trim();
+							const id = cable.id;
+							editor.transact('Référence du câble', (p, f) => {
+								const c = f.cables.find((x) => x.id === id);
+								if (c) c.reference = v || undefined;
+								linkReference(p, v, editor.catalog);
+							});
+						}}
+					/>
+				</Field>
+			</div>
 			<label class="check">
 				<input
 					type="checkbox"
@@ -699,6 +729,13 @@
 		</Panel>
 	{/if}
 </aside>
+
+<!-- Références du catalogue (appareil, câble). -->
+<datalist id="catalog-references">
+	{#each editor.catalog as c (c.id)}<option value={c.reference}
+			>{[c.manufacturer, c.designation].filter(Boolean).join(' — ')}</option
+		>{/each}
+</datalist>
 
 <CatalogItemDialog
 	bind:open={() => !!newCatalogItem, (v) => !v && (newCatalogItem = null)}

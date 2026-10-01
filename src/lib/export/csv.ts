@@ -6,6 +6,12 @@ import { projectStrips, type ProjectAnalysis } from '$lib/model/analysis';
 import { cableName, cablePosition, conductorLabel } from '$lib/model/cables';
 import { folioNumber, folioRef } from '$lib/model/layout';
 import { bomTagsText, computeNomenclature } from '$lib/model/nomenclature';
+import {
+	computeOrderList,
+	formatQuantity,
+	groupByManufacturer,
+	SOURCE_LABEL
+} from '$lib/model/orderList';
 import { compareTags } from '$lib/model/tags';
 import type { Project } from '$lib/model/types';
 import { getSymbolDef } from '$lib/symbols';
@@ -129,6 +135,25 @@ export function nomenclatureCsv(project: Project): string {
 		bomTagsText(l)
 	]);
 	return toCsv(['Quantité', 'Référence', 'Fabricant', 'Désignation', 'Catégorie', 'Repères'], rows);
+}
+
+/** Liste de commande, groupée par fabricant. */
+export function orderCsv(project: Project): string {
+	const rows = groupByManufacturer(computeOrderList(project)).flatMap((g) =>
+		g.lines.map((l) => [
+			g.manufacturer,
+			l.reference || 'À compléter',
+			l.designation,
+			formatQuantity(l.quantity),
+			l.unit,
+			SOURCE_LABEL[l.source],
+			l.detail
+		])
+	);
+	return toCsv(
+		['Fabricant', 'Référence', 'Désignation', 'Quantité', 'Unité', 'Origine', 'Précision'],
+		rows
+	);
 }
 
 /** Liste des fils : une ligne par équipotentielle dessinée. */

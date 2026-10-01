@@ -49,9 +49,9 @@ points « à faire valider par V.R » sont désormais à valider par l'utilisate
 5. ✅ **Historique des versions** (automatiques / nommées / indices, restauration,
    consultation, PDF d'une version) + **duplication** pour une nouvelle affaire : fait le
    2026-10-01. Plus tard : comparaison de deux versions (liste des écarts).
-6. 🔴 **Nomenclature de commande** : ✅ accessoires liés, section des fils ; reste matériel
-   d'armoire calculé (rails, goulottes, butées), câbles par type / section, lignes libres,
-   sortie par fabricant (pas de prix).
+6. ✅ **Liste de commande** par fabricant (appareils + accessoires, matériel d'armoire
+   calculé, câbles, lignes libres ; CSV + PDF ; pas de prix) et **section des fils** : faits
+   le 2026-10-01. À tester par l'utilisateur.
 7. 🟡 Plus tard : récupération locale en cas de coupure réseau, import `.xrs` WinRelais.
 
 À valider par l'utilisateur (règles métier en attente) : couleurs SYT1 au-delà de 3 paires,
