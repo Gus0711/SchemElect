@@ -6,6 +6,7 @@ import type { CatalogItem } from '$lib/model/catalog';
 import type { Fragment } from '$lib/model/fragments';
 import type { DocTemplate } from '$lib/model/template';
 import type { Project } from '$lib/model/types';
+import type { VersionInfo } from '$lib/model/versions';
 import type { SymbolDef } from '$lib/symbols/types';
 import type { LockInfo, Macro } from './types';
 
@@ -135,4 +136,45 @@ export async function importCatalogItems(
 
 export async function deleteCatalogItem(id: string): Promise<void> {
 	await request('DELETE', `/api/catalog/${encodeURIComponent(id)}`);
+}
+
+// --- Historique des versions, duplication -------------------------------------------
+
+const versionsUrl = (id: string) => `${projectUrl(id)}/versions`;
+
+export async function listVersions(
+	projectId: string
+): Promise<{ versions: VersionInfo[]; canRestore: boolean }> {
+	return request('GET', versionsUrl(projectId));
+}
+
+export async function createVersion(projectId: string, label: string): Promise<{ id: string }> {
+	return request('POST', versionsUrl(projectId), { label });
+}
+
+export async function fetchVersion(
+	projectId: string,
+	versionId: string
+): Promise<{ info: VersionInfo; data: Project }> {
+	return request('GET', `${versionsUrl(projectId)}/${encodeURIComponent(versionId)}`);
+}
+
+export async function restoreVersion(projectId: string, versionId: string): Promise<void> {
+	await request('POST', `${versionsUrl(projectId)}/${encodeURIComponent(versionId)}/restore`);
+}
+
+export interface DuplicateRequest {
+	name: string;
+	affaireNumber?: string;
+	planNumber?: string;
+	client?: string;
+	resetRevisions?: boolean;
+	versionId?: string;
+}
+
+export async function duplicateProject(
+	projectId: string,
+	req: DuplicateRequest
+): Promise<{ id: string }> {
+	return request('POST', `${projectUrl(projectId)}/duplicate`, req);
 }

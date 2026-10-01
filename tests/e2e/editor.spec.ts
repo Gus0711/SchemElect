@@ -927,3 +927,93 @@ test('catalogue matériel, panneau Appareils, recherche Ctrl+F et nomenclature',
 	await (await download).saveAs('test-results/nomenclature.pdf');
 	await expect(page.locator('.status.saved')).toBeVisible();
 });
+
+test('historique : version nommée, restauration, consultation, duplication', async ({ page }) => {
+	page.on('dialog', (d) => d.accept());
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.getByRole('button', { name: 'Projet de démonstration' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+	const projectUrl = page.url();
+	const count = () => evalEditor<number>(page, 'editor.folio.symbols.length');
+	const initial = await count();
+
+	// Version nommée.
+	await page.getByRole('button', { name: /Historique/ }).click();
+	const dialog = page.getByRole('dialog');
+	await expect(dialog.getByText('Création', { exact: true })).toBeVisible();
+	await dialog.getByLabel('Commentaire de la version').fill('Envoyé au client');
+	await dialog.getByRole('button', { name: /Enregistrer une version/ }).click();
+	await expect(dialog.getByText('Envoyé au client', { exact: true })).toBeVisible();
+	await page.keyboard.press('Escape');
+
+	// Modification : suppression d'un symbole, enregistrée.
+	await evalEditor(page, `editor.select([{ kind: 'symbol', id: editor.folio.symbols[0].id }])`);
+	await page.keyboard.press('Delete');
+	expect(await count()).toBe(initial - 1);
+	await expect(page.locator('.status.saved')).toBeVisible();
+
+	// Restauration de la version nommée : la page se recharge avec l'ancien état.
+	await page.getByRole('button', { name: /Historique/ }).click();
+	const reloaded = page.waitForEvent('load');
+	await dialog
+		.locator('.version', { hasText: 'Envoyé au client' })
+		.getByRole('button', { name: /Restaurer/ })
+		.click();
+	await reloaded;
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+	expect(await count()).toBe(initial);
+	await page.getByRole('button', { name: /Historique/ }).click();
+	await expect(dialog.getByText(/^Avant restauration de la version du/)).toBeVisible();
+	await expect(dialog.getByText(/^Restauration de la version du/)).toBeVisible();
+	await page.screenshot({ path: 'test-results/historique.png' });
+
+	// Consultation de la version « Avant restauration » (symbole supprimé) : lecture seule.
+	await dialog
+		.locator('.version', { hasText: 'Avant restauration' })
+		.getByRole('link', { name: /Voir/ })
+		.click();
+	await expect(page).toHaveURL(/\/versions\//);
+	await expect(page.getByText('Version archivée — lecture seule')).toBeVisible();
+	expect(await count()).toBe(initial - 1);
+	expect(await evalEditor<boolean>(page, 'editor.readonly')).toBe(true);
+	await page.screenshot({ path: 'test-results/version-consultation.png' });
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: /PDF de cette version/ }).click();
+	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
+	await (await download).saveAs('test-results/version.pdf');
+	await page.keyboard.press('Escape');
+
+	// Nouveau dossier à partir de cette version.
+	await page.getByRole('button', { name: /Nouveau dossier à partir de cette version/ }).click();
+	await page.getByLabel('Nom du nouveau dossier').fill('Chaufferie B');
+	await page.getByLabel("N° d'affaire").fill('DW999');
+	await page.getByRole('button', { name: 'Dupliquer et ouvrir' }).click();
+	await expect(page).not.toHaveURL(projectUrl);
+	await expect(page).toHaveURL(/\/projets\/[^/]+$/);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+	expect(await evalEditor<string>(page, 'editor.project.meta.name')).toBe('Chaufferie B');
+	expect(await evalEditor<string>(page, 'editor.project.meta.affaireNumber')).toBe('DW999');
+	expect(await count()).toBe(initial - 1);
+	await page.getByRole('button', { name: /Historique/ }).click();
+	await expect(dialog.getByText(/^Copie de « .* » \(version du/)).toBeVisible();
+	await page.keyboard.press('Escape');
+
+	// Liste des projets : dupliquer ouvre la même fenêtre.
+	await page.goto('/');
+	await page.waitForLoadState('networkidle');
+	await page
+		.locator('tr', { hasText: 'Chaufferie B' })
+		.getByTitle(/Dupliquer/)
+		.click();
+	await expect(page.getByLabel('Nom du nouveau dossier')).toHaveValue('Chaufferie B (copie)');
+	await expect(page.getByLabel("N° d'affaire")).toHaveValue('DW999');
+});

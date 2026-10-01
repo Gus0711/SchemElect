@@ -29,7 +29,8 @@ de page de garde** (logo, champs libres, cases configurables, bibliothèque « M
 **folio borniers automatique** (dessin des borniers), **grille** réglable et imprimable,
 **raccourcis clavier** avec aide (touche ?), exemple « armoire complète », **panneau
 Appareils** + **recherche Ctrl+F**, **catalogue matériel** (page `/catalogue`, catalogue de
-départ) + **nomenclature par référence** (CSV + PDF). Détail :
+départ) + **nomenclature par référence** (CSV + PDF), **historique des versions** et
+**duplication**. Détail :
 `docs/JOURNAL.md`.
 
 ## Priorités (à traiter dans cet ordre — voir `docs/ROADMAP.md` § Priorités)
@@ -45,7 +46,9 @@ points « à faire valider par V.R » sont désormais à valider par l'utilisate
    l'utilisateur.
 4. ✅ **Catalogue matériel** + **nomenclature par référence** (CSV + PDF) : fait le
    2026-10-01. Catalogue de départ (~54 fiches) **à vérifier** (désignations, encombrements).
-5. 🟠 **Historique par indice de révision** : à discuter avec l'utilisateur avant de coder.
+5. ✅ **Historique des versions** (automatiques / nommées / indices, restauration,
+   consultation, PDF d'une version) + **duplication** pour une nouvelle affaire : fait le
+   2026-10-01. Plus tard : comparaison de deux versions (liste des écarts).
 6. 🟡 Plus tard : récupération locale en cas de coupure réseau, import `.xrs` WinRelais.
 
 À valider par l'utilisateur (règles métier en attente) : couleurs SYT1 au-delà de 3 paires,

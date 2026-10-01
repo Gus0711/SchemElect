@@ -95,6 +95,28 @@ Format versionné (`schemaVersion`) ; toute lecture passe par `migrateProject`.
   compactés « KA1 à KA4 » par `compressTags`), puis les appareils sans référence par préfixe
   (« À compléter »). Bornes comprises.
 
+## 3 ter. Historique des versions et duplication
+
+- Règles pures (`model/versions.ts`, testées) : version **automatique** à l'enregistrement si
+  la précédente a plus de 15 min, à la fermeture du dossier (libération du verrou), à la
+  création — jamais sans changement (empreinte SHA-256 du document sans `modifiedAt`) ;
+  version **nommée** à la main, à chaque nouvel indice de révision (« Indice B — … »), avant
+  une restauration. Conservation (`versionsToPrune`) : automatiques gardées 48 h, puis la
+  dernière de chaque jour pendant 30 jours ; nommées toujours. Restauration (`canRestore`) :
+  administrateur ou intervenant (auteur d'une version ou dernier modificateur).
+- Stockage (`server/versions.ts`) : table `project_versions` (document gzip + base64,
+  résumé folios / appareils, empreinte). Branché dans `server/projects.ts` (`insertProject`,
+  `saveProjectData`, `restoreVersion`, `duplicateProject`, `versionOnClose`).
+- API : `/api/projects/[id]/versions` (GET liste + droit, POST version nommée),
+  `…/versions/[vid]` (GET document), `…/versions/[vid]/restore` (POST, verrou requis),
+  `/api/projects/[id]/duplicate` (POST : nom, affaire, plan, client, indices remis à zéro,
+  `versionId` optionnel).
+- Interface : bouton **Historique** (`HistoryDialog` : enregistrer une version, voir,
+  restaurer, dupliquer) ; consultation d'une version = route `/projets/[id]/versions/[vid]`
+  (`EditorApp` avec `version` : lecture seule, `EditSession.archive()`, bandeau PDF /
+  duplication) ; `DuplicateDialog` (éditeur, historique, liste des projets). Restauration :
+  `session.flush()` → `session.suspend()` → API → rechargement de la page.
+
 ## 4. Bibliothèque de symboles (`src/lib/symbols/`)
 
 Définitions déclaratives (`SymbolDef`) : primitives graphiques, bornes, rôle

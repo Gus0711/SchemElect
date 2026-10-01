@@ -2,12 +2,17 @@
 	/** Application d'édition complète : barre d'outils, panneaux, canvas, dialogues. */
 	import ExportDialog from '$lib/export/ExportDialog.svelte';
 	import type { Project } from '$lib/model/types';
+	import type { VersionInfo } from '$lib/model/versions';
+	import { Button } from '$lib/ui';
+	import { ArrowLeft, Copy, FileDown, History } from '@lucide/svelte';
 	import { onDestroy, onMount } from 'svelte';
 	import { Editor } from '../editor.svelte';
 	import { Interaction } from '../interaction.svelte';
 	import { EditSession } from '../session.svelte';
 	import Canvas from './Canvas.svelte';
 	import CustomSymbolDialog from './CustomSymbolDialog.svelte';
+	import DuplicateDialog from './DuplicateDialog.svelte';
+	import HistoryDialog from './HistoryDialog.svelte';
 	import Inspector from './Inspector.svelte';
 	import ProjectDialog from './ProjectDialog.svelte';
 	import SearchDialog from './SearchDialog.svelte';
@@ -17,7 +22,16 @@
 	import StripsDialog from './StripsDialog.svelte';
 	import Toolbar from './Toolbar.svelte';
 
-	let { projectId, project }: { projectId: string; project: Project } = $props();
+	let {
+		projectId,
+		project,
+		version
+	}: {
+		projectId: string;
+		project: Project;
+		/** Consultation d'une version de l'historique (lecture seule, sans verrou). */
+		version?: VersionInfo;
+	} = $props();
 
 	// L'éditeur est créé une fois pour la page (le projet initial vient du serveur).
 	// svelte-ignore state_referenced_locally
@@ -29,11 +43,24 @@
 	let projectOpen = $state(false);
 	let stripsOpen = $state(false);
 	let exportOpen = $state(false);
+	let historyOpen = $state(false);
+	let duplicateOpen = $state(false);
+	/** Version à dupliquer (absente : état actuel du dossier). */
+	let duplicateSource: VersionInfo | undefined = $state();
+
+	const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'full', timeStyle: 'short' });
+
+	function openDuplicate(v?: VersionInfo) {
+		duplicateSource = v ?? version;
+		historyOpen = false;
+		duplicateOpen = true;
+	}
 
 	$effect(() => session.schedule(editor.revision));
 
 	onMount(() => {
-		session.start();
+		if (version) session.archive();
+		else session.start();
 		editor.loadCustomLibrary();
 		editor.loadCatalog();
 		// Accès pour les tests de bout en bout (mode développement uniquement).
@@ -66,6 +93,8 @@
 			projectOpen ||
 			stripsOpen ||
 			exportOpen ||
+			historyOpen ||
+			duplicateOpen ||
 			editor.shortcutsOpen ||
 			interaction.menu ||
 			editor.symbolEditor
@@ -100,12 +129,31 @@
 />
 
 <div class="editor">
+	{#if version}
+		<div class="archive">
+			<History size={16} />
+			<span
+				><strong>Version du {dateFmt.format(new Date(version.createdAt))}</strong>
+				{version.label ? `— ${version.label}` : ''} · lecture seule</span
+			>
+			<Button size="sm" href="/projets/{projectId}"
+				><ArrowLeft size={14} /> Retour au dossier</Button
+			>
+			<Button size="sm" onclick={() => (exportOpen = true)}
+				><FileDown size={14} /> PDF de cette version</Button
+			>
+			<Button size="sm" onclick={() => openDuplicate(version)}
+				><Copy size={14} /> Nouveau dossier à partir de cette version</Button
+			>
+		</div>
+	{/if}
 	<Toolbar
 		{editor}
 		{session}
 		onproject={() => (projectOpen = true)}
 		onstrips={() => (stripsOpen = true)}
 		onexport={() => (exportOpen = true)}
+		onhistory={version ? undefined : () => (historyOpen = true)}
 	/>
 	<div class="main">
 		<Sidebar {editor} />
@@ -127,6 +175,24 @@
 	}}
 />
 <StripsDialog {editor} bind:open={stripsOpen} />
+{#if !version}
+	<HistoryDialog
+		bind:open={historyOpen}
+		{projectId}
+		{editor}
+		{session}
+		onduplicate={openDuplicate}
+	/>
+{/if}
+<DuplicateDialog
+	bind:open={duplicateOpen}
+	{projectId}
+	meta={editor.project.meta}
+	versionId={duplicateSource?.id}
+	versionLabel={duplicateSource
+		? `version du ${dateFmt.format(new Date(duplicateSource.createdAt))}`
+		: undefined}
+/>
 <ShortcutsDialog bind:open={editor.shortcutsOpen} />
 <SearchDialog {editor} />
 <ExportDialog
@@ -143,6 +209,18 @@
 		flex-direction: column;
 		height: 100vh;
 		overflow: hidden;
+	}
+	.archive {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+		padding: var(--sp-2) var(--sp-3);
+		background: var(--c-primary-soft);
+		border-bottom: 1px solid var(--c-border);
+		font-size: var(--fs-sm);
+	}
+	.archive span {
+		flex: 1;
 	}
 	.main {
 		display: flex;

@@ -2,6 +2,9 @@
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { Copy, FilePlus2, FolderOpen, Lock, Pencil, Search, Trash2 } from '@lucide/svelte';
+	import { fetchProject } from '$lib/api/client';
+	import DuplicateDialog from '$lib/editor/components/DuplicateDialog.svelte';
+	import type { ProjectMeta } from '$lib/model/types';
 	import { Alert, Button, Card, Field, Modal } from '$lib/ui';
 	import type { PageProps } from './$types';
 
@@ -34,6 +37,22 @@
 		renameTarget = p;
 		renameValue = p.name;
 		renameOpen = true;
+	}
+
+	let duplicateOpen = $state(false);
+	let duplicateTarget: { id: string; meta: ProjectMeta } | null = $state(null);
+	let duplicateError = $state('');
+
+	/** Duplication : le cartouche complet (n° de plan, client) vient du document. */
+	async function openDuplicate(p: Summary) {
+		duplicateError = '';
+		try {
+			const { data } = await fetchProject(p.id);
+			duplicateTarget = { id: p.id, meta: data.meta };
+			duplicateOpen = true;
+		} catch (e) {
+			duplicateError = e instanceof Error ? e.message : 'Projet introuvable';
+		}
 	}
 
 	function openDelete(p: Summary) {
@@ -88,7 +107,7 @@
 	>
 </div>
 
-{#if errorFor('duplicate')}<Alert>{errorFor('duplicate')}</Alert>{/if}
+{#if duplicateError}<Alert>{duplicateError}</Alert>{/if}
 {#if !renameOpen && errorFor('rename')}<Alert>{errorFor('rename')}</Alert>{/if}
 {#if !deleteOpen && errorFor('delete')}<Alert>{errorFor('delete')}</Alert>{/if}
 
@@ -137,18 +156,15 @@
 						</td>
 						<td class="actions-col"
 							><div class="row-actions">
-								<form method="POST" action="?/duplicate" use:enhance={submit}>
-									<input type="hidden" name="id" value={p.id} />
-									<Button
-										variant="ghost"
-										size="sm"
-										type="submit"
-										title="Dupliquer"
-										disabled={pending}
-									>
-										<Copy size={15} />
-									</Button>
-								</form>
+								<Button
+									variant="ghost"
+									size="sm"
+									title="Dupliquer (nouvelle affaire)"
+									disabled={pending}
+									onclick={() => openDuplicate(p)}
+								>
+									<Copy size={15} />
+								</Button>
 								<Button variant="ghost" size="sm" title="Renommer" onclick={() => openRename(p)}>
 									<Pencil size={15} />
 								</Button>
@@ -163,6 +179,14 @@
 		</table>
 	{/if}
 </Card>
+
+{#if duplicateTarget}
+	<DuplicateDialog
+		bind:open={duplicateOpen}
+		projectId={duplicateTarget.id}
+		meta={duplicateTarget.meta}
+	/>
+{/if}
 
 <Modal bind:open={createOpen} title="Nouveau projet">
 	<form id="create-form" method="POST" action="?/create" use:enhance={submit}>
@@ -290,9 +314,6 @@
 		display: flex;
 		justify-content: flex-end;
 		gap: 2px;
-	}
-	.row-actions form {
-		margin: 0;
 	}
 	.empty {
 		display: flex;

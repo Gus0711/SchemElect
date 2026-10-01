@@ -6,6 +6,7 @@
 		Check,
 		Ellipse,
 		FileDown,
+		History,
 		LoaderCircle,
 		Lock,
 		Maximize,
@@ -32,13 +33,16 @@
 		session,
 		onproject,
 		onstrips,
-		onexport
+		onexport,
+		onhistory
 	}: {
 		editor: Editor;
 		session: EditSession;
 		onproject: () => void;
 		onstrips: () => void;
 		onexport: () => void;
+		/** Historique du dossier (absent : consultation d'une version). */
+		onhistory?: () => void;
 	} = $props();
 
 	const tool = $derived(editor.tool.kind);
@@ -51,7 +55,8 @@
 			pending: 'Modifications…',
 			saving: 'Enregistrement…',
 			error: session.error || 'Erreur',
-			readonly: `Lecture seule — ouvert par ${session.lock?.userName ?? 'un autre utilisateur'}`
+			readonly: `Lecture seule — ouvert par ${session.lock?.userName ?? 'un autre utilisateur'}`,
+			archive: 'Version archivée — lecture seule'
 		}[session.status]
 	);
 </script>
@@ -69,7 +74,7 @@
 				class="spin"
 			/>
 		{:else if session.status === 'error'}<TriangleAlert size={14} />
-		{:else if session.status === 'readonly'}<Lock size={14} />
+		{:else if session.status === 'readonly' || session.status === 'archive'}<Lock size={14} />
 		{:else}<Check size={14} />{/if}
 		<span class="label">{statusText}</span>
 	</span>
@@ -203,6 +208,14 @@
 		title="Rechercher dans le dossier (Ctrl+F) : repère, n° de fil, borne, référence…"
 		onclick={() => (editor.searchOpen = true)}><Search size={16} /> Rechercher</Button
 	>
+	{#if onhistory}
+		<Button
+			variant="ghost"
+			size="sm"
+			title="Historique : versions, restauration, duplication"
+			onclick={onhistory}><History size={16} /> Historique</Button
+		>
+	{/if}
 	<Button variant="ghost" size="sm" title="Borniers" onclick={onstrips}
 		><Cable size={16} /> Borniers</Button
 	>
@@ -258,7 +271,8 @@
 	.status.error {
 		color: var(--c-danger);
 	}
-	.status.readonly {
+	.status.readonly,
+	.status.archive {
 		color: var(--c-warning);
 	}
 	.status :global(.spin) {

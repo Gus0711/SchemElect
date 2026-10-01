@@ -6,13 +6,7 @@ import { applyTemplate } from '$lib/model/template';
 import { requireUser } from '$lib/server/guards';
 import { getTemplate, listTemplates } from '$lib/server/templates';
 import { getLock } from '$lib/server/locks';
-import {
-	deleteProject,
-	duplicateProject,
-	insertProject,
-	listProjects,
-	renameProject
-} from '$lib/server/projects';
+import { deleteProject, insertProject, listProjects, renameProject } from '$lib/server/projects';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -59,14 +53,6 @@ export const actions: Actions = {
 		const user = requireUser(locals);
 		const id = await insertProject(buildSampleArmoire(), user.id);
 		redirect(303, `/projets/${id}`);
-	},
-
-	duplicate: async ({ request, locals }) => {
-		const user = requireUser(locals);
-		const id = str(await request.formData(), 'id');
-		const copy = await duplicateProject(id, user.id);
-		if (!copy) return fail(404, { action: 'duplicate', error: 'Projet introuvable' });
-		return { action: 'duplicate', ok: true };
 	},
 
 	rename: async ({ request, locals }) => {

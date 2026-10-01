@@ -85,6 +85,24 @@ export const catalog = sqliteTable('catalog', {
 	updatedAt: text('updated_at').notNull()
 });
 
+/** Historique des versions d'un dossier (voir `model/versions.ts`). */
+export const projectVersions = sqliteTable('project_versions', {
+	id: text('id').primaryKey(),
+	projectId: text('project_id')
+		.notNull()
+		.references(() => projects.id, { onDelete: 'cascade' }),
+	createdAt: text('created_at').notNull(),
+	createdBy: text('created_by'),
+	kind: text('kind', { enum: ['auto', 'named'] }).notNull(),
+	label: text('label').notNull().default(''),
+	/** `VersionSummary` en JSON (folios, appareils). */
+	summary: text('summary').notNull(),
+	/** SHA-256 du contenu (sans la date de modification) : pas de version sans changement. */
+	hash: text('hash').notNull(),
+	/** Document `Project` en JSON, compressé gzip puis encodé en base64. */
+	data: text('data').notNull()
+});
+
 export type CustomSymbolRow = typeof customSymbols.$inferSelect;
 
 export type UserRow = typeof users.$inferSelect;

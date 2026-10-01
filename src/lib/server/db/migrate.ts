@@ -57,6 +57,19 @@ CREATE TABLE IF NOT EXISTS templates (
 	updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS project_versions (
+	id TEXT PRIMARY KEY NOT NULL,
+	project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+	created_at TEXT NOT NULL,
+	created_by TEXT,
+	kind TEXT NOT NULL,
+	label TEXT NOT NULL DEFAULT '',
+	summary TEXT NOT NULL,
+	hash TEXT NOT NULL,
+	data TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS project_versions_project_idx ON project_versions(project_id, created_at);
+
 CREATE TABLE IF NOT EXISTS catalog (
 	id TEXT PRIMARY KEY NOT NULL,
 	ref_key TEXT NOT NULL UNIQUE,

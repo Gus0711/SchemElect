@@ -11,6 +11,33 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-01 (suite) — Historique des versions et duplication
+
+**Décisions de l'utilisateur** : versions automatiques (15 min de travail + fermeture ;
+48 h complètes puis 1 par jour pendant 30 jours), versions nommées sans limite, version
+automatique à chaque nouvel indice ; restauration ouverte à l'administrateur **et aux
+intervenants du dossier** ; mode de duplication pour une nouvelle affaire.
+
+**Fait** :
+- Table `project_versions` (document compressé), règles pures `model/versions.ts`, stockage
+  `server/versions.ts`, API versions / restauration / duplication.
+- Bouton **Historique** : enregistrer une version commentée, liste (nommées surlignées,
+  auteur, nb de folios / appareils), **Voir** (lecture seule, PDF de la version, nouveau
+  dossier à partir de la version), **Restaurer** (l'état actuel est d'abord gardé en
+  « Avant restauration… », donc annulable), dupliquer.
+- **Dupliquer** (liste des projets, historique, consultation) : nom, n° d'affaire, n° de
+  plan, client, « repartir sans indice » ; la copie s'ouvre, son historique repart de zéro.
+- Tests : 429 unitaires + 14 parcours e2e.
+
+**Reste / suite** : comparaison de deux versions (liste des écarts) ; éventuellement
+suppression d'une version nommée par l'administrateur.
+
+**Pièges / à savoir** : les libellés générés côté serveur (« Avant restauration de la version
+du … ») sont en heure de Paris (`Europe/Paris`), la liste en heure du navigateur. Les dossiers
+existants n'ont pas d'historique avant leur premier enregistrement.
+
+---
+
 ## 2026-10-01 — Panneau Appareils, recherche Ctrl+F, catalogue matériel, nomenclature
 
 **Contexte** : l'application est déployée sur le serveur interne ; V.R a quitté la société

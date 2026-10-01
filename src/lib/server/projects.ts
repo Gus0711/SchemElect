@@ -9,6 +9,8 @@ import type { LockInfo, Macro } from '$lib/api/types';
 import { getDb } from './db';
 import { macros, projects, users, type MacroRow } from './db/schema';
 import { acquireLock, toLockInfo } from './locks';
+import { addedRevisions, duplicateDocument, type DuplicateOptions } from '$lib/model/versions';
+import { deleteVersionsOf, getVersion, maybeAutoVersion, recordVersion } from './versions';
 
 export interface ProjectSummary {
 	id: string;
@@ -64,8 +66,12 @@ export async function getProject(
 	return { id: row.id, data: migrateProject(JSON.parse(row.data)), updatedAt: row.updatedAt };
 }
 
-/** Insère un nouveau projet ; renvoie son id. */
-export async function insertProject(data: Project, userId: string): Promise<string> {
+/** Insère un nouveau projet (avec sa 1re version) ; renvoie son id. */
+export async function insertProject(
+	data: Project,
+	userId: string,
+	versionLabel = 'Création'
+): Promise<string> {
 	const db = await getDb();
 	const id = newId('p');
 	const now = new Date().toISOString();
@@ -79,6 +85,7 @@ export async function insertProject(data: Project, userId: string): Promise<stri
 		updatedAt: now,
 		updatedBy: userId
 	});
+	await recordVersion(id, doc, userId, 'auto', versionLabel);
 	return id;
 }
 
@@ -102,6 +109,10 @@ export async function saveProjectData(
 	const doc = migrateProject(raw);
 	const updatedAt = new Date().toISOString();
 	const db = await getDb();
+	const [previous] = await db
+		.select({ data: projects.data })
+		.from(projects)
+		.where(eq(projects.id, id));
 	await db
 		.update(projects)
 		.set({
@@ -112,7 +123,87 @@ export async function saveProjectData(
 			updatedBy: userId
 		})
 		.where(eq(projects.id, id));
+	await versionAfterSave(id, previous ? JSON.parse(previous.data) : null, doc, userId);
 	return { status: 'ok', updatedAt };
+}
+
+/**
+ * Historique : version nommée à chaque nouvel indice de révision, sinon version
+ * automatique si la précédente a plus de 15 min.
+ */
+async function versionAfterSave(id: string, before: Project | null, doc: Project, userId: string) {
+	const added = addedRevisions(before, doc);
+	if (added.length) {
+		const r = added[added.length - 1];
+		const label = `Indice ${r.indice.trim()}${r.description.trim() ? ` — ${r.description.trim()}` : ''}`;
+		await recordVersion(id, doc, userId, 'named', label);
+		return;
+	}
+	await maybeAutoVersion(id, doc, userId);
+}
+
+/** À la fermeture du dossier (libération du verrou) : version si le contenu a changé. */
+export async function versionOnClose(id: string, userId: string): Promise<void> {
+	const current = await getProject(id);
+	if (current)
+		await maybeAutoVersion(id, current.data, userId, 'Fermeture du dossier', new Date(), 0);
+}
+
+const versionDate = (iso: string) =>
+	new Intl.DateTimeFormat('fr-FR', {
+		dateStyle: 'short',
+		timeStyle: 'short',
+		timeZone: 'Europe/Paris'
+	}).format(new Date(iso));
+
+export type RestoreResult =
+	{ status: 'ok' } | { status: 'not-found' } | { status: 'locked'; lock: LockInfo | null };
+
+/**
+ * Remet le dossier dans l'état d'une version. L'état actuel est d'abord enregistré comme
+ * version nommée (« Avant restauration… ») : la restauration s'annule en restaurant
+ * celle-ci. Exige le verrou d'édition.
+ */
+export async function restoreVersion(
+	id: string,
+	versionId: string,
+	userId: string
+): Promise<RestoreResult> {
+	const lock = await acquireLock(id, userId);
+	if (!lock) return { status: 'not-found' };
+	if (!lock.owned) return { status: 'locked', lock: lock.lock };
+	const [current, version] = await Promise.all([getProject(id), getVersion(id, versionId)]);
+	if (!current || !version) return { status: 'not-found' };
+	const when = versionDate(version.info.createdAt);
+	await recordVersion(
+		id,
+		current.data,
+		userId,
+		'named',
+		`Avant restauration de la version du ${when}`
+	);
+	const doc = version.data;
+	const updatedAt = new Date().toISOString();
+	doc.meta.modifiedAt = updatedAt;
+	const db = await getDb();
+	await db
+		.update(projects)
+		.set({
+			data: JSON.stringify(doc),
+			name: doc.meta.name,
+			affaireNumber: doc.meta.affaireNumber,
+			updatedAt,
+			updatedBy: userId
+		})
+		.where(eq(projects.id, id));
+	await recordVersion(
+		id,
+		doc,
+		userId,
+		'auto',
+		`Restauration de la version du ${when}${version.info.label ? ` (${version.info.label})` : ''}`
+	);
+	return { status: 'ok' };
 }
 
 /** Renomme (colonne + meta du document). */
@@ -134,18 +225,27 @@ export async function renameProject(id: string, name: string, userId: string): P
 	return true;
 }
 
-export async function duplicateProject(id: string, userId: string): Promise<string | null> {
-	const current = await getProject(id);
-	if (!current) return null;
-	const now = new Date().toISOString();
-	const data = structuredClone(current.data);
-	data.meta.name = `${data.meta.name} (copie)`;
-	data.meta.createdAt = now;
-	data.meta.modifiedAt = now;
-	return insertProject(data, userId);
+/**
+ * Duplique un dossier (état actuel, ou une version de son historique) pour une nouvelle
+ * affaire. L'historique ne suit pas : la copie démarre le sien.
+ */
+export async function duplicateProject(
+	id: string,
+	userId: string,
+	opts: Partial<DuplicateOptions> = {},
+	versionId?: string
+): Promise<string | null> {
+	const version = versionId ? await getVersion(id, versionId) : null;
+	if (versionId && !version) return null;
+	const source = version?.data ?? (await getProject(id))?.data;
+	if (!source) return null;
+	const doc = duplicateDocument(source, { name: '', ...opts });
+	const from = version ? ` (version du ${versionDate(version.info.createdAt)})` : '';
+	return insertProject(doc, userId, `Copie de « ${source.meta.name} »${from}`);
 }
 
 export async function deleteProject(id: string): Promise<void> {
+	await deleteVersionsOf(id);
 	const db = await getDb();
 	await db.delete(projects).where(eq(projects.id, id));
 }
