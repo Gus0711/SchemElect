@@ -7,6 +7,7 @@
 		FolderOpen,
 		LayoutTemplate,
 		LogOut,
+		Package,
 		UserRound,
 		Users
 	} from '@lucide/svelte';
@@ -31,6 +32,9 @@
 		>
 		<a href="/modeles" class:active={path.startsWith('/modeles')}
 			><LayoutTemplate size={16} /> Modèles</a
+		>
+		<a href="/catalogue" class:active={path.startsWith('/catalogue')}
+			><Package size={16} /> Catalogue</a
 		>
 		{#if user.role === 'admin'}
 			<a href="/admin/utilisateurs" class:active={path.startsWith('/admin/utilisateurs')}

@@ -477,8 +477,8 @@ test('folios d’implantation et de façade : placement automatique et à la mai
 	expect(await evalEditor<string>(page, 'editor.folio.panel.kind')).toBe('implantation');
 	expect(await evalEditor<number>(page, 'editor.folio.panel.rails.length')).toBe(4);
 
-	// Onglet « Appareils » : placement automatique
-	await page.getByRole('button', { name: 'Appareils', exact: true }).click();
+	// Onglet « À placer » : placement automatique
+	await page.getByRole('button', { name: 'À placer', exact: true }).click();
 	await page.getByRole('button', { name: /Placer automatiquement/ }).click();
 	const placed = await evalEditor<number>(page, 'editor.folio.panel.items.length');
 	expect(placed).toBeGreaterThan(2);
@@ -529,7 +529,7 @@ test('folios d’implantation et de façade : placement automatique et à la mai
 	await page.getByRole('button', { name: /^Folio$/ }).click();
 	await page.getByRole('menuitem', { name: /façade/ }).click();
 	expect(await evalEditor<string>(page, 'editor.folio.panel.kind')).toBe('facade');
-	await page.getByRole('button', { name: 'Appareils', exact: true }).click();
+	await page.getByRole('button', { name: 'À placer', exact: true }).click();
 	await page.getByRole('button', { name: /Placer automatiquement/ }).click();
 	expect(await evalEditor<number>(page, 'editor.folio.panel.items.length')).toBeGreaterThan(0);
 	await page.keyboard.press('Escape');
@@ -538,7 +538,7 @@ test('folios d’implantation et de façade : placement automatique et à la mai
 	await page.getByRole('button', { name: /Thème : Clair/ }).click();
 	await page.getByRole('button', { name: 'Folios', exact: true }).click();
 	await page.screenshot({ path: 'test-results/facade-sombre.png' });
-	await page.getByRole('button', { name: 'Appareils', exact: true }).click();
+	await page.getByRole('button', { name: 'À placer', exact: true }).click();
 	await page.screenshot({ path: 'test-results/facade-sombre-appareils.png' });
 
 	// Export PDF du dossier avec les folios d'armoire (même rendu qu'à l'écran)
@@ -830,4 +830,100 @@ test('folio borniers automatique : dessin, filtre, double-clic, PDF', async ({ p
 	const download = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
 	await (await download).saveAs('test-results/export-folio-borniers.pdf');
+});
+
+test('catalogue matériel, panneau Appareils, recherche Ctrl+F et nomenclature', async ({
+	page
+}) => {
+	page.on('dialog', (d) => d.accept());
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+
+	// Catalogue : import du catalogue de départ, recherche.
+	await page.getByRole('link', { name: 'Catalogue' }).click();
+	await expect(page).toHaveURL(/\/catalogue/);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: /Importer le catalogue de départ/ }).click();
+	await expect(page.getByText(/fiche\(s\) ajoutée\(s\)/)).toBeVisible();
+	await expect(page.getByRole('cell', { name: 'LC1D09B7', exact: true })).toBeVisible();
+	await page.screenshot({ path: 'test-results/catalogue.png', fullPage: true });
+	await page.getByPlaceholder(/Rechercher \(référence/).fill('gv2 me08');
+	await expect(page.locator('tbody tr')).toHaveCount(1);
+
+	// Nouvelle fiche à la main.
+	await page.getByRole('button', { name: /Nouvelle fiche/ }).click();
+	await page.getByLabel('Référence *').fill('TEST-001');
+	await page.getByLabel('Fabricant').fill('Maison');
+	await page.getByLabel('Contacts NO').fill('2');
+	await page.getByRole('button', { name: 'Enregistrer' }).click();
+	await expect(page.getByText('Fiche « TEST-001 » enregistrée.')).toBeVisible();
+
+	// Dossier : panneau Appareils.
+	await page.getByRole('link', { name: 'Projets' }).click();
+	await page.getByRole('button', { name: 'Exemple armoire complète' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+	await page.getByRole('button', { name: 'Appareils', exact: true }).click();
+	await page.getByRole('button', { name: /^Sans réf\./ }).click();
+	const firstRow = page.locator('.devices .row').first();
+	const tag = (await firstRow.locator('.tag').textContent())!.trim();
+	await firstRow.click();
+	expect(
+		await evalEditor<string>(
+			page,
+			`editor.project.devices[editor.folio.symbols.find((s) => s.id === editor.selection[0].id).deviceId].tag`
+		)
+	).toBe(tag);
+
+	// Référence choisie dans le catalogue (casse / espaces indifférents).
+	const ref = page.getByLabel('Référence constructeur');
+	await ref.fill('lc1d09 b7');
+	await ref.press('Tab');
+	await expect(page.locator('.inspector p.catalog')).toContainText('Contacteur TeSys D 3P 9 A');
+	const device = await evalEditor<{ reference: string; manufacturer: string }>(
+		page,
+		`Object.values(editor.project.devices).find((d) => d.tag === '${tag}')`
+	);
+	expect(device).toMatchObject({ reference: 'LC1D09B7', manufacturer: 'Schneider Electric' });
+	expect(await evalEditor<boolean>(page, `!!editor.project.catalog.LC1D09B7`)).toBe(true);
+	await page.screenshot({ path: 'test-results/appareils.png' });
+
+	// Recherche Ctrl+F : aller à un appareil d'un autre folio.
+	const target = await evalEditor<{ tag: string; folioId: string; symbolId: string }>(
+		page,
+		`(() => { const f = editor.project.folios.find((f) => f.id !== editor.folioId && f.symbols.length);
+			const s = f.symbols.find((s) => editor.project.devices[s.deviceId]);
+			return { tag: editor.project.devices[s.deviceId].tag, folioId: f.id, symbolId: s.id }; })()`
+	);
+	await page.keyboard.press('Escape');
+	await page.keyboard.press('Control+f');
+	const search = page.getByRole('textbox', { name: 'Rechercher dans le dossier' });
+	await expect(search).toBeFocused();
+	await search.fill(target.tag);
+	await expect(page.locator('.search li button').first()).toContainText(target.tag);
+	await page.screenshot({ path: 'test-results/recherche.png' });
+	await search.press('Enter');
+	await expect(search).toBeHidden();
+	expect(await evalEditor<string>(page, 'editor.folioId')).toBe(target.folioId);
+	expect(await evalEditor<number>(page, 'editor.selection.length')).toBe(1);
+
+	// Nomenclature : aperçu, puis PDF avec la nomenclature en fin de dossier.
+	await page.getByRole('button', { name: /^Nomenclature$/ }).click();
+	await expect(page.getByRole('cell', { name: 'LC1D09B7' })).toBeVisible();
+	await page.screenshot({ path: 'test-results/nomenclature.png' });
+	await page.getByRole('button', { name: 'Fermer' }).click();
+	await page
+		.locator('.toolbar')
+		.getByRole('button', { name: /Exporter/ })
+		.click();
+	await expect(page.getByLabel(/Nomenclature par référence/)).toBeChecked();
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
+	await (await download).saveAs('test-results/nomenclature.pdf');
+	await expect(page.locator('.status.saved')).toBeVisible();
 });

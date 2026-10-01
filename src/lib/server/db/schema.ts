@@ -71,6 +71,20 @@ export const templates = sqliteTable('templates', {
 	updatedAt: text('updated_at').notNull()
 });
 
+/** Catalogue matériel : une fiche par référence constructeur (bibliothèque partagée). */
+export const catalog = sqliteTable('catalog', {
+	id: text('id').primaryKey(),
+	/** `referenceKey(reference)` : unicité indépendante des espaces / de la casse. */
+	refKey: text('ref_key').notNull().unique(),
+	reference: text('reference').notNull(),
+	manufacturer: text('manufacturer').notNull().default(''),
+	/** `CatalogItem` sérialisé en JSON. */
+	data: text('data').notNull(),
+	createdBy: text('created_by'),
+	createdAt: text('created_at').notNull(),
+	updatedAt: text('updated_at').notNull()
+});
+
 export type CustomSymbolRow = typeof customSymbols.$inferSelect;
 
 export type UserRow = typeof users.$inferSelect;

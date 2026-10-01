@@ -6,6 +6,7 @@
 import { getSymbolDef } from '$lib/symbols';
 import type { SymbolDef } from '$lib/symbols/types';
 import { allCableTags } from './cables';
+import { deviceCatalogItem, referenceKey, type CatalogItem } from './catalog';
 import { boundsOf, snap } from './geometry';
 import { allItems, itemBounds } from './edit';
 import { deepClone, newId } from './ids';
@@ -36,6 +37,8 @@ export interface Fragment {
 	devices: Record<Id, Device>;
 	/** Symboles maison utilisés (pour coller dans un autre projet / macros). */
 	symbolDefs?: Record<string, SymbolDef>;
+	/** Fiches catalogue des appareils (par `referenceKey`), pour coller dans un autre projet. */
+	catalog?: Record<string, CatalogItem>;
 }
 
 export function emptyFragment(): Fragment {
@@ -69,6 +72,8 @@ export function extractFragment(project: Project, folio: Folio, refs: ItemRef[])
 	for (const s of frag.symbols) {
 		const d = project.devices[s.deviceId];
 		if (d) frag.devices[d.id] = clone(d);
+		const item = deviceCatalogItem(project, d);
+		if (item) (frag.catalog ??= {})[referenceKey(item.reference)] = clone(item);
 		const def = project.customSymbols[s.defId];
 		if (def) (frag.symbolDefs ??= {})[def.id] = clone(def);
 	}
@@ -145,6 +150,9 @@ export function insertFragment(
 	const deviceMap = new Map<Id, Id>();
 	// Symboles maison transportés par le fragment : recopiés dans le projet cible.
 	for (const def of Object.values(frag.symbolDefs ?? {})) project.customSymbols[def.id] ??= def;
+	// Fiches catalogue : la copie du projet cible prime.
+	for (const [key, item] of Object.entries(frag.catalog ?? {}))
+		(project.catalog ??= {})[key] ??= item;
 
 	if (opts.devices === 'renumber') {
 		// Ordre naturel des repères conservé : KM1, KM2 → KM5, KM6.

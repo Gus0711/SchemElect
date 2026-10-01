@@ -1,3 +1,4 @@
+import { normalizeCatalogItem, referenceKey, type CatalogItem } from './catalog';
 import { deepClone, newId } from './ids';
 import { AREA } from './layout';
 import { normalizeTemplate } from './template';
@@ -91,5 +92,13 @@ export function migrateProject(raw: unknown): Project {
 	};
 	const template = p.template ? normalizeTemplate(p.template) : null;
 	if (template) project.template = template;
+	if (p.catalog && typeof p.catalog === 'object') {
+		const catalog: Record<string, CatalogItem> = {};
+		for (const raw of Object.values(p.catalog)) {
+			const item = normalizeCatalogItem(raw);
+			if (item) catalog[referenceKey(item.reference)] = item;
+		}
+		if (Object.keys(catalog).length) project.catalog = catalog;
+	}
 	return project;
 }

@@ -4,7 +4,8 @@
 	import type { Project } from '$lib/model/types';
 	import type { PrintGrid } from '$lib/render/pageNumbering';
 	import { Button, Modal } from '$lib/ui';
-	import { cablesCsv, devicesCsv, downloadText, stripsCsv, wiresCsv } from './csv';
+	import { computeNomenclature } from '$lib/model/nomenclature';
+	import { cablesCsv, devicesCsv, downloadText, nomenclatureCsv, stripsCsv, wiresCsv } from './csv';
 	import { safeFileName } from './dossier';
 
 	let {
@@ -26,10 +27,13 @@
 
 	let cover = $state(true);
 	let strips = $state(true);
+	let nomenclature = $state(false);
 	// À chaque ouverture : tableaux de borniers en fin de dossier seulement si le dossier n'a
-	// pas de folio borniers (dessin).
+	// pas de folio borniers (dessin) ; nomenclature dès qu'un appareil a une référence.
 	$effect(() => {
-		if (open) strips = !project.folios.some((f) => f.strips);
+		if (!open) return;
+		strips = !project.folios.some((f) => f.strips);
+		nomenclature = computeNomenclature(project).some((l) => l.referenced);
 	});
 	let busy = $state(false);
 	let error = $state('');
@@ -47,6 +51,7 @@
 			await downloadProjectPdf(project, analysis, {
 				cover,
 				strips,
+				nomenclature,
 				grid: printGrid ? grid : null
 			});
 		} catch (e) {
@@ -59,7 +64,8 @@
 
 	const CSV = {
 		strips: { suffix: 'borniers', make: () => stripsCsv(project, analysis) },
-		devices: { suffix: 'nomenclature', make: () => devicesCsv(project) },
+		devices: { suffix: 'appareils', make: () => devicesCsv(project) },
+		bom: { suffix: 'nomenclature', make: () => nomenclatureCsv(project) },
 		wires: { suffix: 'fils', make: () => wiresCsv(project, analysis) },
 		cables: { suffix: 'câbles', make: () => cablesCsv(project, analysis) }
 	};
@@ -77,6 +83,10 @@
 		>
 		<label class="check"
 			><input type="checkbox" bind:checked={strips} disabled={busy} /> Tableaux des borniers (fin de dossier)</label
+		>
+		<label class="check"
+			><input type="checkbox" bind:checked={nomenclature} disabled={busy} /> Nomenclature par référence
+			(fin de dossier)</label
 		>
 		{#if grid}
 			<label class="check"
@@ -100,7 +110,8 @@
 		<h3>Listes (CSV, Excel)</h3>
 		<div class="row">
 			<Button onclick={() => exportCsv('strips')}>Borniers</Button>
-			<Button onclick={() => exportCsv('devices')}>Nomenclature des appareils</Button>
+			<Button onclick={() => exportCsv('bom')}>Nomenclature par référence</Button>
+			<Button onclick={() => exportCsv('devices')}>Liste des appareils</Button>
 			<Button onclick={() => exportCsv('wires')}>Liste des fils</Button>
 			<Button onclick={() => exportCsv('cables')}>Carnet de câbles</Button>
 		</div>

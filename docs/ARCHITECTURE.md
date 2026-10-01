@@ -30,6 +30,7 @@ ADR-001 bis).
 | `Project` | `meta` (cartouche), `revisions`, `potentials`, `devices` (map id → Device), `folios`, `settings` |
 | `Folio` | `symbols`, `wires`, `bars`, `texts`, `rects`, `cables` |
 | `Device` | appareil physique : `tag` (KM1), valeur, désignation, référence, fabricant |
+| `CatalogItem` | fiche du catalogue matériel (référence, fabricant, désignation, contacts, encombrement, montage) ; le projet garde une copie des fiches utilisées (`Project.catalog`, clé `referenceKey`) |
 | `SymbolInstance` | symbole posé : `defId`, `deviceId`, position, rotation, miroir |
 | `Wire` | polyligne orthogonale ; `numberOverride` optionnel |
 | `Bar` | barre de potentiel horizontale |
@@ -71,6 +72,28 @@ Format versionné (`schemaVersion`) ; toute lecture passe par `migrateProject`.
   mécanisme, avec renumérotation des repères.
 - **Édition** (`edit.ts`) : déplacement avec fils élastiques orthogonaux, glisser de
   segment, rotation, suppression (appareils orphelins nettoyés).
+
+## 3 bis. Catalogue matériel, inventaire, nomenclature
+
+- **Catalogue** (`model/catalog.ts`) : une fiche par référence ; comparaison des références
+  par `referenceKey` (sans espaces / points / tirets, majuscules : « 4 067 71 » = « 406771 »).
+  Bibliothèque partagée (table `catalog`, `server/catalog.ts`, API `/api/catalog`, page
+  `/catalogue` : recherche, fiche, import / export CSV, catalogue de départ
+  `model/catalogStarter.ts`). Le projet garde **une copie** des fiches utilisées
+  (`Project.catalog`) : `assignReference` (choix de la référence dans l'inspecteur) recopie la
+  fiche, reprend le fabricant et retire les copies inutiles ; `catalogUpdates` /
+  `applyCatalogUpdates` = bouton « Reprendre les fiches du catalogue » du panneau Appareils.
+  Les fragments (copier/coller, macros) transportent les fiches.
+- **Déduit d'une fiche** (jamais recopié sur l'appareil) : contacts disponibles
+  (`deviceContacts` : saisie de l'appareil, sinon fiche → alerte de dépassement) et
+  encombrement / montage (`deviceFootprint` : fiche, sinon valeur par symbole).
+- **Inventaire** (`model/inventory.ts`) : `listDevices` (appareils physiques hors renvois /
+  décors, famille = catégorie du symbole principal, emplacements, problèmes « sans
+  référence » / « contacts ») et `searchProject` (recherche Ctrl+F : repères, références,
+  désignations, n° de fils, bornes, câbles, folios, textes ; classement par pertinence).
+- **Nomenclature** (`model/nomenclature.ts`) : une ligne par référence (quantité, repères
+  compactés « KA1 à KA4 » par `compressTags`), puis les appareils sans référence par préfixe
+  (« À compléter »). Bornes comprises.
 
 ## 4. Bibliothèque de symboles (`src/lib/symbols/`)
 
@@ -136,8 +159,12 @@ un folio = une page ; série = folios borniers de même filtre (`stripFolioPage`
 - `viewport.svelte.ts` — zoom / déplacement.
 - `session.svelte.ts` — verrou (heartbeat 30 s) et sauvegarde automatique (1,2 s).
 - `components/` — `EditorApp` (assemblage), `Toolbar`, `Sidebar` (Folios / Symboles /
-  Macros), `Canvas`, `Inspector`, `ChecksPanel`, `ProjectDialog`, `StripsDialog`,
-  `StatusBar`.
+  Macros / Appareils ; sur un folio d'armoire l'onglet Symboles devient « À placer »),
+  `Canvas`, `Inspector`, `ChecksPanel`, `ProjectDialog`, `StripsDialog`, `StatusBar`,
+  `DevicesPanel` (liste des appareils, filtres, emplacements), `SearchDialog` (Ctrl+F),
+  `NomenclatureDialog`, `CatalogItemDialog` (fiche catalogue, aussi utilisée par `/catalogue`).
+- Catalogue dans l'éditeur : `Editor.catalog` (chargé au démarrage), `setReference`,
+  `catalogChanges`, `applyCatalogChanges` ; navigation générique `Editor.goToItem`.
 
 Raccourcis : liste complète dans `shortcuts.ts`, affichée par l'aide (**?** / F1,
 `ShortcutsDialog`). Principaux : S sélection, W fil, B barre, K câble, T texte, C cadre,
@@ -154,7 +181,8 @@ renvoi de fil → renvoi jumeau ; sur un contact → sa bobine ; menu clic droit
 
 SQLite (libSQL) + Drizzle, tables créées au démarrage. Auth maison (Argon2id, sessions
 hachées). Verrou d'édition par projet (expire après 2 min sans heartbeat). API JSON :
-projets (GET/PUT), verrou, macros. Client typé : `src/lib/api/client.ts`.
+projets (GET/PUT), verrou, macros, symboles maison, modèles, catalogue (`/api/catalog` : GET,
+POST d'une fiche ou `{ items }` pour un import — même référence = mise à jour). Client typé : `src/lib/api/client.ts`.
 
 Sauvegarde automatique (`backup.ts`, démarrée par le hook `init` de `hooks.server.ts`) :
 copie cohérente `VACUUM INTO` dans `backups/` à côté de la base (ou `BACKUP_DIR`), toutes les
@@ -164,7 +192,9 @@ Page admin `/admin/sauvegardes` : liste, « Sauvegarder maintenant », télécha
 ## 7. Export (`src/lib/export/`)
 
 PDF (jsPDF + svg2pdf.js) à partir des MÊMES composants SVG : page de garde, folios,
-borniers. CSV (`;`, BOM UTF-8) : borniers, appareils, fils.
+borniers, nomenclature (option, cochée dès qu'un appareil a une référence ;
+`export/bomTable.ts` + `render/BomPage.svelte`). CSV (`;`, BOM UTF-8) : borniers,
+nomenclature par référence, liste des appareils, fils, câbles.
 
 ## 8. Design
 

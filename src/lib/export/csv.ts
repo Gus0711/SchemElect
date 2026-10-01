@@ -5,6 +5,7 @@
 import { projectStrips, type ProjectAnalysis } from '$lib/model/analysis';
 import { cableName, cablePosition, conductorLabel } from '$lib/model/cables';
 import { folioNumber, folioRef } from '$lib/model/layout';
+import { compressTags, computeNomenclature } from '$lib/model/nomenclature';
 import { compareTags } from '$lib/model/tags';
 import type { Project } from '$lib/model/types';
 import { getSymbolDef } from '$lib/symbols';
@@ -115,6 +116,19 @@ export function devicesCsv(project: Project): string {
 		],
 		rows
 	);
+}
+
+/** Nomenclature par référence : une ligne par référence (quantité, repères). */
+export function nomenclatureCsv(project: Project): string {
+	const rows = computeNomenclature(project).map((l) => [
+		l.quantity,
+		l.reference || 'À compléter',
+		l.manufacturer,
+		l.designation,
+		l.category,
+		compressTags(l.tags)
+	]);
+	return toCsv(['Quantité', 'Référence', 'Fabricant', 'Désignation', 'Catégorie', 'Repères'], rows);
 }
 
 /** Liste des fils : une ligne par équipotentielle dessinée. */

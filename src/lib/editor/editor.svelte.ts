@@ -4,6 +4,12 @@
  * sauvegarde automatique. Les règles métier sont dans $lib/model.
  */
 import { analyzeProject, type ProjectAnalysis } from '$lib/model/analysis';
+import {
+	applyCatalogUpdates,
+	assignReference,
+	catalogUpdates,
+	type CatalogItem
+} from '$lib/model/catalog';
 import * as edit from '$lib/model/edit';
 import {
 	extractFragment,
@@ -25,7 +31,12 @@ import {
 import { symbolBounds } from '$lib/model/symbolGeometry';
 import { deepClone } from '$lib/model/ids';
 import type { Folio, Id, ItemRef, Point, Project, Rotation } from '$lib/model/types';
-import { deleteCustomSymbol, listCustomSymbols, saveCustomSymbol } from '$lib/api/client';
+import {
+	deleteCustomSymbol,
+	listCatalog,
+	listCustomSymbols,
+	saveCustomSymbol
+} from '$lib/api/client';
 import { registerCustomSymbols } from '$lib/symbols';
 import type { CustomSymbolSpec } from '$lib/symbols/custom';
 import type { SymbolDef } from '$lib/symbols/types';
@@ -77,6 +88,12 @@ export class Editor {
 	lastPlacedDefId: string | null = $state(null);
 	/** Potentiel de l'outil Barre (touche B, liste de la barre d'outils). */
 	barPotential = $state('L1');
+	/** Recherche dans le dossier ouverte (Ctrl+F). */
+	searchOpen = $state(false);
+	/** Catalogue matériel partagé (chargé depuis le serveur). */
+	catalog: CatalogItem[] = $state([]);
+	/** Fiches du catalogue plus récentes que la copie du projet. */
+	catalogChanges = $derived(catalogUpdates(this.project, this.catalog));
 	/** Demande de focus sur un champ de l'inspecteur (ex. repère après double-clic). */
 	focusRequest = $state<{ field: string; at: number } | null>(null);
 
@@ -273,6 +290,16 @@ export class Editor {
 		if (b) this.viewport.centerOn(b.x + b.w / 2, b.y + b.h / 2);
 	}
 
+	/** Va à un élément (autre folio si besoin), le sélectionne et centre la vue dessus. */
+	goToItem(folioId: Id, ref?: ItemRef) {
+		this.setFolio(folioId);
+		if (!ref) return;
+		const b = edit.itemBounds(this.folio, ref);
+		if (!b) return;
+		this.selection = [ref];
+		this.viewport.centerOn(b.x + b.w / 2, b.y + b.h / 2);
+	}
+
 	setTool(tool: Tool) {
 		// Pas de fil ni de symbole sur un folio d'armoire, pas de rail sur un schéma.
 		if (this.blockedTools.has(tool.kind)) return;
@@ -449,6 +476,35 @@ export class Editor {
 	async deleteCustomSymbol(id: string) {
 		await deleteCustomSymbol(id);
 		this.customLibrary = this.customLibrary.filter((d) => d.id !== id);
+	}
+
+	// ------------------------------------------------------------ catalogue matériel
+
+	async loadCatalog() {
+		try {
+			this.catalog = await listCatalog();
+		} catch {
+			/* catalogue indisponible : les fiches copiées dans le projet restent utilisables */
+		}
+	}
+
+	/** Référence d'un appareil (fiche du catalogue recopiée dans le projet si elle existe). */
+	setReference(deviceId: Id, reference: string) {
+		this.transact('Référence', (p) => assignReference(p, deviceId, reference, this.catalog));
+	}
+
+	/** Fiche ajoutée / modifiée dans le catalogue depuis l'éditeur. */
+	catalogSaved(item: CatalogItem) {
+		this.catalog = [...this.catalog.filter((i) => i.id !== item.id), item];
+	}
+
+	/** Recopie dans le projet les fiches modifiées dans le catalogue. */
+	applyCatalogChanges(): number {
+		const items = this.catalogChanges;
+		if (!items.length) return 0;
+		let n = 0;
+		this.transact('Mettre à jour depuis le catalogue', (p) => (n = applyCatalogUpdates(p, items)));
+		return n;
 	}
 
 	/** Change la grille d'affichage et mémorise le réglage. */

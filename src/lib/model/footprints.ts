@@ -1,11 +1,13 @@
 /**
  * Encombrement et montage par défaut des appareils, déduits de leur symbole.
  *
- * En attendant le catalogue matériel (phase 12), les dimensions sont des valeurs usuelles
- * (largeur en modules de 18 mm pour le modulaire). Elles restent modifiables sur chaque
- * appareil posé, et le montage est modifiable par appareil (`Device.mounting`).
+ * Priorité : fiche du catalogue matériel de la référence de l'appareil (si elle donne un
+ * encombrement), sinon valeurs usuelles par symbole (largeur en modules de 18 mm pour le
+ * modulaire). Elles restent modifiables sur chaque appareil posé, et le montage est
+ * modifiable par appareil (`Device.mounting`).
  */
 import { getSymbolDef } from '$lib/symbols';
+import { deviceCatalogItem } from './catalog';
 import type { Id, Mounting, Project } from './types';
 
 export interface Footprint {
@@ -84,12 +86,22 @@ export function mainSymbolDef(project: Project, deviceId: Id): string | undefine
  */
 export function deviceFootprint(project: Project, deviceId: Id, auto = false): Footprint {
 	const defId = mainSymbolDef(project, deviceId);
-	const base = defId ? symbolFootprint(defId) : EXTERNAL;
+	const bySymbol = defId ? symbolFootprint(defId) : EXTERNAL;
+	const item = deviceCatalogItem(project, project.devices[deviceId]);
+	const base: Footprint =
+		item?.w && item.h
+			? { mounting: item.mounting ?? bySymbol.mounting, w: item.w, h: item.h }
+			: item?.mounting && item.mounting !== bySymbol.mounting
+				? sizeFor(item.mounting)
+				: bySymbol;
 	const mounting = (!auto && project.devices[deviceId]?.mounting) || base.mounting;
 	if (mounting === base.mounting) return base;
 	// Montage changé à la main : taille usuelle du nouveau montage.
-	return mounting === 'porte' ? door() : mounting === 'rail' ? rail(1) : EXTERNAL;
+	return sizeFor(mounting);
 }
+
+const sizeFor = (mounting: Mounting): Footprint =>
+	mounting === 'porte' ? door() : mounting === 'rail' ? rail(1) : EXTERNAL;
 
 /** Pas d'une borne de bornier (borne à vis 2,5 mm²) et longueur des butées / flasques. */
 export const TERMINAL_PITCH = 5.2;

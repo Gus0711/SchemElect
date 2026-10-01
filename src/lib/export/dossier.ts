@@ -12,11 +12,15 @@ import { projectStrips, type ProjectAnalysis } from '$lib/model/analysis';
 import { folioNumber } from '$lib/model/layout';
 import type { Project, ProjectMeta } from '$lib/model/types';
 import type { PrintGrid } from '$lib/render/pageNumbering';
+import { computeNomenclature } from '$lib/model/nomenclature';
+import { BOM_TITLE, paginateBom, type BomPage } from './bomTable';
 import { paginateStrips, type StripPage } from './stripsTable';
 
 export interface ExportOptions {
 	cover?: boolean;
 	strips?: boolean;
+	/** Nomenclature par référence en fin de dossier (défaut : non). */
+	nomenclature?: boolean;
 	/** Grille imprimée sur les folios (absente = pas de grille). */
 	grid?: PrintGrid | null;
 }
@@ -31,6 +35,8 @@ export const STRIPS_TITLE = 'BORNIERS';
 export interface DossierPlan {
 	cover: boolean;
 	stripPages: StripPage[];
+	/** Pages « NOMENCLATURE » (après les borniers). */
+	bomPages: BomPage[];
 	/** Sommaire (page de garde). */
 	entries: CoverEntry[];
 	/** Folios numérotés (schémas + borniers), hors page de garde. */
@@ -46,15 +52,27 @@ export function planDossier(
 ): DossierPlan {
 	const cover = opts.cover ?? true;
 	const stripPages = (opts.strips ?? true) ? paginateStrips(projectStrips(project, analysis)) : [];
+	const bomPages = opts.nomenclature ? paginateBom(computeNomenclature(project)) : [];
 	const entries: CoverEntry[] = [
 		...project.folios.map((f, i) => ({ number: folioNumber(i), title: f.title })),
 		...stripPages.map((_, k) => ({
 			number: folioNumber(project.folios.length + k),
 			title: STRIPS_TITLE
+		})),
+		...bomPages.map((_, k) => ({
+			number: folioNumber(project.folios.length + stripPages.length + k),
+			title: BOM_TITLE
 		}))
 	];
 	const folioCount = entries.length;
-	return { cover, stripPages, entries, folioCount, totalPages: folioCount + (cover ? 1 : 0) };
+	return {
+		cover,
+		stripPages,
+		bomPages,
+		entries,
+		folioCount,
+		totalPages: folioCount + (cover ? 1 : 0)
+	};
 }
 
 /** Nom de fichier sans caractères interdits (Windows). */

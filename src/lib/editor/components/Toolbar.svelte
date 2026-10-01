@@ -14,6 +14,7 @@
 		RectangleVertical,
 		SeparatorHorizontal,
 		Redo2,
+		Search,
 		Settings,
 		Spline,
 		Square,
@@ -196,6 +197,12 @@
 
 	<div class="sep"></div>
 
+	<Button
+		variant="ghost"
+		size="sm"
+		title="Rechercher dans le dossier (Ctrl+F) : repère, n° de fil, borne, référence…"
+		onclick={() => (editor.searchOpen = true)}><Search size={16} /> Rechercher</Button
+	>
 	<Button variant="ghost" size="sm" title="Borniers" onclick={onstrips}
 		><Cable size={16} /> Borniers</Button
 	>

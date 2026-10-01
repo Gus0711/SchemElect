@@ -1,4 +1,5 @@
 import type { SymbolDef } from '$lib/symbols/types';
+import type { CatalogItem } from './catalog';
 import type { DocTemplate } from './template';
 
 /**
@@ -250,6 +251,11 @@ export interface Project {
 	 * standard (voir `template.ts`).
 	 */
 	template?: DocTemplate;
+	/**
+	 * Copies des fiches du catalogue matériel utilisées par le projet, par
+	 * `referenceKey(reference)` (voir `catalog.ts`). Absent = aucune.
+	 */
+	catalog?: Record<string, CatalogItem>;
 }
 
 /** Élément sélectionnable d'un folio. */

@@ -10,6 +10,7 @@
 	import CustomSymbolDialog from './CustomSymbolDialog.svelte';
 	import Inspector from './Inspector.svelte';
 	import ProjectDialog from './ProjectDialog.svelte';
+	import SearchDialog from './SearchDialog.svelte';
 	import ShortcutsDialog from './ShortcutsDialog.svelte';
 	import Sidebar from './Sidebar.svelte';
 	import StatusBar from './StatusBar.svelte';
@@ -34,6 +35,7 @@
 	onMount(() => {
 		session.start();
 		editor.loadCustomLibrary();
+		editor.loadCatalog();
 		// Accès pour les tests de bout en bout (mode développement uniquement).
 		if (import.meta.env.DEV)
 			(window as unknown as Record<string, unknown>).__schemelect = { editor, session };
@@ -52,7 +54,14 @@
 			session.flush();
 			return;
 		}
+		// Ctrl+F : recherche dans le dossier (à la place de celle du navigateur).
+		if (mod && e.key.toLowerCase() === 'f' && !projectOpen && !stripsOpen && !exportOpen) {
+			e.preventDefault();
+			editor.searchOpen = true;
+			return;
+		}
 		if (
+			editor.searchOpen ||
 			isTyping(e) ||
 			projectOpen ||
 			stripsOpen ||
@@ -119,6 +128,7 @@
 />
 <StripsDialog {editor} bind:open={stripsOpen} />
 <ShortcutsDialog bind:open={editor.shortcutsOpen} />
+<SearchDialog {editor} />
 <ExportDialog
 	bind:open={exportOpen}
 	project={editor.project}

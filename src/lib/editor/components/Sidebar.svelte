@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Editor } from '../editor.svelte';
+	import DevicesPanel from './DevicesPanel.svelte';
 	import FolioList from './FolioList.svelte';
 	import MacroPanel from './MacroPanel.svelte';
 	import PanelDevices from './PanelDevices.svelte';
@@ -10,7 +11,8 @@
 	const TABS = [
 		{ id: 'folios', label: 'Folios' },
 		{ id: 'symbols', label: 'Symboles' },
-		{ id: 'macros', label: 'Macros' }
+		{ id: 'macros', label: 'Macros' },
+		{ id: 'devices', label: 'Appareils' }
 	] as const;
 
 	let tab: (typeof TABS)[number]['id'] = $state('symbols');
@@ -25,12 +27,14 @@
 	<nav>
 		{#each TABS as t (t.id)}
 			<button class:active={tab === t.id} onclick={() => (tab = t.id)}
-				>{t.id === 'symbols' && editor.panel ? 'Appareils' : t.label}</button
+				>{t.id === 'symbols' && editor.panel ? 'À placer' : t.label}</button
 			>
 		{/each}
 	</nav>
 	{#if tab === 'folios'}
 		<FolioList {editor} />
+	{:else if tab === 'devices'}
+		<DevicesPanel {editor} />
 	{:else if tab === 'symbols' && editor.stripsFolio}
 		<p class="note">
 			Folio borniers automatique : il se dessine seul à partir des bornes du schéma. Réglages

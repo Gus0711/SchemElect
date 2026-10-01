@@ -12,7 +12,9 @@ import type { Project } from '$lib/model/types';
 import CoverPage from '$lib/render/CoverPage.svelte';
 import FolioPage from '$lib/render/FolioPage.svelte';
 import { pageNumberingContext } from '$lib/render/pageNumbering';
+import BomPage from '$lib/render/BomPage.svelte';
 import StripsPage from '$lib/render/StripsPage.svelte';
+import { BOM_TITLE } from './bomTable';
 import { downloadBlob } from './csv';
 import { pdfFileName, planDossier, STRIPS_TITLE, type ExportOptions } from './dossier';
 
@@ -77,6 +79,14 @@ export async function buildProjectPdf(
 				index: project.folios.length + k,
 				total: plan.totalPages,
 				title: STRIPS_TITLE
+			});
+		for (const [k, page] of plan.bomPages.entries())
+			await renderPage(BomPage, {
+				project,
+				page,
+				index: project.folios.length + plan.stripPages.length + k,
+				total: plan.totalPages,
+				title: BOM_TITLE
 			});
 	} finally {
 		host.remove();

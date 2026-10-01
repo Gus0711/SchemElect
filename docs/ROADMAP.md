@@ -3,22 +3,24 @@
 Légende : ✅ fait · 🟡 partiel · ⬜ à faire. Phases ordonnées par dépendances. **Une phase ≈ une session de code.** Chaque phase est
 livrable et testable : à la fin, l'app démarre et la fonctionnalité ajoutée est utilisable.
 
-## Priorités (mise à jour 2026-09-29)
+## Priorités (mise à jour 2026-10-01)
 
-La V1 est codée ; l'ordre ci-dessous prime sur la numérotation des phases.
+La V1 est codée et **déployée** sur le serveur interne ; l'ordre ci-dessous prime sur la
+numérotation des phases. Le testeur est l'utilisateur, puis un collègue (V.R n'est plus
+dans la société : ce qui était « à valider par V.R » est à valider par l'utilisateur).
 
 | # | Priorité | Sujet | Pourquoi |
 |---|---|---|---|
 | 1 | ✅ | Premier commit git + sauvegarde automatique de la base | Fait le 2026-09-29 (commit initial, `backup.ts`, page Sauvegardes) |
-| 2 | 🔴 | Test par le dessinateur sur DW261136 (jalon V1) | Ses retours réordonnent tout le reste |
-| 3 | 🔴 | Mise en service serveur interne (Docker, ORIGIN, HTTPS, backup `data/`) | Jamais déployé en réel |
-| 4 | ✅ | Câbles multi-conducteurs (phase 9) | Fait le 2026-09-29 — couleurs SYT1 > 3 paires à valider |
-| 5 | 🟡 | Panneau « Appareils » + recherche dans le dossier | Gain de temps quotidien |
-| 6 | 🟠 | Catalogue matériel + nomenclature PDF (phase 12) | Référence → fabricant, nb de contacts |
-| 7 | ✅ | Implantation / façade (phase 13) | Fait le 2026-09-29 — encombrements à valider par V.R |
-| 8 | 🟠 | Historique par indice de révision | Ressortir le PDF d'un indice, voir les écarts |
-| 9 | 🟡 | Récupération locale (coupure réseau), import `.xrs` — cartouche / page de garde personnalisables : ✅ 2026-09-29 | Confort / reprise de l'existant |
-| — | ✅ | Hors liste, faits le 2026-09-29 : folio borniers automatique (dessin), grille réglable et imprimable, raccourcis clavier + aide (?), exemple « armoire complète » | Demandes en cours de session |
+| 2 | ✅ | Mise en service serveur interne (Docker) | Fait (2026-10) |
+| 3 | ✅ | Panneau « Appareils » + recherche dans le dossier (Ctrl+F) | Fait le 2026-10-01 — à tester |
+| 4 | ✅ | Catalogue matériel + nomenclature CSV / PDF (phase 12) | Fait le 2026-10-01 — catalogue de départ à vérifier |
+| 5 | 🟠 | Historique par indice de révision | Ressortir le PDF d'un indice, voir les écarts — **à discuter avant de coder** |
+| 6 | 🟡 | Récupération locale (coupure réseau), import `.xrs` | Confort / reprise de l'existant |
+| — | ✅ | Faits le 2026-09-29 : câbles (phase 9), implantation / façade (phase 13), cartouche / page de garde personnalisables, folio borniers automatique, grille, raccourcis + aide (?), exemple « armoire complète » | — |
+
+**À valider par l'utilisateur** : couleurs SYT1 au-delà de 3 paires ; encombrements par
+défaut de l'implantation ; fiches du catalogue de départ (`model/catalogStarter.ts`).
 
 **Rituel de session** :
 1. Lire `CLAUDE.md`, la phase en cours ci-dessous et la dernière entrée de `docs/JOURNAL.md`.
@@ -221,11 +223,13 @@ les transformer en tâches avant de continuer.
 
 ---
 
-## Phase 12 — Nomenclature et base matériel 🟡 (CSV appareils ✅ ; catalogue à faire)
+## Phase 12 — Nomenclature et base matériel ✅ (2026-10-01, voir JOURNAL)
 
-1. Catalogue de références propre à SchemElect (saisie + import CSV).
-2. Nomenclature générée, export CSV/Excel, ajoutée au PDF.
-3. Encombrement des références (pour la phase 13).
+1. ✅ Catalogue de références propre à SchemElect (page `/catalogue` : saisie, import / export
+   CSV, catalogue de départ).
+2. ✅ Nomenclature par référence générée, export CSV, ajoutée au PDF (option).
+3. ✅ Encombrement et contacts des références (implantation, alerte de contacts).
+4. ⬜ Plus tard : export Excel natif (.xlsx), prix / fournisseur si besoin.
 
 ---
 

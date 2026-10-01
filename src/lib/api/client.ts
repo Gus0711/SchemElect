@@ -2,6 +2,7 @@
  * Client typé de l'API JSON (utilisé par l'éditeur). Toutes les fonctions lèvent
  * `ApiError` si la réponse n'est pas OK (401 non connecté, 404, 409 verrou…).
  */
+import type { CatalogItem } from '$lib/model/catalog';
 import type { Fragment } from '$lib/model/fragments';
 import type { DocTemplate } from '$lib/model/template';
 import type { Project } from '$lib/model/types';
@@ -114,4 +115,24 @@ export async function saveTemplate(t: DocTemplate): Promise<DocTemplate> {
 
 export async function deleteTemplate(id: string): Promise<void> {
 	await request('DELETE', `/api/templates/${encodeURIComponent(id)}`);
+}
+
+// --- Catalogue matériel ----------------------------------------------------------
+
+export async function listCatalog(): Promise<CatalogItem[]> {
+	return request('GET', '/api/catalog');
+}
+
+export async function saveCatalogItem(item: CatalogItem): Promise<CatalogItem> {
+	return request('POST', '/api/catalog', item);
+}
+
+export async function importCatalogItems(
+	items: CatalogItem[]
+): Promise<{ created: number; updated: number }> {
+	return request('POST', '/api/catalog', { items });
+}
+
+export async function deleteCatalogItem(id: string): Promise<void> {
+	await request('DELETE', `/api/catalog/${encodeURIComponent(id)}`);
 }

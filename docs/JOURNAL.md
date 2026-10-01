@@ -11,6 +11,47 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-01 — Panneau Appareils, recherche Ctrl+F, catalogue matériel, nomenclature
+
+**Contexte** : l'application est déployée sur le serveur interne ; V.R a quitté la société
+(l'utilisateur teste, puis un collègue). `CLAUDE.md` et la feuille de route mis à jour.
+
+**Fait** :
+- **Panneau « Appareils »** (onglet de la barre latérale ; sur un folio d'armoire l'ancien
+  onglet « Appareils » s'appelle maintenant « À placer ») : tous les repères groupés par
+  famille, recherche, filtres « Sans réf. » / « Contacts » (dépassement), bornes en option,
+  clic = aller au symbole principal + liste des emplacements cliquables, bouton
+  « Nomenclature » (aperçu + CSV).
+- **Recherche Ctrl+F** (et bouton « Rechercher ») : repères, références, désignations,
+  n° de fils, bornes, câbles, folios (titre ou numéro), textes ; ↑ ↓ Entrée.
+- **Catalogue matériel** : page `/catalogue` (lien dans l'en-tête), fiche (référence,
+  fabricant, désignation, catégorie, contacts NO/NC, L × H, montage, remarque), import CSV
+  (colonnes reconnues en FR/EN, séparateur détecté, même référence = mise à jour), export CSV,
+  modèle de fichier. **Catalogue de départ** (bouton) : ~54 fiches — TeSys K/D, GV2ME, Acti9
+  iC60N / iID, relais Zelio / Finder, Phaseo, Harmony XB5, bornes Phoenix + 5 références
+  relevées dans le dossier DW261136 (le `.xrs` n'en contient que 5). Toutes marquées
+  « à vérifier ».
+- **Dans l'éditeur** : la référence se choisit dans le catalogue (liste déroulante,
+  casse / espaces indifférents) ; la fiche est recopiée dans le projet, le fabricant repris ;
+  « ajouter au catalogue » si la référence est inconnue. Contacts disponibles et
+  encombrement déduits de la fiche (alerte de contacts, implantation). Fiches transportées
+  par copier / coller et macros.
+- **Nomenclature par référence** : CSV + pages « NOMENCLATURE » en fin de PDF (option).
+- Tests : 420 unitaires + 13 parcours e2e (nouveau : catalogue → Appareils → Ctrl+F → PDF).
+
+**Reste / suite** :
+1. Test par l'utilisateur sur le serveur ; vérifier / corriger le catalogue de départ.
+2. Historique par indice de révision : **à discuter** avant de coder.
+3. Éventuel : référence affichée sur le symbole depuis la fiche, export .xlsx.
+
+**Pièges / à savoir** :
+- Session cloud Linux : pas d'Edge → e2e avec une config hors dépôt (sans `channel`,
+  `executablePath: '/opt/pw-browsers/chromium'`). Au tout premier lancement, l'export PDF du
+  1er parcours peut dépasser le délai (Vite optimise jsPDF et recharge la page) : relancer.
+- `Project.catalog` est repris dans `migrateProject` (fiches normalisées).
+
+---
+
 ## 2026-09-29 (suite 8) — Folio borniers automatique (dessin)
 
 **Fait** : nouveau type de folio (« + Folio » › Folio borniers) : dessin calculé des borniers

@@ -89,6 +89,11 @@ export const SHORTCUTS: ShortcutGroup[] = [
 		items: [
 			{ keys: [['Ctrl', 'S']], label: 'Enregistrer tout de suite', hint: 'Sinon : automatique' },
 			{ keys: [['Ctrl', 'E']], label: 'Exporter (PDF, CSV)' },
+			{
+				keys: [['Ctrl', 'F']],
+				label: 'Rechercher dans le dossier',
+				hint: 'Repère, borne, n° de fil, référence, câble, folio ; Entrée : y aller'
+			},
 			{ keys: [['?'], ['F1']], label: 'Cette aide' }
 		]
 	},

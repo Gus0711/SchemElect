@@ -11,6 +11,7 @@
 	import { detachSymbol, scaleSymbol, setSymbolTag, symbolsOfDevice } from '$lib/model/edit';
 	import { folioRef } from '$lib/model/layout';
 	import { isPanelKind } from '$lib/model/panel';
+	import { deviceCatalogItem, type CatalogItem } from '$lib/model/catalog';
 	import { deviceFootprint } from '$lib/model/footprints';
 	import { parseTag } from '$lib/model/tags';
 	import type { CableItem, Device, SymbolInstance } from '$lib/model/types';
@@ -18,10 +19,11 @@
 	import { getSymbolDef } from '$lib/symbols';
 	import { specOf } from '$lib/symbols/custom';
 	import { Button, Field, Panel } from '$lib/ui';
-	import { FlipHorizontal, RotateCw, Trash } from '@lucide/svelte';
+	import { FlipHorizontal, Package, RotateCw, Trash } from '@lucide/svelte';
 	import { tick } from 'svelte';
 	import type { Editor } from '../editor.svelte';
 	import AlignTools from './AlignTools.svelte';
+	import CatalogItemDialog from './CatalogItemDialog.svelte';
 	import ChecksPanel from './ChecksPanel.svelte';
 	import PanelInspector from './PanelInspector.svelte';
 	import StripsFolioInspector from './StripsFolioInspector.svelte';
@@ -51,6 +53,9 @@
 	);
 	const cableInfo = $derived(cable ? editor.analysis.cables.byId.get(cable.id) : undefined);
 	const device = $derived(symbol ? editor.project.devices[symbol.deviceId] : undefined);
+	const catalogItem = $derived(deviceCatalogItem(editor.project, device));
+	/** Fiche à créer dans le catalogue (« ajouter au catalogue »). */
+	let newCatalogItem: Partial<CatalogItem> | null = $state(null);
 	const def = $derived(symbol ? getSymbolDef(symbol.defId) : undefined);
 	/** Symbole coloré par sa valeur (voyant) : la valeur est une couleur. */
 	const isSignal = $derived(!!def?.graphics.some((p) => 'tone' in p && p.tone === 'signal'));
@@ -227,10 +232,37 @@
 						<input
 							class="control"
 							value={device.reference ?? ''}
+							list="catalog-references"
+							placeholder="Choisir dans le catalogue…"
 							disabled={ro}
-							onchange={(e) => setDevice('reference', val(e))}
+							onchange={(e) => editor.setReference(device.id, val(e))}
 						/>
+						<datalist id="catalog-references">
+							{#each editor.catalog as c (c.id)}<option value={c.reference}
+									>{[c.manufacturer, c.designation].filter(Boolean).join(' — ')}</option
+								>{/each}
+						</datalist>
 					</Field>
+					{#if catalogItem}
+						<p class="small muted catalog">
+							<Package size={12} />
+							{catalogItem.designation || 'Fiche catalogue'}
+						</p>
+					{:else if device.reference && !ro}
+						<p class="small muted catalog">
+							Hors catalogue —
+							<button
+								class="link"
+								onclick={() => {
+									newCatalogItem = {
+										reference: device.reference,
+										manufacturer: device.manufacturer ?? '',
+										contacts: device.contacts
+									};
+								}}>ajouter au catalogue</button
+							>
+						</p>
+					{/if}
 					<Field label="Fabricant">
 						<input
 							class="control"
@@ -270,7 +302,8 @@
 									type="number"
 									min="0"
 									max="20"
-									placeholder="—"
+									placeholder={catalogItem?.contacts ? String(catalogItem.contacts[k]) : '—'}
+									title={catalogItem?.contacts ? 'Vide : valeur de la fiche catalogue' : undefined}
 									value={device.contacts?.[k] ?? ''}
 									disabled={ro}
 									onchange={(e) => setContacts(k, val(e))}
@@ -639,7 +672,32 @@
 	{/if}
 </aside>
 
+<CatalogItemDialog
+	bind:open={() => !!newCatalogItem, (v) => !v && (newCatalogItem = null)}
+	initial={newCatalogItem}
+	categories={[...new Set(editor.catalog.map((c) => c.category).filter((c): c is string => !!c))]}
+	onsaved={(item) => {
+		editor.catalogSaved(item);
+		if (device) editor.setReference(device.id, item.reference);
+	}}
+/>
+
 <style>
+	.catalog {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-1);
+		margin: calc(-1 * var(--sp-1)) 0 0;
+	}
+	.link {
+		padding: 0;
+		border: none;
+		background: none;
+		color: var(--c-primary);
+		text-decoration: underline;
+		cursor: pointer;
+		font-size: inherit;
+	}
 	.inspector {
 		width: var(--inspector-w);
 		flex-shrink: 0;
