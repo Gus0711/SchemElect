@@ -173,3 +173,40 @@ export function spreadTerminals(
 		}
 	});
 }
+
+/**
+ * Liste de noms de bornes saisie au clavier : séparés par virgule, point-virgule ou retour
+ * à la ligne ; « IP1..IP8 » (ou « 1..12 ») est développé en IP1, IP2… IP8.
+ */
+export function expandNames(text: string): string[] {
+	const out: string[] = [];
+	for (const raw of text.split(/[,;\n]/)) {
+		const part = raw.trim();
+		if (!part) continue;
+		const m = /^(.*?)(\d+)\s*\.\.\s*(?:\1)?(\d+)$/.exec(part);
+		if (m) {
+			const [, prefix, a, b] = m;
+			const from = Number(a),
+				to = Number(b);
+			const step = from <= to ? 1 : -1;
+			if (Math.abs(to - from) < 200) {
+				for (let n = from; n !== to + step; n += step)
+					out.push(`${prefix}${String(n).padStart(a.length, '0')}`);
+				continue;
+			}
+		}
+		out.push(part);
+	}
+	return out;
+}
+
+/**
+ * Nom proposé pour la borne suivante : la dernière + 1 (« IP3 » → « IP4 », « 09 » →
+ * « 10 »), sinon le rang de la borne.
+ */
+export function nextTerminalName(existing: string[]): string {
+	const last = existing.at(-1);
+	const m = last ? /^(.*?)(\d+)$/.exec(last) : null;
+	if (m) return `${m[1]}${String(Number(m[2]) + 1).padStart(m[2].length, '0')}`;
+	return String(existing.length + 1);
+}

@@ -158,10 +158,13 @@ Aperçu de toute la bibliothèque : route `/symboles`.
 **Symboles maison** (`custom.ts`, éditeur `CustomSymbolDialog.svelte`) : une image de
 documentation (déposée, choisie ou collée Ctrl+V, réduite et ré-encodée en data URL) ou un
 cadre titré, plus des bornes posées **exactement au clic** (sur les vis de l'image),
-déplaçables à la souris et aux flèches (0,1 mm), zoom molette ; « ajout rapide » d'une
-rangée ; magnétisme grille optionnel (désactivé par défaut). Retouches d'image dans
-l'éditeur (`editor/image.ts`, canvas) : rogner, gommer une zone, fond blanc → transparent,
-annuler ; poignée de redimensionnement (bornes mises à l'échelle). Rendu : les fils sont
+déplaçables à la souris et aux flèches (0,1 mm), zoom molette et boutons ; noms des
+bornes automatiques (`expandNames` : « IP1..IP8 » ; `nextTerminalName` : précédente + 1),
+le même champ sert à répartir une rangée sur un côté ; magnétisme grille optionnel
+(désactivé par défaut). Fenêtre presque plein écran, non fermée par Échap
+(`Modal dismissible={false}`), vue calée sur les proportions de la zone de dessin ;
+Annuler / Ctrl+Z pour toute modification (bornes, taille, image). Retouches d'image dans
+l'éditeur (`editor/image.ts`, canvas) : rogner, gommer une zone, fond blanc → transparent ; poignée de redimensionnement (bornes mises à l'échelle). Rendu : les fils sont
 dessinés **au-dessus** des symboles. Redimensionnement **par exemplaire** sur le folio
 (`SymbolInstance.scale`, `scaleSymbol`, poignée `Editor.scaleHandle`, champ « Échelle % »),
 réservé aux symboles maison ; les fils suivent, les traits gardent leur épaisseur. Stockés dans la bibliothèque partagée (table `custom_symbols`, API `/api/symbols`),

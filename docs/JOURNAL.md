@@ -11,6 +11,25 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-02 (suite 5) — Fenêtre « Nouveau symbole » repensée
+
+**Fait** (retour de Gus : fenêtre trop petite, fonctions peu simples) :
+- Fenêtre de travail presque plein écran (`Modal` : props `height` et `dismissible` — Échap
+  et clic à côté ne ferment plus une fenêtre de travail).
+- Zone de dessin qui remplit l'espace (vue calée sur les proportions de la zone, recadrage
+  au redimensionnement), boutons zoom − / + / voir tout ; zone d'accueil « Collez une
+  capture (Ctrl+V) / glissez une image / Choisir une image / Bloc sans image ».
+- Barre d'outils unique : image (changer, sans image), outils Bornes / Rogner / Gommer
+  (touches B / R / G, Échap = retour aux bornes), fond transparent, Annuler.
+- **Annuler / Ctrl+Z pour tout** (bornes posées, déplacées, supprimées, réparties, taille,
+  retouches d'image), pas seulement les retouches.
+- **Nommage automatique des bornes** (`expandNames`, `nextTerminalName`, testés) : liste
+  « Noms des prochaines bornes » (« 24V, 0V, IP1..IP8 »), chaque clic prend la suivante,
+  sinon la précédente + 1 ; le nom du prochain clic est affiché dans l'aide. Le même champ
+  sert à « Répartir » une rangée sur un côté.
+- Panneau de droite en sections (Identité, Taille, Bornes) ; la liste des bornes occupe
+  toute la hauteur restante.
+
 ## 2026-10-02 (suite 4) — Organisation des dossiers, étape 3 : page Projets
 
 **Fait** :

@@ -5,18 +5,24 @@
 		open = $bindable(false),
 		title,
 		width = '480px',
+		height,
+		dismissible = true,
 		children,
 		actions
 	}: {
 		open?: boolean;
 		title: string;
 		width?: string;
+		/** Hauteur fixe (fenêtre de travail) ; le contenu occupe alors toute la hauteur. */
+		height?: string;
+		/** Faux : ni Échap ni un clic à côté ne ferment la fenêtre (travail en cours). */
+		dismissible?: boolean;
 		children: Snippet;
 		actions?: Snippet;
 	} = $props();
 
 	function onkeydown(e: KeyboardEvent) {
-		if (open && e.key === 'Escape') open = false;
+		if (open && dismissible && e.key === 'Escape') open = false;
 	}
 </script>
 
@@ -26,9 +32,17 @@
 	<div
 		class="backdrop"
 		role="presentation"
-		onclick={(e) => e.target === e.currentTarget && (open = false)}
+		onclick={(e) => dismissible && e.target === e.currentTarget && (open = false)}
 	>
-		<div class="modal" role="dialog" aria-modal="true" aria-label={title} style:width>
+		<div
+			class="modal"
+			class:fixed={!!height}
+			role="dialog"
+			aria-modal="true"
+			aria-label={title}
+			style:width
+			style:height
+		>
 			<header><h2>{title}</h2></header>
 			<div class="body">{@render children()}</div>
 			{#if actions}<footer>{@render actions()}</footer>{/if}
@@ -53,6 +67,10 @@
 		background: var(--c-surface);
 		border-radius: var(--radius-lg);
 		box-shadow: var(--shadow);
+	}
+	.modal.fixed .body {
+		flex: 1;
+		min-height: 0;
 	}
 	header {
 		padding: var(--sp-4) var(--sp-4) var(--sp-2);

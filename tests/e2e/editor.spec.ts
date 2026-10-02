@@ -290,12 +290,13 @@ test('symbole maison depuis une image de documentation', async ({ page }) => {
 	};
 	await page.getByRole('button', { name: 'Rogner' }).click();
 	await dragStage([10, 10], [70, 50]);
-	await expect(page.getByRole('button', { name: /Annuler \(1\)/ })).toBeVisible();
+	// Largeur puis rognage : deux modifications annulables.
+	await expect(page.getByRole('button', { name: /Annuler \(2\)/ })).toBeVisible();
 	expect(Number(await page.getByLabel('Largeur (mm)').inputValue())).toBeCloseTo(60, 0);
 	await page.getByRole('button', { name: 'Fond transparent' }).click();
+	await expect(page.getByRole('button', { name: /Annuler \(3\)/ })).toBeVisible();
+	await page.getByRole('button', { name: /Annuler \(3\)/ }).click();
 	await expect(page.getByRole('button', { name: /Annuler \(2\)/ })).toBeVisible();
-	await page.getByRole('button', { name: /Annuler \(2\)/ }).click();
-	await expect(page.getByRole('button', { name: /Annuler \(1\)/ })).toBeVisible();
 	await page.getByRole('button', { name: 'Fond transparent' }).click();
 
 	// Redimensionnement par la poignée : 60 → 80 mm
@@ -303,13 +304,17 @@ test('symbole maison depuis une image de documentation', async ({ page }) => {
 	const h = Number(await page.getByLabel('Hauteur (mm)').inputValue());
 	await dragStage([60, h], [80, h]);
 	expect(Number(await page.getByLabel('Largeur (mm)').inputValue())).toBeCloseTo(80, 0);
-	const quick = page.getByPlaceholder('24V, 0V, 0V, IP');
+	const quick = page.getByPlaceholder('24V, 0V, IP1..IP8');
 	await quick.fill('24V, COM, DO1, C1, DO2, C2');
-	await quick.press('Enter');
-	await page.locator('fieldset select').selectOption('s');
+	await page.getByRole('button', { name: 'Répartir' }).click();
+	await page.getByRole('combobox', { name: 'Côté', exact: true }).selectOption('s');
 	await quick.fill('UI1, COM, UI2');
-	await quick.press('Enter');
+	await page.getByRole('button', { name: 'Répartir' }).click();
 	await expect(page.locator('.trow')).toHaveCount(9);
+	// Nom de la prochaine borne : saisi d'avance (sinon la précédente + 1).
+	await expect(page.locator('.help .next')).toHaveText('UI3');
+	await quick.fill('DO3');
+	await expect(page.locator('.help .next')).toHaveText('DO3');
 
 	// Borne posée exactement au clic (centre de l'aperçu = centre de l'image), puis glissée
 	const clickAt2 = await page.evaluate(() => {
@@ -320,7 +325,7 @@ test('symbole maison depuis une image de documentation', async ({ page }) => {
 	await page.mouse.click(clickAt2.x, clickAt2.y);
 	await expect(page.locator('.trow')).toHaveCount(10);
 	const last = page.locator('.trow').last();
-	await last.locator('input.name').fill('DO3');
+	await expect(last.locator('input.name')).toHaveValue('DO3');
 	expect(Number(await last.locator('input[type=number]').nth(0).inputValue())).toBeCloseTo(40, 0);
 	expect(Number(await last.locator('input[type=number]').nth(1).inputValue())).toBeCloseTo(20, 0);
 	const to = await page.evaluate(() => {
@@ -328,6 +333,17 @@ test('symbole maison depuis une image de documentation', async ({ page }) => {
 		const p = new DOMPoint(45.5, 20).matrixTransform(svg.getScreenCTM()!);
 		return { x: p.x, y: p.y };
 	});
+	await page.mouse.move(clickAt2.x, clickAt2.y);
+	await page.mouse.down();
+	await page.mouse.move(to.x, to.y, { steps: 5 });
+	await page.mouse.up();
+	expect(Number(await last.locator('input[type=number]').nth(0).inputValue())).toBeCloseTo(45.5, 0);
+	// Ctrl+Z annule le déplacement ; Échap ne ferme pas la fenêtre.
+	await page.keyboard.press('Control+z');
+	expect(Number(await last.locator('input[type=number]').nth(0).inputValue())).toBeCloseTo(40, 0);
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('dialog', { name: 'Nouveau symbole' })).toBeVisible();
+	await page.screenshot({ path: 'test-results/nouveau-symbole.png' });
 	await page.mouse.move(clickAt2.x, clickAt2.y);
 	await page.mouse.down();
 	await page.mouse.move(to.x, to.y, { steps: 5 });
