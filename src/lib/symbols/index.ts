@@ -47,6 +47,11 @@ export function registerCustomSymbols(defs: Iterable<SymbolDef>) {
 	for (const d of defs) if (!byId.has(d.id)) customById.set(d.id, { ...d, custom: true });
 }
 
+/** Oublie un symbole maison (supprimé de la bibliothèque et plus utilisé). */
+export function unregisterCustomSymbol(id: string) {
+	customById.delete(id);
+}
+
 export function getSymbolDef(id: string): SymbolDef {
 	return byId.get(id) ?? customById.get(id) ?? MISSING;
 }

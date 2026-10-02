@@ -111,6 +111,22 @@ export function removeOrphanDevices(project: Project) {
 	for (const id of Object.keys(project.devices)) if (!used.has(id)) delete project.devices[id];
 	// Implantation / façade : les appareils disparus du schéma sont retirés.
 	pruneMounts(project);
+	pruneCustomSymbols(project);
+}
+
+/** Symboles maison posés sur au moins un folio du projet. */
+export function usedCustomSymbolIds(project: Project): Set<string> {
+	const ids = new Set<string>();
+	for (const f of project.folios)
+		for (const s of f.symbols) if (project.customSymbols[s.defId]) ids.add(s.defId);
+	return ids;
+}
+
+/** Retire les copies embarquées des symboles maison qui ne sont plus posés nulle part. */
+export function pruneCustomSymbols(project: Project) {
+	const used = usedCustomSymbolIds(project);
+	for (const id of Object.keys(project.customSymbols))
+		if (!used.has(id)) delete project.customSymbols[id];
 }
 
 // ---------------------------------------------------------------- création

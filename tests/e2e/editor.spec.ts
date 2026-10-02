@@ -460,6 +460,15 @@ test('symbole maison depuis une image de documentation', async ({ page }) => {
 		.getByRole('button', { name: 'Supprimer le symbole' })
 		.click();
 	await expect.poll(() => evalEditor<number>(page, 'editor.customLibrary.length')).toBe(0);
+	// Encore posé : reste dans la palette ; le dernier exemplaire supprimé, il disparaît.
+	const paletteItem = page.locator('.palette').getByRole('button', { name: /ECY-253 bis/ });
+	await expect(paletteItem).toBeVisible();
+	await clickAt(page, { x: 160, y: 70 });
+	await page.keyboard.press('Delete');
+	await expect(paletteItem).toHaveCount(0);
+	expect(await evalEditor<number>(page, 'Object.keys(editor.project.customSymbols).length')).toBe(
+		0
+	);
 });
 
 test('câble multi-conducteurs tracé en travers des fils', async ({ page }) => {
