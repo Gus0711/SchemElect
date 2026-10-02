@@ -5,7 +5,8 @@
 	 * La copie s'ouvre ensuite dans l'éditeur ; son historique repart de zéro.
 	 */
 	import { goto } from '$app/navigation';
-	import { duplicateProject } from '$lib/api/client';
+	import { duplicateProject, listAffaires, type AffaireListItem } from '$lib/api/client';
+	import { affaireTitle } from '$lib/model/affaires';
 	import type { ProjectMeta } from '$lib/model/types';
 	import { Alert, Button, Field, Modal } from '$lib/ui';
 
@@ -19,7 +20,7 @@
 		open?: boolean;
 		projectId: string;
 		/** Cartouche du dossier source (valeurs proposées). */
-		meta: Pick<ProjectMeta, 'name' | 'affaireNumber' | 'planNumber' | 'client'>;
+		meta: Pick<ProjectMeta, 'name' | 'affaireNumber' | 'planNumber' | 'client' | 'affaireId'>;
 		/** Version de l'historique à dupliquer (absente : état actuel). */
 		versionId?: string;
 		versionLabel?: string;
@@ -30,6 +31,9 @@
 	let planNumber = $state('');
 	let client = $state('');
 	let resetRevisions = $state(true);
+	/** Affaire de la copie ('' = non classé) ; par défaut celle de la source. */
+	let affaireId = $state('');
+	let affaires: AffaireListItem[] = $state([]);
 	let pending = $state(false);
 	let error = $state('');
 
@@ -39,8 +43,12 @@
 		affaireNumber = meta.affaireNumber;
 		planNumber = meta.planNumber;
 		client = meta.client;
+		affaireId = meta.affaireId ?? '';
 		resetRevisions = true;
 		error = '';
+		listAffaires()
+			.then((l) => (affaires = l))
+			.catch(() => (affaires = []));
 	});
 
 	async function submit() {
@@ -56,6 +64,7 @@
 				affaireNumber,
 				planNumber,
 				client,
+				affaireId,
 				resetRevisions,
 				versionId
 			});
@@ -83,11 +92,22 @@
 			repart de zéro.
 		</p>
 		<Field label="Nom du nouveau dossier" bind:value={name} required />
+		<Field label="Affaire" hint={affaireId ? 'Client et n° WhySoft viennent de l’affaire.' : ''}>
+			<select class="control" bind:value={affaireId}>
+				<option value="">Non classé (saisie libre)</option>
+				{#if meta.affaireId && !affaires.some((a) => a.id === meta.affaireId)}
+					<option value={meta.affaireId}>Affaire du dossier source</option>
+				{/if}
+				{#each affaires.filter((a) => a.status !== 'archivee' || a.id === meta.affaireId) as a (a.id)}
+					<option value={a.id}>{a.clientName} — {affaireTitle(a)}</option>
+				{/each}
+			</select>
+		</Field>
 		<div class="row">
 			<Field label="N° d'affaire" bind:value={affaireNumber} />
 			<Field label="N° de plan" bind:value={planNumber} />
 		</div>
-		<Field label="Client" bind:value={client} />
+		{#if !affaireId}<Field label="Client" bind:value={client} />{/if}
 		<label class="check"
 			><input type="checkbox" bind:checked={resetRevisions} /> Repartir sans indice de révision</label
 		>

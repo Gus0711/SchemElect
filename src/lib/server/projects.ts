@@ -7,7 +7,8 @@ import type { Fragment } from '$lib/model/fragments';
 import type { Project } from '$lib/model/types';
 import type { LockInfo, Macro } from '$lib/api/types';
 import { getDb } from './db';
-import { macros, projects, users, type MacroRow } from './db/schema';
+import { affaires, clients, macros, projects, users, type MacroRow } from './db/schema';
+import { resolveAffaire } from './affaires';
 import { acquireLock, toLockInfo } from './locks';
 import { addedRevisions, duplicateDocument, type DuplicateOptions } from '$lib/model/versions';
 import { deleteVersionsOf, getVersion, maybeAutoVersion, recordVersion } from './versions';
@@ -16,6 +17,8 @@ export interface ProjectSummary {
 	id: string;
 	name: string;
 	affaireNumber: string;
+	/** Affaire de rattachement (null = non classé). */
+	affaire: { id: string; whysoft: string; number: string; label: string; client: string } | null;
 	createdAt: string;
 	updatedAt: string;
 	updatedByName: string | null;
@@ -31,6 +34,11 @@ export async function listProjects(organizationId: string): Promise<ProjectSumma
 			id: projects.id,
 			name: projects.name,
 			affaireNumber: projects.affaireNumber,
+			affaireId: affaires.id,
+			whysoft: affaires.whysoft,
+			affaireNo: affaires.number,
+			affaireLabel: affaires.label,
+			clientName: clients.name,
 			createdAt: projects.createdAt,
 			updatedAt: projects.updatedAt,
 			updatedByName: editor.name,
@@ -41,13 +49,24 @@ export async function listProjects(organizationId: string): Promise<ProjectSumma
 		.from(projects)
 		.leftJoin(editor, eq(editor.id, projects.updatedBy))
 		.leftJoin(locker, eq(locker.id, projects.lockedBy))
+		.leftJoin(affaires, eq(affaires.id, projects.affaireId))
+		.leftJoin(clients, eq(clients.id, affaires.clientId))
 		.where(eq(projects.organizationId, organizationId))
 		.orderBy(desc(projects.updatedAt));
 	const now = Date.now();
 	return rows.map((r) => ({
 		id: r.id,
 		name: r.name,
-		affaireNumber: r.affaireNumber,
+		affaireNumber: r.affaireNo || r.affaireNumber,
+		affaire: r.affaireId
+			? {
+					id: r.affaireId,
+					whysoft: r.whysoft ?? '',
+					number: r.affaireNo ?? '',
+					label: r.affaireLabel ?? '',
+					client: r.clientName ?? ''
+				}
+			: null,
 		createdAt: r.createdAt,
 		updatedAt: r.updatedAt,
 		updatedByName: r.updatedByName,
@@ -60,11 +79,19 @@ export async function getProject(
 ): Promise<{ id: string; data: Project; updatedAt: string } | null> {
 	const db = await getDb();
 	const [row] = await db
-		.select({ id: projects.id, data: projects.data, updatedAt: projects.updatedAt })
+		.select({
+			id: projects.id,
+			data: projects.data,
+			updatedAt: projects.updatedAt,
+			org: projects.organizationId
+		})
 		.from(projects)
 		.where(eq(projects.id, id));
 	if (!row) return null;
-	return { id: row.id, data: migrateProject(JSON.parse(row.data)), updatedAt: row.updatedAt };
+	const data = migrateProject(JSON.parse(row.data));
+	// Cartouche à jour de l'affaire (client renommé, n° WhySoft corrigé depuis).
+	await resolveAffaire(data, row.org);
+	return { id: row.id, data, updatedAt: row.updatedAt };
 }
 
 /** Société propriétaire d'un dossier (null s'il n'existe pas). */
@@ -88,11 +115,13 @@ export async function insertProject(
 	const id = newId('p');
 	const now = new Date().toISOString();
 	const doc = migrateProject(data);
+	const affaireId = await resolveAffaire(doc, organizationId);
 	await db.insert(projects).values({
 		id,
 		organizationId,
 		name: doc.meta.name,
 		affaireNumber: doc.meta.affaireNumber,
+		affaireId,
 		data: JSON.stringify(doc),
 		createdAt: now,
 		updatedAt: now,
@@ -123,15 +152,17 @@ export async function saveProjectData(
 	const updatedAt = new Date().toISOString();
 	const db = await getDb();
 	const [previous] = await db
-		.select({ data: projects.data })
+		.select({ data: projects.data, org: projects.organizationId })
 		.from(projects)
 		.where(eq(projects.id, id));
+	const affaireId = previous ? await resolveAffaire(doc, previous.org) : null;
 	await db
 		.update(projects)
 		.set({
 			data: JSON.stringify(doc),
 			name: doc.meta.name,
 			affaireNumber: doc.meta.affaireNumber,
+			affaireId,
 			updatedAt,
 			updatedBy: userId
 		})
@@ -198,6 +229,10 @@ export async function restoreVersion(
 	const doc = version.data;
 	const updatedAt = new Date().toISOString();
 	doc.meta.modifiedAt = updatedAt;
+	// Le classement n'est pas un état du schéma : la restauration garde l'affaire actuelle.
+	if (current.data.meta.affaireId) doc.meta.affaireId = current.data.meta.affaireId;
+	else delete doc.meta.affaireId;
+	const affaireId = await resolveAffaire(doc, (await projectOrganization(id)) ?? '');
 	const db = await getDb();
 	await db
 		.update(projects)
@@ -205,6 +240,7 @@ export async function restoreVersion(
 			data: JSON.stringify(doc),
 			name: doc.meta.name,
 			affaireNumber: doc.meta.affaireNumber,
+			affaireId,
 			updatedAt,
 			updatedBy: userId
 		})

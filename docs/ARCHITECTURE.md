@@ -259,6 +259,22 @@ prend jamais de verrou (`EditSession.viewOnly()`). Migration (`db/migrate.ts`, t
 base existante → société « Dumortier » (`org_main`), plus ancien administrateur promu
 super-administrateur ; premier lancement (`/setup`) → première société + super-admin.
 
+**Clients et affaires** (2026-10-02) : règles pures `model/affaires.ts` (testées) ; tables
+`clients` (nom unique par société via `name_key`, code, ville, `source` manual / erp,
+`external_id`) et `affaires` (client, **n° WhySoft** unique par société s'il est renseigné,
+n° d'affaire du cartouche facultatif, désignation, année, statut en cours / terminée /
+archivée) ; `projects.affaire_id` (null = **non classé**), miroir de `meta.affaireId` du
+document. `server/affaires.ts` `resolveAffaire` est appelé à la lecture (`getProject`) et à
+chaque écriture (`insertProject`, `saveProjectData`, `restoreVersion` — qui garde l'affaire
+actuelle) : le cartouche reprend client, n° WhySoft (champ `{whysoft}`) et n° d'affaire de
+l'affaire ; une affaire inconnue ou d'une autre société est détachée. Page `/affaires`
+(onglets Affaires / Clients, filtres statut / année, schémas d'une affaire ; actions de
+formulaire ; suppression refusée si utilisée ; fiches ERP non modifiables sauf le statut) ;
+« Classer l'existant » (administrateur, `planClassification`) : un client par nom, une
+affaire par client + n° d'affaire, dossiers ouverts en édition laissés de côté. Rattachement
+: création d'un projet, Propriétés du dossier (champs imposés grisés), duplication
+(`affaireId`). `GET /api/affaires` pour l'éditeur.
+
 SQLite (libSQL) + Drizzle, tables créées au démarrage. Auth maison (Argon2id, sessions
 hachées). Verrou d'édition par projet (expire après 2 min sans heartbeat). API JSON :
 projets (GET/PUT), verrou, macros, symboles maison, modèles, catalogue (`/api/catalog` : GET,

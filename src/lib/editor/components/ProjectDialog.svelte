@@ -4,7 +4,8 @@
 	import { formatWireNumber, WIRE_NUMBER_TEMPLATES, WIRE_SECTIONS } from '$lib/model/nets';
 	import type { Potential, ProjectMeta, ProjectSettings, Revision } from '$lib/model/types';
 	import { Button, Field, Modal } from '$lib/ui';
-	import { listTemplates, saveTemplate } from '$lib/api/client';
+	import { listAffaires, listTemplates, saveTemplate, type AffaireListItem } from '$lib/api/client';
+	import { affaireTitle, applyAffaire, detachAffaire } from '$lib/model/affaires';
 	import {
 		DEFAULT_TEMPLATE_ID,
 		defaultTemplate,
@@ -58,7 +59,33 @@
 		listTemplates()
 			.then((l) => (library = l))
 			.catch(() => (library = []));
+		listAffaires()
+			.then((l) => (affaires = l))
+			.catch(() => (affaires = []));
 	});
+
+	/** Affaires de la société (rattachement : client et n° WhySoft viennent de l'affaire). */
+	let affaires: AffaireListItem[] = $state([]);
+	const attached = $derived(affaires.find((a) => a.id === meta.affaireId) ?? null);
+	/** Champs imposés par l'affaire de rattachement. */
+	const lockedKeys = $derived(
+		new Set<string>(
+			meta.affaireId ? ['client', 'whysoft', ...(attached?.number ? ['affaireNumber'] : [])] : []
+		)
+	);
+
+	function chooseAffaire(id: string) {
+		const a = affaires.find((x) => x.id === id);
+		if (!a) detachAffaire(meta);
+		else
+			applyAffaire(meta, a, {
+				id: a.clientId,
+				name: a.clientName,
+				code: '',
+				city: '',
+				source: 'manual'
+			});
+	}
 
 	/** Remplace le modèle du dossier par un modèle de la bibliothèque (ou le standard). */
 	function applyChosen() {
@@ -96,9 +123,10 @@
 		new Set(editor.project.folios.flatMap((f) => f.bars.map((b) => b.potentialId)))
 	);
 
-	const infoFields: [Exclude<keyof ProjectMeta, 'fields'>, string][] = [
+	const infoFields: [Exclude<keyof ProjectMeta, 'fields' | 'affaireId'>, string][] = [
 		['name', 'Nom du projet'],
 		['affaireNumber', 'N° d’affaire'],
+		['whysoft', 'N° WhySoft'],
 		['planNumber', 'N° de plan'],
 		['client', 'Client / site'],
 		['author', 'Dessinateur'],
@@ -156,9 +184,38 @@
 	</nav>
 
 	{#if tab === 'info'}
+		<Field
+			label="Affaire"
+			hint={meta.affaireId
+				? 'Client et n° WhySoft viennent de l’affaire (page Affaires).'
+				: 'Non classé : le schéma n’est rattaché à aucune affaire.'}
+		>
+			<select
+				class="control"
+				value={meta.affaireId ?? ''}
+				onchange={(e) => chooseAffaire((e.currentTarget as HTMLSelectElement).value)}
+			>
+				<option value="">Non classé</option>
+				{#if meta.affaireId && !attached}
+					<option value={meta.affaireId}>Affaire actuelle</option>
+				{/if}
+				{#each affaires as a (a.id)}
+					<option value={a.id} disabled={a.status === 'archivee' && a.id !== meta.affaireId}
+						>{a.clientName} — {affaireTitle(a)}{a.status === 'archivee'
+							? ' (archivée)'
+							: ''}</option
+					>
+				{/each}
+			</select>
+		</Field>
 		<div class="grid2">
 			{#each infoFields as [key, label] (key)}
-				<Field {label} bind:value={meta[key]} />
+				<Field
+					{label}
+					bind:value={meta[key]}
+					disabled={lockedKeys.has(key)}
+					title={lockedKeys.has(key) ? 'Imposé par l’affaire de rattachement' : undefined}
+				/>
 			{/each}
 		</div>
 		{#if template.fields.length}

@@ -114,6 +114,11 @@ export interface DuplicateOptions {
 	affaireNumber?: string;
 	planNumber?: string;
 	client?: string;
+	/**
+	 * Affaire de la copie : absente = celle de la source, '' = aucune (non classé). Une
+	 * affaire impose ensuite client et n° WhySoft (voir `applyAffaire`).
+	 */
+	affaireId?: string;
 	/** Vider les indices de révision (nouveau dossier à l'indice initial). */
 	resetRevisions?: boolean;
 	author?: string;
@@ -132,6 +137,10 @@ export function duplicateDocument(
 	if (opts.planNumber !== undefined) doc.meta.planNumber = opts.planNumber.trim();
 	if (opts.client !== undefined) doc.meta.client = opts.client.trim();
 	if (opts.author) doc.meta.author = opts.author;
+	if (opts.affaireId !== undefined) {
+		if (opts.affaireId) doc.meta.affaireId = opts.affaireId;
+		else delete doc.meta.affaireId;
+	}
 	doc.meta.createdAt = iso;
 	doc.meta.modifiedAt = iso;
 	if (opts.resetRevisions) doc.revisions = [];

@@ -33,8 +33,9 @@ describe('migration multi-société', () => {
 			['u2', 'admin', FIRST_ORG_ID],
 			['u3', 'user', FIRST_ORG_ID]
 		]);
-		const p = await db.execute('SELECT organization_id FROM projects');
+		const p = await db.execute('SELECT organization_id, affaire_id FROM projects');
 		expect(p.rows[0].organization_id).toBe(FIRST_ORG_ID);
+		expect(p.rows[0].affaire_id).toBeNull(); // non classé
 		const c = await db.execute('SELECT ref_key FROM catalog');
 		expect(c.rows[0].ref_key).toBe(`${FIRST_ORG_ID}|LC1D09B7`);
 	});

@@ -1256,3 +1256,85 @@ test('sociétés et rôles : lecteur en lecture seule, sociétés cloisonnées',
 	await page.getByRole('combobox', { name: 'Société' }).selectOption({ label: 'Ma société' });
 	await expect(page.locator('table a.name')).not.toHaveCount(0);
 });
+
+test('clients et affaires : saisie, rattachement, cartouche, reprise de l’existant', async ({
+	page
+}) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+
+	// Reprise de l'existant : les dossiers de démonstration sont classés par leur cartouche.
+	await page.getByRole('link', { name: /Affaires/ }).click();
+	await page.waitForLoadState('networkidle');
+	await expect(page.getByText(/schéma\(s\) non classé\(s\)/)).toBeVisible();
+	await page.getByRole('button', { name: /Classer l’existant/ }).click();
+	await page.getByRole('button', { name: /^Classer \d+ schéma/ }).click();
+	await expect(page.getByText(/schéma\(s\) classé\(s\)/)).toBeVisible();
+	await expect(
+		page.locator('tr', { hasText: 'Démo — chaufferie collective' }).filter({ hasText: 'D223456' })
+	).toBeVisible();
+
+	// Un client, puis une affaire (n° WhySoft unique).
+	await page.getByRole('tab', { name: /Clients/ }).click();
+	await page.getByRole('button', { name: /Nouveau client/ }).click();
+	await page.getByLabel('Nom du client').fill('Collège Jean Moulin');
+	await page.getByLabel('Ville').fill('Laon');
+	await page.getByRole('button', { name: 'Enregistrer' }).click();
+	await expect(page.getByText('Client enregistré.')).toBeVisible();
+	await page.getByRole('tab', { name: /Affaires/ }).click();
+	const newAffaire = async (whysoft: string) => {
+		await page.getByRole('button', { name: /Nouvelle affaire/ }).click();
+		await page
+			.getByRole('combobox', { name: 'Client', exact: true })
+			.selectOption({ label: 'Collège Jean Moulin' });
+		await page.getByLabel('N° WhySoft').fill(whysoft);
+		await page.getByLabel('Désignation').fill('Chaufferie');
+		await page.getByRole('button', { name: 'Enregistrer' }).click();
+	};
+	await newAffaire('WS-E2E-1');
+	await expect(page.getByText('Affaire enregistrée.')).toBeVisible();
+	await newAffaire('WS-E2E-1');
+	await expect(page.getByText(/déjà celui d’une autre affaire/)).toBeVisible();
+	await page.getByRole('button', { name: 'Annuler', exact: true }).click();
+	await page.screenshot({ path: 'test-results/affaires.png' });
+
+	// Nouveau schéma rattaché : client et n° WhySoft viennent de l'affaire.
+	await page.getByRole('link', { name: /Projets/ }).click();
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: /Nouveau projet/ }).click();
+	await page.getByLabel('Nom du projet').fill('Armoire chaufferie');
+	await page
+		.getByRole('combobox', { name: /^Affaire/ })
+		.selectOption({ label: 'Collège Jean Moulin — WS-E2E-1 · Chaufferie' });
+	await expect(page.getByRole('textbox', { name: 'Client', exact: true })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	expect(await evalEditor<string>(page, 'editor.project.meta.client')).toBe('Collège Jean Moulin');
+	expect(await evalEditor<string>(page, 'editor.project.meta.whysoft')).toBe('WS-E2E-1');
+	await dossierMenu(page, 'Propriétés du dossier…');
+	await expect(page.getByRole('textbox', { name: 'N° WhySoft' })).toBeDisabled();
+	await expect(page.getByRole('textbox', { name: 'Client / site' })).toBeDisabled();
+	// Détacher : le client redevient modifiable.
+	await page.getByRole('combobox', { name: /^Affaire/ }).selectOption({ label: 'Non classé' });
+	await expect(page.getByRole('textbox', { name: 'Client / site' })).toBeEnabled();
+	await page.getByRole('button', { name: 'Annuler', exact: true }).click();
+	await page.goto('/');
+	await page.waitForLoadState('networkidle');
+	const row = page.locator('tr', { hasText: 'Armoire chaufferie' });
+	await expect(row.getByRole('link', { name: 'WS-E2E-1' })).toBeVisible();
+	await page.getByPlaceholder(/WhySoft/).fill('ws-e2e');
+	await expect(page.locator('table a.name')).toHaveCount(1);
+
+	// Affaire avec un schéma : suppression refusée ; fiche avec ses schémas.
+	await page.getByRole('link', { name: /Affaires/ }).click();
+	await page.waitForLoadState('networkidle');
+	const affaireRow = page.locator('tr', { hasText: 'WS-E2E-1' });
+	await expect(affaireRow.getByRole('button', { name: 'Supprimer' })).toHaveCount(0);
+	await affaireRow.getByRole('button', { name: /Schémas de l’affaire/ }).click();
+	await expect(page.getByRole('link', { name: 'Armoire chaufferie' })).toBeVisible();
+});

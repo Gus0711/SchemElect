@@ -219,6 +219,13 @@ export interface Folio {
 export interface ProjectMeta {
 	name: string;
 	affaireNumber: string;
+	/** N° WhySoft (CRM) : relie le schéma à la commande. Repris de l'affaire si rattaché. */
+	whysoft?: string;
+	/**
+	 * Affaire de rattachement (`clients` / `affaires` en base). Rattaché : client, n° WhySoft
+	 * et n° d'affaire viennent de l'affaire (imposés à l'enregistrement et à l'ouverture).
+	 */
+	affaireId?: string;
 	planNumber: string;
 	client: string;
 	company: string;

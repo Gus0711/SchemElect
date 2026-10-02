@@ -4,6 +4,7 @@ import { buildSampleArmoire } from '$lib/export/sampleArmoire';
 import { createProject } from '$lib/model/project';
 import { applyTemplate } from '$lib/model/template';
 import { requireProject } from '$lib/server/access';
+import { listAffaires } from '$lib/server/affaires';
 import { requireEditor, requireUser } from '$lib/server/guards';
 import { getTemplate, listTemplates } from '$lib/server/templates';
 import { getLock } from '$lib/server/locks';
@@ -12,11 +13,16 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireUser(locals);
-	const [projects, templates] = await Promise.all([
+	const [projects, templates, affaires] = await Promise.all([
 		listProjects(user.organizationId),
-		listTemplates(user.organizationId)
+		listTemplates(user.organizationId),
+		listAffaires(user.organizationId)
 	]);
-	return { projects, templates: templates.map((t) => ({ id: t.id, name: t.name })) };
+	return {
+		projects,
+		templates: templates.map((t) => ({ id: t.id, name: t.name })),
+		affaires
+	};
 };
 
 const str = (form: FormData, key: string) => String(form.get(key) ?? '').trim();
@@ -37,6 +43,9 @@ export const actions: Actions = {
 		project.meta.affaireNumber = str(form, 'affaireNumber');
 		project.meta.planNumber = str(form, 'planNumber');
 		project.meta.client = str(form, 'client');
+		// Affaire choisie : client, n° WhySoft (et n° d'affaire) viennent d'elle.
+		const affaireId = str(form, 'affaire');
+		if (affaireId) project.meta.affaireId = affaireId;
 		// Modèle de cartouche / page de garde choisi (copie dans le projet).
 		const templateId = str(form, 'template');
 		const template = templateId ? await getTemplate(templateId, user.organizationId) : null;

@@ -40,6 +40,8 @@ export const projects = sqliteTable('projects', {
 	organizationId: text('organization_id').notNull().default(''),
 	name: text('name').notNull(),
 	affaireNumber: text('affaire_number').notNull().default(''),
+	/** Affaire de rattachement (miroir de `meta.affaireId` du document) ; null = non classé. */
+	affaireId: text('affaire_id'),
 	/** Document `Project` sérialisé en JSON. */
 	data: text('data').notNull(),
 	createdAt: text('created_at').notNull(),
@@ -100,6 +102,46 @@ export const catalog = sqliteTable('catalog', {
 	/** `CatalogItem` sérialisé en JSON. */
 	data: text('data').notNull(),
 	createdBy: text('created_by'),
+	createdAt: text('created_at').notNull(),
+	updatedAt: text('updated_at').notNull()
+});
+
+/** Clients (saisis à la main, ou repris de l'ERP : `source = 'erp'`). */
+export const clients = sqliteTable('clients', {
+	id: text('id').primaryKey(),
+	organizationId: text('organization_id').notNull().default(''),
+	name: text('name').notNull(),
+	/** `nameKey(name)` : un seul client de ce nom par société. */
+	nameKey: text('name_key').notNull(),
+	code: text('code').notNull().default(''),
+	city: text('city').notNull().default(''),
+	source: text('source', { enum: ['manual', 'erp'] })
+		.notNull()
+		.default('manual'),
+	/** Identifiant dans l'ERP (connecteur, plus tard). */
+	externalId: text('external_id'),
+	createdAt: text('created_at').notNull(),
+	updatedAt: text('updated_at').notNull()
+});
+
+/** Affaires : une par n° WhySoft, rattachée à un client ; regroupe un ou plusieurs schémas. */
+export const affaires = sqliteTable('affaires', {
+	id: text('id').primaryKey(),
+	organizationId: text('organization_id').notNull().default(''),
+	clientId: text('client_id')
+		.notNull()
+		.references(() => clients.id),
+	whysoft: text('whysoft').notNull().default(''),
+	number: text('number').notNull().default(''),
+	label: text('label').notNull().default(''),
+	year: integer('year').notNull(),
+	status: text('status', { enum: ['en_cours', 'terminee', 'archivee'] })
+		.notNull()
+		.default('en_cours'),
+	source: text('source', { enum: ['manual', 'erp'] })
+		.notNull()
+		.default('manual'),
+	externalId: text('external_id'),
 	createdAt: text('created_at').notNull(),
 	updatedAt: text('updated_at').notNull()
 });

@@ -5,7 +5,7 @@ import type { RequestHandler } from './$types';
 
 /**
  * Duplique le dossier (ou une de ses versions : `versionId`) pour une nouvelle affaire.
- * Corps : `{ name, affaireNumber?, planNumber?, client?, resetRevisions?, versionId? }`.
+ * Corps : `{ name, affaireNumber?, planNumber?, client?, affaireId?, resetRevisions?, versionId? }`.
  */
 export const POST: RequestHandler = async ({ params, locals, request }) => {
 	const user = await requireProject(locals, params.id, 'write');
@@ -25,6 +25,7 @@ export const POST: RequestHandler = async ({ params, locals, request }) => {
 			affaireNumber: s('affaireNumber'),
 			planNumber: s('planNumber'),
 			client: s('client'),
+			affaireId: s('affaireId'),
 			resetRevisions: body.resetRevisions === true,
 			author: user.name
 		},

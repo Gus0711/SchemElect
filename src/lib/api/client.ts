@@ -2,6 +2,7 @@
  * Client typé de l'API JSON (utilisé par l'éditeur). Toutes les fonctions lèvent
  * `ApiError` si la réponse n'est pas OK (401 non connecté, 404, 409 verrou…).
  */
+import type { Affaire } from '$lib/model/affaires';
 import type { CatalogItem } from '$lib/model/catalog';
 import type { Fragment } from '$lib/model/fragments';
 import type { DocTemplate } from '$lib/model/template';
@@ -72,6 +73,13 @@ export function releaseLock(id: string): void {
 		if (navigator.sendBeacon(url)) return;
 	}
 	void fetch(url, { method: 'POST', keepalive: true, credentials: 'same-origin' }).catch(() => {});
+}
+
+/** Affaire avec le nom de son client et le nombre de schémas rattachés. */
+export type AffaireListItem = Affaire & { clientName: string; projects: number };
+
+export async function listAffaires(): Promise<AffaireListItem[]> {
+	return request('GET', '/api/affaires');
 }
 
 export async function listMacros(): Promise<Macro[]> {
@@ -168,6 +176,8 @@ export interface DuplicateRequest {
 	affaireNumber?: string;
 	planNumber?: string;
 	client?: string;
+	/** Affaire de la copie : absente = celle de la source, '' = non classé. */
+	affaireId?: string;
 	resetRevisions?: boolean;
 	versionId?: string;
 }

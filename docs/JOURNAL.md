@@ -11,6 +11,33 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-02 (suite 3) — Organisation des dossiers, étape 2 : clients et affaires
+
+**Fait** :
+- Modèle `model/affaires.ts` (testé) : client, affaire (= 1 n° WhySoft, client, n° d'affaire
+  du cartouche facultatif, désignation, année, statut en cours / terminée / archivée),
+  `applyAffaire` (cartouche imposé), `planClassification` (reprise de l'existant).
+- Base : tables `clients`, `affaires`, colonne `projects.affaire_id` (migration testée).
+  `meta.whysoft` / `meta.affaireId` dans le document ; champ de cartouche `{whysoft}`.
+- Serveur : rattachement résolu à l'ouverture et à chaque enregistrement (le cartouche suit
+  l'affaire : client renommé, n° WhySoft corrigé) ; n° WhySoft unique par société ;
+  suppression refusée si client / affaire utilisés.
+- Page **Affaires** (menu du haut) : onglets Affaires / Clients, recherche, filtres statut /
+  année, schémas de chaque affaire, saisie (utilisateur et administrateur ; lecteur en
+  consultation), bandeau « N schémas non classés » et **Classer l'existant** (administrateur).
+- Rattachement d'un schéma : à la création (liste des projets), dans Propriétés du dossier
+  (« Non classé » possible ; champs imposés grisés), à la duplication. Liste des projets :
+  colonne Affaire (n° WhySoft + client), recherche par WhySoft / client.
+
+**Reste / suite** : étape 3 (page Projets : arborescence Client › Affaire › Schémas, filtres
+année / client / statut / récents, création guidée, fiche affaire avec PDF) ; étape 4
+(connecteur ERP, attend la doc de l'API — prévu : `source = 'erp'`, `external_id`).
+
+**Pièges / à savoir** : le rattachement est dans le document (`meta.affaireId`) et recopié
+dans `projects.affaire_id` à chaque enregistrement ; « Classer l'existant » saute les dossiers
+verrouillés (sinon leur prochain enregistrement effacerait le rattachement). Une restauration
+de version garde l'affaire actuelle.
+
 ## 2026-10-02 (suite 2) — Organisation des dossiers, étape 1 : sociétés et rôles
 
 **Décisions** (voir `ROADMAP.md` § Organisation des dossiers) : Société → Client → Affaire

@@ -9,6 +9,7 @@
 		FolderOpen,
 		LayoutTemplate,
 		LogOut,
+		Briefcase,
 		Building2,
 		Package,
 		UserRound,
@@ -75,6 +76,9 @@
 	<nav>
 		<a href="/" class:active={path === '/' || path.startsWith('/projets')}
 			><FolderOpen size={16} /> Projets</a
+		>
+		<a href="/affaires" class:active={path.startsWith('/affaires')}
+			><Briefcase size={16} /> Affaires</a
 		>
 		<a href="/modeles" class:active={path.startsWith('/modeles')}
 			><LayoutTemplate size={16} /> Modèles</a

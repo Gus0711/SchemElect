@@ -4,6 +4,7 @@
 	import { Copy, FilePlus2, FolderOpen, Lock, Pencil, Search, Trash2 } from '@lucide/svelte';
 	import { fetchProject } from '$lib/api/client';
 	import { canEdit } from '$lib/model/access';
+	import { affaireTitle } from '$lib/model/affaires';
 	import DuplicateDialog from '$lib/editor/components/DuplicateDialog.svelte';
 	import type { ProjectMeta } from '$lib/model/types';
 	import { Alert, Button, Card, Field, Modal } from '$lib/ui';
@@ -24,12 +25,17 @@
 	let deleteTarget = $state<Summary | null>(null);
 	let deleteOpen = $state(false);
 	let pending = $state(false);
+	/** Création : affaire choisie (vide = saisie libre du client et du n° d'affaire). */
+	let createAffaire = $state('');
+	const openAffaires = $derived(data.affaires.filter((a) => a.status !== 'archivee'));
 
 	const filtered = $derived.by(() => {
 		const q = query.trim().toLowerCase();
 		if (!q) return data.projects;
-		return data.projects.filter(
-			(p) => p.name.toLowerCase().includes(q) || p.affaireNumber.toLowerCase().includes(q)
+		return data.projects.filter((p) =>
+			[p.name, p.affaireNumber, p.affaire?.whysoft ?? '', p.affaire?.client ?? ''].some((s) =>
+				s.toLowerCase().includes(q)
+			)
 		);
 	});
 
@@ -89,7 +95,7 @@
 		<Search size={16} />
 		<input
 			type="search"
-			placeholder="Rechercher (nom, n° d'affaire)…"
+			placeholder="Rechercher (nom, n° d'affaire, WhySoft, client)…"
 			bind:value={query}
 			aria-label="Rechercher"
 		/>
@@ -135,7 +141,7 @@
 			<thead>
 				<tr>
 					<th>Nom</th>
-					<th>N° d'affaire</th>
+					<th>Affaire</th>
 					<th>Modifié le</th>
 					<th>Par</th>
 					<th>État</th>
@@ -146,7 +152,21 @@
 				{#each filtered as p (p.id)}
 					<tr>
 						<td><a class="name" href="/projets/{p.id}">{p.name}</a></td>
-						<td>{p.affaireNumber || '—'}</td>
+						<td>
+							{#if p.affaire}
+								<a
+									class="affaire"
+									href="/affaires"
+									title="{p.affaire.client} — {affaireTitle(p.affaire)}"
+									>{p.affaire.whysoft || p.affaire.number || p.affaire.label}</a
+								>
+								<span class="muted">{p.affaire.client}</span>
+							{:else}
+								<span class="muted" title="Non classé (n° d'affaire du cartouche)"
+									>{p.affaireNumber || 'Non classé'}</span
+								>
+							{/if}
+						</td>
 						<td>{fmtDate(p.updatedAt)}</td>
 						<td>{p.updatedByName ?? '—'}</td>
 						<td>
@@ -201,11 +221,24 @@
 <Modal bind:open={createOpen} title="Nouveau projet">
 	<form id="create-form" method="POST" action="?/create" use:enhance={submit}>
 		<Field label="Nom du projet" name="name" required />
+		<Field
+			label="Affaire"
+			hint={data.affaires.length
+				? 'Le client et le n° WhySoft du cartouche viennent de l’affaire.'
+				: 'Aucune affaire : créez-les dans la page Affaires.'}
+		>
+			<select name="affaire" bind:value={createAffaire}>
+				<option value="">Non classé (saisie libre)</option>
+				{#each openAffaires as a (a.id)}
+					<option value={a.id}>{a.clientName} — {affaireTitle(a)}</option>
+				{/each}
+			</select>
+		</Field>
 		<div class="row">
-			<Field label="N° d'affaire" name="affaireNumber" />
+			{#if !createAffaire}<Field label="N° d'affaire" name="affaireNumber" />{/if}
 			<Field label="N° de plan" name="planNumber" />
 		</div>
-		<Field label="Client" name="client" />
+		{#if !createAffaire}<Field label="Client" name="client" />{/if}
 		<Field label="Modèle de cartouche et de page de garde">
 			<select name="template">
 				<option value="">Standard</option>
@@ -308,6 +341,10 @@
 	.name {
 		font-weight: var(--fw-medium);
 		white-space: normal;
+	}
+	.affaire {
+		margin-right: var(--sp-1);
+		font-weight: var(--fw-medium);
 	}
 	.lock {
 		display: inline-flex;

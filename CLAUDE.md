@@ -56,7 +56,8 @@ points « à faire valider par V.R » sont désormais à valider par l'utilisate
    (Symboles, Macros, Appareils, Contrôles, repliable), menu « Dossier ». **Symboles
    favoris** (par utilisateur) et **format des numéros de fils** (par folio / colonne).
 7. 🔴 **Organisation des dossiers** : ✅ sociétés + rôles (super-admin, admin, utilisateur,
-   lecteur) → clients / affaires (n° WhySoft) → page Projets → connecteur ERP Dumortier.
+   lecteur) → ✅ clients / affaires (n° WhySoft, page `/affaires`, rattachement des schémas)
+   → page Projets → connecteur ERP Dumortier.
    **Toute donnée appartient à une société** : filtrer par `locals.user.organizationId`,
    gardes `requireEditor` / `requireProject` (voir ARCHITECTURE § 6).
    Détail et état : `docs/ROADMAP.md` § Organisation des dossiers.

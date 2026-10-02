@@ -93,13 +93,52 @@ CREATE TABLE IF NOT EXISTS catalog (
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS clients (
+	id TEXT PRIMARY KEY NOT NULL,
+	organization_id TEXT NOT NULL DEFAULT '',
+	name TEXT NOT NULL,
+	name_key TEXT NOT NULL,
+	code TEXT NOT NULL DEFAULT '',
+	city TEXT NOT NULL DEFAULT '',
+	source TEXT NOT NULL DEFAULT 'manual',
+	external_id TEXT,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS clients_org_idx ON clients(organization_id, name_key);
+
+CREATE TABLE IF NOT EXISTS affaires (
+	id TEXT PRIMARY KEY NOT NULL,
+	organization_id TEXT NOT NULL DEFAULT '',
+	client_id TEXT NOT NULL REFERENCES clients(id),
+	whysoft TEXT NOT NULL DEFAULT '',
+	number TEXT NOT NULL DEFAULT '',
+	label TEXT NOT NULL DEFAULT '',
+	year INTEGER NOT NULL,
+	status TEXT NOT NULL DEFAULT 'en_cours',
+	source TEXT NOT NULL DEFAULT 'manual',
+	external_id TEXT,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS affaires_org_idx ON affaires(organization_id, client_id);
 `;
 
 /** Société créée pour les données d'avant le multi-société (et par le premier lancement). */
 export const FIRST_ORG_ID = 'org_main';
 
 /** Tables dont chaque ligne appartient à une société (colonne `organization_id`). */
-const ORG_TABLES = ['users', 'projects', 'macros', 'custom_symbols', 'templates', 'catalog'];
+const ORG_TABLES = [
+	'users',
+	'projects',
+	'macros',
+	'custom_symbols',
+	'templates',
+	'catalog',
+	'clients',
+	'affaires'
+];
 
 async function hasColumn(client: Client, table: string, column: string): Promise<boolean> {
 	const res = await client.execute(`PRAGMA table_info(${table})`);
@@ -135,6 +174,10 @@ export async function runMigrations(client: Client): Promise<void> {
 		await client.execute(
 			"UPDATE users SET role = 'superadmin' WHERE id = (SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1)"
 		);
+
+	// Classement (2026-10) : affaire de rattachement des dossiers (null = non classé).
+	if (!(await hasColumn(client, 'projects', 'affaire_id')))
+		await client.execute('ALTER TABLE projects ADD COLUMN affaire_id TEXT');
 
 	// Catalogue : une fiche par référence ET par société (clé « société|référence »).
 	await client.execute(

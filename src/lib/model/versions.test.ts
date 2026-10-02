@@ -96,5 +96,9 @@ describe('versions : droits et duplication', () => {
 		expect(p.meta.name).toBe('Chaufferie A');
 		expect(duplicateDocument(p, { name: '' }).meta.name).toBe('Chaufferie A (copie)');
 		expect(duplicateDocument(p, { name: 'X' }).revisions).toHaveLength(1);
+		p.meta.affaireId = 'a1';
+		expect(duplicateDocument(p, { name: 'X' }).meta.affaireId).toBe('a1');
+		expect(duplicateDocument(p, { name: 'X', affaireId: 'a2' }).meta.affaireId).toBe('a2');
+		expect(duplicateDocument(p, { name: 'X', affaireId: '' }).meta.affaireId).toBeUndefined();
 	});
 });
