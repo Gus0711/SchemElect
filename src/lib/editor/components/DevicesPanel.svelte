@@ -9,7 +9,6 @@
 	import { Button } from '$lib/ui';
 	import { ChevronRight, ListOrdered, RefreshCw, Search, TriangleAlert } from '@lucide/svelte';
 	import type { Editor } from '../editor.svelte';
-	import NomenclatureDialog from './NomenclatureDialog.svelte';
 
 	let { editor }: { editor: Editor } = $props();
 
@@ -19,7 +18,6 @@
 	let filter: Filter = $state('all');
 	let showTerminals = $state(false);
 	let expanded: string | null = $state(null);
-	let bomOpen = $state(false);
 	let message = $state('');
 
 	const all = $derived(listDevices(editor.project, editor.analysis));
@@ -178,13 +176,11 @@
 
 	<div class="bottom">
 		<span class="muted">{shown} affiché(s)</span>
-		<Button size="sm" onclick={() => (bomOpen = true)}
+		<Button size="sm" onclick={() => (editor.nomenclatureOpen = true)}
 			><ListOrdered size={14} /> Nomenclature</Button
 		>
 	</div>
 </div>
-
-<NomenclatureDialog bind:open={bomOpen} {editor} />
 
 <style>
 	.devices {

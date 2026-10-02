@@ -12,6 +12,8 @@
 	import Canvas from './Canvas.svelte';
 	import CustomSymbolDialog from './CustomSymbolDialog.svelte';
 	import DuplicateDialog from './DuplicateDialog.svelte';
+	import FolioTabs from './FolioTabs.svelte';
+	import NomenclatureDialog from './NomenclatureDialog.svelte';
 	import HistoryDialog from './HistoryDialog.svelte';
 	import Inspector from './Inspector.svelte';
 	import ProjectDialog from './ProjectDialog.svelte';
@@ -95,6 +97,7 @@
 			exportOpen ||
 			historyOpen ||
 			duplicateOpen ||
+			editor.nomenclatureOpen ||
 			editor.shortcutsOpen ||
 			interaction.menu ||
 			editor.symbolEditor
@@ -154,12 +157,15 @@
 		onstrips={() => (stripsOpen = true)}
 		onexport={() => (exportOpen = true)}
 		onhistory={version ? undefined : () => (historyOpen = true)}
+		onnomenclature={() => (editor.nomenclatureOpen = true)}
+		onduplicate={version ? undefined : () => openDuplicate()}
 	/>
 	<div class="main">
 		<Sidebar {editor} />
 		<Canvas {editor} {interaction} />
 		<Inspector {editor} />
 	</div>
+	<FolioTabs {editor} />
 	<StatusBar {editor} />
 </div>
 
@@ -175,6 +181,7 @@
 	}}
 />
 <StripsDialog {editor} bind:open={stripsOpen} />
+<NomenclatureDialog bind:open={editor.nomenclatureOpen} {editor} />
 {#if !version}
 	<HistoryDialog
 		bind:open={historyOpen}

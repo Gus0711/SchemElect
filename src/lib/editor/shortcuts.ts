@@ -101,6 +101,11 @@ export const SHORTCUTS: ShortcutGroup[] = [
 		title: 'Souris',
 		items: [
 			{ keys: [['Molette']], label: 'Zoom sur le curseur' },
+			{
+				keys: [['Double-clic onglet']],
+				label: 'Onglets de folios (en bas) : renommer',
+				hint: 'Glisser : réordonner · clic droit : dupliquer, supprimer · « + » : nouveau folio'
+			},
 			{ keys: [['Maj', 'Molette']], label: 'Défilement horizontal' },
 			{ keys: [['Clic droit']], label: 'Menu contextuel' },
 			{ keys: [['Clic droit glissé'], ['Clic milieu']], label: 'Déplacer la vue' },

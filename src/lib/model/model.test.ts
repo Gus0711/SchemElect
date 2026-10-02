@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { analyzeProject } from './analysis';
+import { projectIssues } from './checks';
 import {
 	addBar,
 	addSymbol,
@@ -298,5 +299,18 @@ describe('sections des fils', () => {
 		cw.section = '2x1,5';
 		project.settings.sectionDisplay = 'all';
 		expect(analyzeProject(project).wireStyle.get(cw.id)?.section).toBe('2x1,5');
+	});
+});
+
+describe('contrôles du dossier', () => {
+	it('signale les bornes non raccordées et les renvois orphelins', () => {
+		const project = createProject('Contrôles');
+		const folio = project.folios[0];
+		expect(projectIssues(project, analyzeProject(project))).toEqual([]);
+		addSymbol(project, folio, 'voyant', { x: 100, y: 60 });
+		addSymbol(project, folio, 'renvoi-sortie', { x: 200, y: 60 });
+		const texts = projectIssues(project, analyzeProject(project)).map((i) => i.text);
+		expect(texts.some((t) => /borne\(s\) non raccordée/.test(t))).toBe(true);
+		expect(texts.some((t) => /sans correspondance/.test(t))).toBe(true);
 	});
 });

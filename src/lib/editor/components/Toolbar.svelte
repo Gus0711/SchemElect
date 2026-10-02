@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { Button, ThemeToggle } from '$lib/ui';
+	import { Button, ContextMenu, ThemeToggle } from '$lib/ui';
 	import {
 		ArrowLeft,
-		Cable,
 		Check,
+		ChevronDown,
 		Ellipse,
 		FileDown,
-		History,
+		FolderCog,
 		LoaderCircle,
 		Lock,
 		Maximize,
@@ -16,7 +16,6 @@
 		SeparatorHorizontal,
 		Redo2,
 		Search,
-		Settings,
 		Spline,
 		Square,
 		TriangleAlert,
@@ -34,7 +33,9 @@
 		onproject,
 		onstrips,
 		onexport,
-		onhistory
+		onhistory,
+		onnomenclature,
+		onduplicate
 	}: {
 		editor: Editor;
 		session: EditSession;
@@ -43,7 +44,18 @@
 		onexport: () => void;
 		/** Historique du dossier (absent : consultation d'une version). */
 		onhistory?: () => void;
+		onnomenclature: () => void;
+		/** Dupliquer le dossier (absent : consultation d'une version, qui a son propre bouton). */
+		onduplicate?: () => void;
 	} = $props();
+
+	/** Menu « Dossier » ouvert sous son bouton. */
+	let dossierMenu: { x: number; y: number } | null = $state(null);
+
+	function openDossierMenu(e: MouseEvent) {
+		const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		dossierMenu = { x: r.left, y: r.bottom + 2 };
+	}
 
 	const tool = $derived(editor.tool.kind);
 	const vp = $derived(editor.viewport);
@@ -208,23 +220,33 @@
 		title="Rechercher dans le dossier (Ctrl+F) : repère, n° de fil, borne, référence…"
 		onclick={() => (editor.searchOpen = true)}><Search size={16} /> Rechercher</Button
 	>
-	{#if onhistory}
-		<Button
-			variant="ghost"
-			size="sm"
-			title="Historique : versions, restauration, duplication"
-			onclick={onhistory}><History size={16} /> Historique</Button
-		>
-	{/if}
-	<Button variant="ghost" size="sm" title="Borniers" onclick={onstrips}
-		><Cable size={16} /> Borniers</Button
+	<Button
+		variant="ghost"
+		size="sm"
+		title="Dossier : propriétés, historique, borniers, nomenclature, duplication"
+		aria-haspopup="menu"
+		onclick={openDossierMenu}><FolderCog size={16} /> Dossier <ChevronDown size={14} /></Button
 	>
 	<ThemeToggle size="sm" />
-	<Button variant="ghost" size="sm" title="Propriétés du dossier" onclick={onproject}
-		><Settings size={16} /></Button
-	>
 	<Button variant="primary" size="sm" onclick={onexport}><FileDown size={16} /> Exporter</Button>
 </header>
+
+{#if dossierMenu}
+	<ContextMenu
+		x={dossierMenu.x}
+		y={dossierMenu.y}
+		onclose={() => (dossierMenu = null)}
+		items={[
+			{ label: 'Propriétés du dossier…', action: onproject },
+			...(onhistory ? [{ label: 'Historique des versions…', action: onhistory }] : []),
+			{ label: 'Borniers…', action: onstrips },
+			{ label: 'Nomenclature et liste de commande…', action: onnomenclature },
+			{ separator: true },
+			...(onduplicate ? [{ label: 'Dupliquer le dossier…', action: onduplicate }] : []),
+			{ label: 'Exporter (PDF, CSV)…', action: onexport, shortcut: 'Ctrl+E' }
+		]}
+	/>
+{/if}
 
 <style>
 	.toolbar {

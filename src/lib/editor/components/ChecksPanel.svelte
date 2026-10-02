@@ -1,62 +1,14 @@
 <script lang="ts">
-	/** Contrôles de cohérence du dossier (calculés en continu). */
-	import { cableIssues } from '$lib/model/cables';
-	import { contactOverflows } from '$lib/model/crossrefs';
-	import { folioNumber } from '$lib/model/layout';
-	import { panelIssues } from '$lib/model/panel';
-	import { stripSeriesIssues } from '$lib/model/stripDrawing';
-	import { projectStrips } from '$lib/model/analysis';
-	import { getSymbolDef } from '$lib/symbols';
-	import { Panel } from '$lib/ui';
+	/** Contrôles de cohérence du dossier (calculés en continu, voir `model/checks.ts`). */
 	import { CircleAlert, Check } from '@lucide/svelte';
 	import type { Editor } from '../editor.svelte';
 
 	let { editor }: { editor: Editor } = $props();
 
-	const issues = $derived.by(() => {
-		const out: { text: string; folioId?: string }[] = [];
-		const a = editor.analysis;
-		editor.project.folios.forEach((f, i) => {
-			const open = a.nets.openTerminals.get(f.id) ?? [];
-			if (open.length)
-				out.push({
-					text: `Folio ${folioNumber(i)} : ${open.length} borne(s) non raccordée(s)`,
-					folioId: f.id
-				});
-		});
-		for (const n of a.nets.nets)
-			if (n.shortedPotentials.length) {
-				const names = [n.potentialId, ...n.shortedPotentials]
-					.map((id) => editor.project.potentials.find((p) => p.id === id)?.name ?? id)
-					.join(' / ');
-				out.push({ text: `Court-circuit : ${names}`, folioId: n.wires[0]?.folioId });
-			}
-		for (const o of contactOverflows(editor.project, a.crossRefs)) {
-			const folio = editor.project.folios.find((f) =>
-				f.symbols.some((s) => s.deviceId === o.deviceId)
-			);
-			out.push({
-				text: `${o.tag} : ${o.no} NO / ${o.nc} NC dessinés pour ${o.avail.no} NO / ${o.avail.nc} NC disponibles`,
-				folioId: folio?.id
-			});
-		}
-		for (const c of cableIssues(a.cables)) out.push({ text: c.text, folioId: c.folioId });
-		out.push(...panelIssues(editor.project));
-		if (editor.project.folios.some((f) => f.strips))
-			out.push(...stripSeriesIssues(editor.project, projectStrips(editor.project, a)));
-		const links = new Map<string, number>();
-		for (const f of editor.project.folios)
-			for (const s of f.symbols)
-				if (getSymbolDef(s.defId).role === 'link')
-					links.set(s.deviceId, (links.get(s.deviceId) ?? 0) + 1);
-		for (const [id, n] of links)
-			if (n < 2)
-				out.push({ text: `Renvoi ${editor.project.devices[id]?.tag ?? ''} sans correspondance` });
-		return out;
-	});
+	const issues = $derived(editor.issues);
 </script>
 
-<Panel title="Contrôles">
+<div class="checks">
 	{#if issues.length}
 		<ul>
 			{#each issues as issue, i (i)}
@@ -74,9 +26,16 @@
 	{:else}
 		<p class="ok"><Check size={14} /> Aucun problème détecté.</p>
 	{/if}
-</Panel>
+</div>
 
 <style>
+	.checks {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-2);
+		padding: var(--sp-2) var(--sp-3);
+		overflow-y: auto;
+	}
 	ul {
 		list-style: none;
 		margin: 0;

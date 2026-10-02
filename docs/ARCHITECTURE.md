@@ -207,11 +207,19 @@ un folio = une page ; série = folios borniers de même filtre (`stripFolioPage`
 - `interaction.svelte.ts` — gestes souris/clavier → commandes (aucune règle métier).
 - `viewport.svelte.ts` — zoom / déplacement.
 - `session.svelte.ts` — verrou (heartbeat 30 s) et sauvegarde automatique (1,2 s).
-- `components/` — `EditorApp` (assemblage), `Toolbar`, `Sidebar` (Folios / Symboles /
-  Macros / Appareils ; sur un folio d'armoire l'onglet Symboles devient « À placer »),
-  `Canvas`, `Inspector`, `ChecksPanel`, `ProjectDialog`, `StripsDialog`, `StatusBar`,
-  `DevicesPanel` (liste des appareils, filtres, emplacements), `SearchDialog` (Ctrl+F),
-  `NomenclatureDialog`, `CatalogItemDialog` (fiche catalogue, aussi utilisée par `/catalogue`).
+- Disposition : barre du haut (`Toolbar` : outils, zoom, Rechercher, menu **Dossier** —
+  propriétés, historique, borniers, nomenclature / commande, duplication, export — et
+  Exporter) ; à gauche `Sidebar` = colonne d'icônes **Symboles** (« À placer » sur un folio
+  d'armoire) / **Macros** / **Appareils** / **Contrôles** (badge = nombre de problèmes,
+  `model/checks.ts`), clic sur l'icône active = replier ; au centre `Canvas` ; à droite
+  `Inspector` ; en bas **`FolioTabs`** (onglets de folios : clic, double-clic renommer,
+  glisser réordonner, clic droit menu, « + » nouveau folio — commandes dans
+  `editor/folioActions.ts`) puis `StatusBar`.
+- `components/` — `EditorApp` (assemblage), `Toolbar`, `Sidebar`, `FolioTabs`, `Canvas`,
+  `Inspector`, `ChecksPanel`, `ProjectDialog`, `StripsDialog`, `StatusBar`, `DevicesPanel`
+  (liste des appareils, filtres, emplacements), `SearchDialog` (Ctrl+F), `NomenclatureDialog`
+  (`Editor.nomenclatureOpen`), `CatalogItemDialog` (fiche catalogue, aussi utilisée par
+  `/catalogue`), `HistoryDialog`, `DuplicateDialog`.
 - Catalogue dans l'éditeur : `Editor.catalog` (chargé au démarrage), `setReference`,
   `catalogChanges`, `applyCatalogChanges` ; navigation générique `Editor.goToItem`.
 

@@ -22,7 +22,6 @@
 	import { Button, Field, Panel as Box } from '$lib/ui';
 	import { AlignStartVertical, ArrowRight, Trash } from '@lucide/svelte';
 	import type { Editor } from '../editor.svelte';
-	import ChecksPanel from './ChecksPanel.svelte';
 
 	let { editor }: { editor: Editor } = $props();
 
@@ -476,7 +475,6 @@
 			</p>
 		</Box>
 	{/if}
-	<ChecksPanel {editor} />
 {/if}
 
 <style>

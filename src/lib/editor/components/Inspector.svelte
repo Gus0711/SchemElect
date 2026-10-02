@@ -25,7 +25,6 @@
 	import type { Editor } from '../editor.svelte';
 	import AlignTools from './AlignTools.svelte';
 	import CatalogItemDialog from './CatalogItemDialog.svelte';
-	import ChecksPanel from './ChecksPanel.svelte';
 	import PanelInspector from './PanelInspector.svelte';
 	import StripsFolioInspector from './StripsFolioInspector.svelte';
 
@@ -188,7 +187,6 @@
 				{folio.symbols.length} symboles · {folio.wires.length} fils · {folio.bars.length} barres
 			</p>
 		</Panel>
-		<ChecksPanel {editor} />
 	{:else if symbol && def}
 		<Panel title={def.name}>
 			<div class="thumb"><SymbolThumb defId={def.id} size={56} /></div>

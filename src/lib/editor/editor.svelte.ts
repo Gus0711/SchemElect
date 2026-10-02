@@ -10,6 +10,7 @@ import {
 	catalogUpdates,
 	type CatalogItem
 } from '$lib/model/catalog';
+import { projectIssues } from '$lib/model/checks';
 import * as edit from '$lib/model/edit';
 import {
 	extractFragment,
@@ -90,6 +91,8 @@ export class Editor {
 	barPotential = $state('L1');
 	/** Recherche dans le dossier ouverte (Ctrl+F). */
 	searchOpen = $state(false);
+	/** Fenêtre Nomenclature / liste de commande ouverte. */
+	nomenclatureOpen = $state(false);
 	/** Catalogue matériel partagé (chargé depuis le serveur). */
 	catalog: CatalogItem[] = $state([]);
 	/** Fiches du catalogue plus récentes que la copie du projet. */
@@ -103,6 +106,8 @@ export class Editor {
 	 */
 	private frozenAnalysis: ProjectAnalysis | null = $state.raw(null);
 	analysis: ProjectAnalysis = $derived(this.frozenAnalysis ?? analyzeProject(this.project));
+	/** Contrôles de cohérence (badge de la barre latérale, panneau Contrôles). */
+	issues = $derived(projectIssues(this.project, this.analysis));
 	folio: Folio = $derived(
 		this.project.folios.find((f) => f.id === this.folioId) ?? this.project.folios[0]
 	);

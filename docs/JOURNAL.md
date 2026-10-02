@@ -11,6 +11,26 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-02 — Nouvelle disposition de l'éditeur
+
+**Décisions de l'utilisateur** : folios en onglets en bas ; Symboles et Macros restent
+distincts ; colonne d'icônes à gauche ; menu « Dossier ».
+
+**Fait** :
+- **Onglets de folios** sous le dessin (`FolioTabs`) : clic, double-clic pour renommer,
+  glisser-déposer pour réordonner, clic droit (renommer, dupliquer, déplacer, supprimer),
+  « + » pour un nouveau folio (schéma, implantation, façade, borniers). L'ancien onglet
+  « Folios » et `FolioList` sont supprimés.
+- **Colonne d'icônes** à gauche : Symboles (« À placer » sur un folio d'armoire), Macros,
+  Appareils, **Contrôles** (déplacés depuis l'inspecteur, badge rouge = nombre de
+  problèmes) ; clic sur l'icône active = replier le panneau.
+- **Menu Dossier** : propriétés, historique, borniers, nomenclature et liste de commande,
+  dupliquer, exporter. Restent visibles : Rechercher, thème, Exporter.
+- Contrôles calculés dans `model/checks.ts` (testé) ; `Editor.issues`.
+- Tests : 440 unitaires + 15 parcours e2e (nouveau : disposition).
+
+---
+
 ## 2026-10-01 (suite 3) — Liste de commande complète
 
 **Fait** :

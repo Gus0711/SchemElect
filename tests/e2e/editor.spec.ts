@@ -30,6 +30,18 @@ async function evalEditor<T>(page: Page, fn: string): Promise<T> {
 	) as Promise<T>;
 }
 
+/** Ouvre un panneau de la barre latérale (sans le replier s'il est déjà ouvert). */
+async function openPanel(page: Page, name: string) {
+	const button = page.locator('.rail').getByRole('button', { name, exact: true });
+	if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
+}
+
+/** Menu « Dossier » de la barre du haut. */
+async function dossierMenu(page: Page, item: string | RegExp) {
+	await page.getByRole('button', { name: /^Dossier/ }).click();
+	await page.getByRole('menuitem', { name: item }).click();
+}
+
 async function place(page: Page, name: RegExp, at: Pt) {
 	await page.getByRole('button', { name }).first().click();
 	await clickAt(page, at);
@@ -210,7 +222,11 @@ test('menu clic droit, alerte de contacts et alignement', async ({ page }) => {
 	await expect(page.getByText(/dépassement/)).toBeVisible();
 	await page.keyboard.press('Escape');
 	await page.locator('.canvas').click({ position: { x: 5, y: 5 } });
+	// Badge du panneau Contrôles, puis le détail dans le panneau.
+	await expect(page.locator('.rail .badge')).toBeVisible();
+	await openPanel(page, 'Contrôles');
 	await expect(page.getByText(/dessinés pour 1 NO/)).toBeVisible();
+	await openPanel(page, 'Symboles');
 
 	// Alignement sur l'axe : deux voyants décalés
 	await page.keyboard.press('f');
@@ -469,16 +485,15 @@ test('folios d’implantation et de façade : placement automatique et à la mai
 	await expect(page.locator('.status.saved')).toBeVisible();
 
 	// Nouveau folio d'implantation (après le dernier folio)
-	await page.getByRole('button', { name: 'Folios', exact: true }).click();
 	const last = await evalEditor<number>(page, 'editor.project.folios.length');
 	await evalEditor(page, `editor.setFolio(editor.project.folios[${last - 1}].id)`);
-	await page.getByRole('button', { name: /^Folio$/ }).click();
+	await page.getByRole('button', { name: 'Nouveau folio' }).click();
 	await page.getByRole('menuitem', { name: /implantation/ }).click();
 	expect(await evalEditor<string>(page, 'editor.folio.panel.kind')).toBe('implantation');
 	expect(await evalEditor<number>(page, 'editor.folio.panel.rails.length')).toBe(4);
 
 	// Onglet « À placer » : placement automatique
-	await page.getByRole('button', { name: 'À placer', exact: true }).click();
+	await openPanel(page, 'À placer');
 	await page.getByRole('button', { name: /Placer automatiquement/ }).click();
 	const placed = await evalEditor<number>(page, 'editor.folio.panel.items.length');
 	expect(placed).toBeGreaterThan(2);
@@ -525,20 +540,18 @@ test('folios d’implantation et de façade : placement automatique et à la mai
 	);
 
 	// Façade : voyants et commutateurs du schéma
-	await page.getByRole('button', { name: 'Folios', exact: true }).click();
-	await page.getByRole('button', { name: /^Folio$/ }).click();
+	await page.getByRole('button', { name: 'Nouveau folio' }).click();
 	await page.getByRole('menuitem', { name: /façade/ }).click();
 	expect(await evalEditor<string>(page, 'editor.folio.panel.kind')).toBe('facade');
-	await page.getByRole('button', { name: 'À placer', exact: true }).click();
+	await openPanel(page, 'À placer');
 	await page.getByRole('button', { name: /Placer automatiquement/ }).click();
 	expect(await evalEditor<number>(page, 'editor.folio.panel.items.length')).toBeGreaterThan(0);
 	await page.keyboard.press('Escape');
 	await page.keyboard.press('f');
 	await page.screenshot({ path: 'test-results/facade.png' });
 	await page.getByRole('button', { name: /Thème : Clair/ }).click();
-	await page.getByRole('button', { name: 'Folios', exact: true }).click();
 	await page.screenshot({ path: 'test-results/facade-sombre.png' });
-	await page.getByRole('button', { name: 'À placer', exact: true }).click();
+	await openPanel(page, 'À placer');
 	await page.screenshot({ path: 'test-results/facade-sombre-appareils.png' });
 
 	// Export PDF du dossier avec les folios d'armoire (même rendu qu'à l'écran)
@@ -571,6 +584,7 @@ test('exemple armoire complète : ouverture et export PDF', async ({ page }) => 
 	await page.waitForLoadState('networkidle');
 	await expect(page.locator('.status.saved')).toBeVisible();
 	expect(await evalEditor<number>(page, 'editor.project.folios.length')).toBe(5);
+	await openPanel(page, 'Contrôles');
 	await expect(page.getByText('Aucun problème détecté.')).toBeVisible();
 	for (let i = 1; i <= 5; i++) {
 		await page.screenshot({ path: `test-results/exemple-${i}.png` });
@@ -644,7 +658,7 @@ test('modèle de cartouche et de page de garde : création, choix, champ libre, 
 	expect(await evalEditor<string>(page, 'editor.project.template.name')).toBe('Dumortier');
 
 	// Valeur du champ libre → cartouche
-	await page.getByRole('button', { name: 'Propriétés du dossier' }).click();
+	await dossierMenu(page, 'Propriétés du dossier…');
 	await page.getByRole('dialog').getByLabel('Lot').fill('CVC');
 	await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
 	await expect(page.locator('.canvas svg text', { hasText: 'Lot : CVC' })).toBeVisible();
@@ -798,9 +812,8 @@ test('folio borniers automatique : dessin, filtre, double-clic, PDF', async ({ p
 	await expect(page.locator('.status.saved')).toBeVisible();
 
 	// Ajout après le folio 03 (pompe)
-	await page.getByRole('button', { name: 'Folios', exact: true }).click();
 	await evalEditor(page, 'editor.setFolio(editor.project.folios[2].id)');
-	await page.getByRole('button', { name: /^Folio$/ }).click();
+	await page.getByRole('button', { name: 'Nouveau folio' }).click();
 	await page.getByRole('menuitem', { name: /Folio borniers/ }).click();
 	expect(await evalEditor<number>(page, 'editor.folioIndex')).toBe(3);
 	const svg = page.locator('.canvas svg');
@@ -868,7 +881,7 @@ test('catalogue matériel, panneau Appareils, recherche Ctrl+F et nomenclature',
 	await expect(page).toHaveURL(/\/projets\//);
 	await page.waitForLoadState('networkidle');
 	await expect(page.locator('.status.saved')).toBeVisible();
-	await page.getByRole('button', { name: 'Appareils', exact: true }).click();
+	await openPanel(page, 'Appareils');
 	await page.getByRole('button', { name: /^Sans réf\./ }).click();
 	const firstRow = page.locator('.devices .row').first();
 	const tag = (await firstRow.locator('.tag').textContent())!.trim();
@@ -921,7 +934,7 @@ test('catalogue matériel, panneau Appareils, recherche Ctrl+F et nomenclature',
 	expect(await evalEditor<boolean>(page, '!!editor.project.catalog.RXZE2S114M')).toBe(true);
 
 	// Section par défaut des fils : affichée à côté du numéro.
-	await page.getByTitle('Propriétés du dossier').click();
+	await dossierMenu(page, 'Propriétés du dossier…');
 	await page.getByRole('button', { name: 'Numérotation et sections' }).click();
 	await page.getByRole('combobox', { name: /Section par défaut/ }).fill('0,75');
 	await page.getByRole('button', { name: 'Enregistrer' }).click();
@@ -978,7 +991,7 @@ test('historique : version nommée, restauration, consultation, duplication', as
 	const initial = await count();
 
 	// Version nommée.
-	await page.getByRole('button', { name: /Historique/ }).click();
+	await dossierMenu(page, /Historique/);
 	const dialog = page.getByRole('dialog');
 	await expect(dialog.getByText('Création', { exact: true })).toBeVisible();
 	await dialog.getByLabel('Commentaire de la version').fill('Envoyé au client');
@@ -993,7 +1006,7 @@ test('historique : version nommée, restauration, consultation, duplication', as
 	await expect(page.locator('.status.saved')).toBeVisible();
 
 	// Restauration de la version nommée : la page se recharge avec l'ancien état.
-	await page.getByRole('button', { name: /Historique/ }).click();
+	await dossierMenu(page, /Historique/);
 	const reloaded = page.waitForEvent('load');
 	await dialog
 		.locator('.version', { hasText: 'Envoyé au client' })
@@ -1003,7 +1016,7 @@ test('historique : version nommée, restauration, consultation, duplication', as
 	await page.waitForLoadState('networkidle');
 	await expect(page.locator('.status.saved')).toBeVisible();
 	expect(await count()).toBe(initial);
-	await page.getByRole('button', { name: /Historique/ }).click();
+	await dossierMenu(page, /Historique/);
 	await expect(dialog.getByText(/^Avant restauration de la version du/)).toBeVisible();
 	await expect(dialog.getByText(/^Restauration de la version du/)).toBeVisible();
 	await page.screenshot({ path: 'test-results/historique.png' });
@@ -1036,7 +1049,7 @@ test('historique : version nommée, restauration, consultation, duplication', as
 	expect(await evalEditor<string>(page, 'editor.project.meta.name')).toBe('Chaufferie B');
 	expect(await evalEditor<string>(page, 'editor.project.meta.affaireNumber')).toBe('DW999');
 	expect(await count()).toBe(initial - 1);
-	await page.getByRole('button', { name: /Historique/ }).click();
+	await dossierMenu(page, /Historique/);
 	await expect(dialog.getByText(/^Copie de « .* » \(version du/)).toBeVisible();
 	await page.keyboard.press('Escape');
 
@@ -1049,4 +1062,64 @@ test('historique : version nommée, restauration, consultation, duplication', as
 		.click();
 	await expect(page.getByLabel('Nom du nouveau dossier')).toHaveValue('Chaufferie B (copie)');
 	await expect(page.getByLabel("N° d'affaire")).toHaveValue('DW999');
+});
+
+test('disposition : onglets de folios, barre latérale repliable, menu Dossier', async ({
+	page
+}) => {
+	page.on('dialog', (d) => d.accept());
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.getByRole('button', { name: 'Exemple armoire complète' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+	const titles = () => evalEditor<string[]>(page, 'editor.project.folios.map((f) => f.title)');
+	const tabs = page.getByRole('tab');
+	const initial = await titles();
+	await expect(tabs).toHaveCount(initial.length);
+
+	// Clic sur un onglet : on y va.
+	await tabs.nth(1).click();
+	expect(await evalEditor<number>(page, 'editor.folioIndex')).toBe(1);
+
+	// Double-clic : renommer.
+	await tabs.nth(1).dblclick();
+	await page.getByLabel('Titre du folio').first().fill('CHAUDIERE RENOMMEE');
+	await page.keyboard.press('Enter');
+	expect((await titles())[1]).toBe('CHAUDIERE RENOMMEE');
+
+	// Clic droit : dupliquer (le doublon arrive juste après).
+	await tabs.nth(1).click({ button: 'right' });
+	await page.getByRole('menuitem', { name: /Dupliquer/ }).click();
+	await expect(tabs).toHaveCount(initial.length + 1);
+	expect(await evalEditor<number>(page, 'editor.folioIndex')).toBe(2);
+
+	// Glisser l'onglet 1 tout à gauche.
+	await tabs.nth(1).dragTo(tabs.nth(0), { targetPosition: { x: 4, y: 10 } });
+	expect((await titles())[0]).toBe('CHAUDIERE RENOMMEE');
+
+	// Nouveau folio par « + ».
+	await page.getByRole('button', { name: 'Nouveau folio' }).click();
+	await page.getByRole('menuitem', { name: 'Folio de schéma' }).click();
+	await expect(tabs).toHaveCount(initial.length + 2);
+	await page.screenshot({ path: 'test-results/disposition.png' });
+
+	// Barre latérale : clic sur l'icône active = replier, puis rouvrir.
+	await openPanel(page, 'Macros');
+	await page.locator('.rail').getByRole('button', { name: 'Macros', exact: true }).click();
+	await expect(page.locator('.sidebar.collapsed')).toBeVisible();
+	await page.screenshot({ path: 'test-results/disposition-repliee.png' });
+	await openPanel(page, 'Appareils');
+	await expect(page.locator('.sidebar.collapsed')).toHaveCount(0);
+
+	// Menu Dossier : nomenclature.
+	await dossierMenu(page, /Nomenclature et liste de commande/);
+	await expect(page.getByRole('dialog', { name: 'Nomenclature' })).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(page.locator('.status.saved')).toBeVisible();
 });
