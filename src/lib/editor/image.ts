@@ -83,6 +83,18 @@ export async function cropImage(href: string, r: FracRect): Promise<PreparedImag
 	return encode(canvas, ctx);
 }
 
+/** Pivote l'image d'un quart de tour (sens horaire ou anti-horaire). */
+export async function rotateImage(href: string, clockwise: boolean): Promise<PreparedImage> {
+	const img = await loadImage(href);
+	const W = img.naturalWidth,
+		H = img.naturalHeight;
+	const { canvas, ctx } = canvasOf(H, W);
+	ctx.translate(H / 2, W / 2);
+	ctx.rotate(((clockwise ? 1 : -1) * Math.PI) / 2);
+	ctx.drawImage(img, -W / 2, -H / 2);
+	return encode(canvas, ctx);
+}
+
 /** Efface une zone (devient transparente). */
 export async function eraseImage(href: string, r: FracRect): Promise<PreparedImage> {
 	const img = await loadImage(href);

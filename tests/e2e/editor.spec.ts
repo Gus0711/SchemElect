@@ -299,6 +299,15 @@ test('symbole maison depuis une image de documentation', async ({ page }) => {
 	await expect(page.getByRole('button', { name: /Annuler \(2\)/ })).toBeVisible();
 	await page.getByRole('button', { name: 'Fond transparent' }).click();
 
+	// Quart de tour : largeur et hauteur s'échangent ; retour avec l'autre sens.
+	const w0 = Number(await page.getByLabel('Largeur (mm)').inputValue());
+	const h0 = Number(await page.getByLabel('Hauteur (mm)').inputValue());
+	await page.getByRole('button', { name: 'Pivoter à droite' }).click();
+	await expect(page.getByLabel('Largeur (mm)')).toHaveValue(String(h0));
+	await expect(page.getByLabel('Hauteur (mm)')).toHaveValue(String(w0));
+	await page.getByRole('button', { name: 'Pivoter à gauche' }).click();
+	await expect(page.getByLabel('Largeur (mm)')).toHaveValue(String(w0));
+
 	// Redimensionnement par la poignée : 60 → 80 mm
 	await page.getByRole('button', { name: 'Bornes' }).click();
 	const h = Number(await page.getByLabel('Hauteur (mm)').inputValue());

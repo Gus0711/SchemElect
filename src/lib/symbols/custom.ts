@@ -210,3 +210,23 @@ export function nextTerminalName(existing: string[]): string {
 	if (m) return `${m[1]}${String(Number(m[2]) + 1).padStart(m[2].length, '0')}`;
 	return String(existing.length + 1);
 }
+
+/**
+ * Bornes d'un corps de `w` × `h` mm pivoté d'un quart de tour : chacune reste sur sa vis,
+ * son sens de sortie tourne avec. Le corps devient `h` × `w`.
+ */
+export function rotateTerminals(
+	terminals: CustomTerminalSpec[],
+	w: number,
+	h: number,
+	clockwise: boolean
+): CustomTerminalSpec[] {
+	const CW: Record<Dir, Dir> = { n: 'e', e: 's', s: 'w', w: 'n' };
+	const CCW: Record<Dir, Dir> = { n: 'w', w: 's', s: 'e', e: 'n' };
+	const r = (v: number) => Math.round(v * 10) / 10;
+	return terminals.map((t) =>
+		clockwise
+			? { ...t, x: r(h - t.y), y: r(t.x), dir: CW[t.dir] }
+			: { ...t, x: r(t.y), y: r(w - t.x), dir: CCW[t.dir] }
+	);
+}

@@ -29,6 +29,9 @@ Une entrée par session, la plus récente en haut. Gabarit :
   tracé dans `theme/schematic.ts` (`wireColors`) ; écran et PDF ; colonne Couleur de la
   liste des fils (CSV). Choix dans l'inspecteur du fil (pastille + liste).
 
+- Symboles maison : boutons **Pivoter à gauche / à droite** (quart de tour de l'image,
+  `rotateImage` ; bornes déjà posées qui tournent avec, `rotateTerminals` testé ; annulable).
+
 **Reste / idées** : tirer un fil depuis une borne sans changer d'outil, tracé en nappe
 (plusieurs fils parallèles), contournement automatique des symboles.
 

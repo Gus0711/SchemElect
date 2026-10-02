@@ -175,7 +175,8 @@ le même champ sert à répartir une rangée sur un côté ; magnétisme grille 
 (désactivé par défaut). Fenêtre presque plein écran, non fermée par Échap
 (`Modal dismissible={false}`), vue calée sur les proportions de la zone de dessin ;
 Annuler / Ctrl+Z pour toute modification (bornes, taille, image). Retouches d'image dans
-l'éditeur (`editor/image.ts`, canvas) : rogner, gommer une zone, fond blanc → transparent ; poignée de redimensionnement (bornes mises à l'échelle). Rendu : les fils sont
+l'éditeur (`editor/image.ts`, canvas) : rogner, gommer une zone, pivoter d'un quart de tour
+(bornes suivies par `rotateTerminals`), fond blanc → transparent ; poignée de redimensionnement (bornes mises à l'échelle). Rendu : les fils sont
 dessinés **au-dessus** des symboles. Redimensionnement **par exemplaire** sur le folio
 (`SymbolInstance.scale`, `scaleSymbol`, poignée `Editor.scaleHandle`, champ « Échelle % »),
 réservé aux symboles maison ; les fils suivent, les traits gardent leur épaisseur. Stockés dans la bibliothèque partagée (table `custom_symbols`, API `/api/symbols`),

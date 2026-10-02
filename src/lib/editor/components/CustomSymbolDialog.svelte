@@ -12,6 +12,7 @@
 		expandNames,
 		nearestSide,
 		nextTerminalName,
+		rotateTerminals,
 		spreadTerminals,
 		terminalPoint,
 		type CustomSymbolSpec
@@ -27,6 +28,8 @@
 		Square,
 		Trash,
 		Undo2,
+		RotateCcw,
+		RotateCw,
 		Wand,
 		ZoomIn,
 		ZoomOut
@@ -39,6 +42,7 @@
 		imageFromClipboard,
 		prepareImage,
 		removeBackground,
+		rotateImage,
 		type FracRect,
 		type PreparedImage
 	} from '../image';
@@ -274,6 +278,26 @@
 		w: r.w / spec.w,
 		h: r.h / spec.h
 	});
+
+	/** Quart de tour : l'image pivote, le corps passe de w × h à h × w, les bornes suivent. */
+	function rotate(clockwise: boolean) {
+		retouch(
+			(href) => rotateImage(href, clockwise),
+			(img) => {
+				const { w, h } = spec;
+				spec.terminals = rotateTerminals(
+					$state.snapshot(spec.terminals) as CustomSymbolSpec['terminals'],
+					w,
+					h,
+					clockwise
+				);
+				ratio = img.ratio;
+				spec.w = h;
+				spec.h = w;
+				fit();
+			}
+		);
+	}
 
 	/** Rogner : même échelle (mm par pixel), les bornes restent sur leurs vis. */
 	function crop(r: { x: number; y: number; w: number; h: number }) {
@@ -550,6 +574,22 @@
 						onclick={() => (tool = 'erase')}><Eraser size={14} /> Gommer</button
 					>
 				</div>
+				<Button
+					size="sm"
+					variant="ghost"
+					disabled={!spec.image || processing}
+					title="Pivoter l’image d’un quart de tour vers la gauche (les bornes suivent)"
+					aria-label="Pivoter à gauche"
+					onclick={() => rotate(false)}><RotateCcw size={14} /></Button
+				>
+				<Button
+					size="sm"
+					variant="ghost"
+					disabled={!spec.image || processing}
+					title="Pivoter l’image d’un quart de tour vers la droite (les bornes suivent)"
+					aria-label="Pivoter à droite"
+					onclick={() => rotate(true)}><RotateCw size={14} /></Button
+				>
 				<Button
 					size="sm"
 					variant="ghost"

@@ -9,8 +9,10 @@ import {
 	expandNames,
 	nearestSide,
 	nextTerminalName,
+	rotateTerminals,
 	specOf,
-	spreadTerminals
+	spreadTerminals,
+	type CustomTerminalSpec
 } from './custom';
 import { registerCustomSymbols } from './index';
 
@@ -63,6 +65,21 @@ describe('symboles maison', () => {
 		expect(nextTerminalName(['24V', 'IP3'])).toBe('IP4');
 		expect(nextTerminalName(['09'])).toBe('10');
 		expect(nextTerminalName(['COM'])).toBe('2');
+	});
+
+	it('pivote les bornes avec l’image (quart de tour)', () => {
+		const t: CustomTerminalSpec[] = [{ id: '1', x: 10, y: 0, dir: 'n' }];
+		// Corps 40 × 30 : la borne du haut passe à droite (horaire) ou à gauche (anti-horaire).
+		expect(rotateTerminals(t, 40, 30, true)).toEqual([{ id: '1', x: 30, y: 10, dir: 'e' }]);
+		expect(rotateTerminals(t, 40, 30, false)).toEqual([{ id: '1', x: 0, y: 30, dir: 'w' }]);
+		// Quatre quarts de tour : retour au départ.
+		let r = t;
+		let [w, h] = [40, 30];
+		for (let i = 0; i < 4; i++) {
+			r = rotateTerminals(r, w, h, true);
+			[w, h] = [h, w];
+		}
+		expect(r).toEqual(t);
 	});
 
 	it('déduit la sortie du fil du bord le plus proche', () => {
