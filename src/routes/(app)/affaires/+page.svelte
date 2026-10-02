@@ -241,7 +241,10 @@
 										/>{/if}
 								</button>
 							</td>
-							<td class="strong">{a.whysoft || '—'}</td>
+							<td class="strong"
+								><a href="/affaires/{a.id}" title="Fiche de l’affaire">{a.whysoft || 'Fiche'}</a
+								></td
+							>
 							<td>{a.clientName}</td>
 							<td class="label"
 								>{a.label}{#if a.number}<span class="muted"

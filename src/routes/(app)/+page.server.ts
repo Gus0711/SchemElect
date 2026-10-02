@@ -4,7 +4,8 @@ import { buildSampleArmoire } from '$lib/export/sampleArmoire';
 import { createProject } from '$lib/model/project';
 import { applyTemplate } from '$lib/model/template';
 import { requireProject } from '$lib/server/access';
-import { listAffaires } from '$lib/server/affaires';
+import { normalizeAffaire } from '$lib/model/affaires';
+import { findOrCreateClient, listAffaires, listClients, saveAffaire } from '$lib/server/affaires';
 import { requireEditor, requireUser } from '$lib/server/guards';
 import { getTemplate, listTemplates } from '$lib/server/templates';
 import { getLock } from '$lib/server/locks';
@@ -13,19 +14,48 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireUser(locals);
-	const [projects, templates, affaires] = await Promise.all([
+	const [projects, templates, affaires, clients] = await Promise.all([
 		listProjects(user.organizationId),
 		listTemplates(user.organizationId),
-		listAffaires(user.organizationId)
+		listAffaires(user.organizationId),
+		listClients(user.organizationId)
 	]);
 	return {
 		projects,
 		templates: templates.map((t) => ({ id: t.id, name: t.name })),
-		affaires
+		affaires,
+		clients: clients.map((c) => ({ id: c.id, name: c.name }))
 	};
 };
 
 const str = (form: FormData, key: string) => String(form.get(key) ?? '').trim();
+
+/** Valeur des listes « Affaire » et « Client » : en créer une nouvelle. */
+const NEW = '__new';
+
+/** Création guidée : nouvelle affaire (et au besoin nouveau client) saisie avec le schéma. */
+async function createAffaireFromForm(
+	form: FormData,
+	organizationId: string
+): Promise<{ id: string } | { error: string }> {
+	let clientId = str(form, 'clientId');
+	if (clientId === NEW) {
+		const name = str(form, 'clientName');
+		if (!name) return { error: 'Le nom du nouveau client est requis.' };
+		clientId = await findOrCreateClient(organizationId, name);
+	}
+	const input = normalizeAffaire({
+		clientId,
+		whysoft: str(form, 'whysoft'),
+		label: str(form, 'affaireLabel'),
+		year: str(form, 'year')
+	});
+	if (!input) return { error: 'Nouvelle affaire : client et n° WhySoft (ou désignation) requis.' };
+	const res = await saveAffaire(organizationId, input);
+	if (res.status !== 'ok')
+		return { error: 'error' in res ? res.error : 'Création de l’affaire impossible.' };
+	return { id: res.item.id };
+}
 
 /** Refuse l'opération si un autre utilisateur édite le projet. */
 async function lockedByOther(id: string, userId: string): Promise<string | null> {
@@ -43,8 +73,13 @@ export const actions: Actions = {
 		project.meta.affaireNumber = str(form, 'affaireNumber');
 		project.meta.planNumber = str(form, 'planNumber');
 		project.meta.client = str(form, 'client');
-		// Affaire choisie : client, n° WhySoft (et n° d'affaire) viennent d'elle.
-		const affaireId = str(form, 'affaire');
+		// Affaire choisie (ou créée ici) : client, n° WhySoft (et n° d'affaire) viennent d'elle.
+		let affaireId = str(form, 'affaire');
+		if (affaireId === NEW) {
+			const created = await createAffaireFromForm(form, user.organizationId);
+			if ('error' in created) return fail(400, { action: 'create', error: created.error });
+			affaireId = created.id;
+		}
 		if (affaireId) project.meta.affaireId = affaireId;
 		// Modèle de cartouche / page de garde choisi (copie dans le projet).
 		const templateId = str(form, 'template');

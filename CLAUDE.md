@@ -19,7 +19,7 @@ Interface **en français**. Utilisateurs : dessinateur(s) armoire, techniciens.
 **Outil autonome** : ne dépend d'aucun autre outil interne et **ne modifie jamais un autre
 dépôt** (en particulier DumTools — interdit d'y toucher).
 
-**État actuel (2026-10-01)** : déployée sur le serveur interne. V1 fonctionnelle (phases 1 à 11) + menu clic droit,
+**État actuel (2026-10-02)** : déployée sur le serveur interne. V1 fonctionnelle (phases 1 à 11) + menu clic droit,
 alignement, alerte de contacts, navigation par renvois (double-clic), voyants colorés,
 **symboles maison** (image de documentation retouchable — rogner / gommer / fond
 transparent — ou cadre titré, bornes posées au clic, bibliothèque partagée) et
@@ -30,7 +30,9 @@ de page de garde** (logo, champs libres, cases configurables, bibliothèque « M
 **raccourcis clavier** avec aide (touche ?), exemple « armoire complète », **panneau
 Appareils** + **recherche Ctrl+F**, **catalogue matériel** (page `/catalogue`, catalogue de
 départ) + **nomenclature par référence** (CSV + PDF), **historique des versions** et
-**duplication**. Détail :
+**duplication**, liste de commande, nouvelle disposition (onglets de folios), favoris,
+**sociétés et rôles**, **clients / affaires (n° WhySoft)** et page Projets classée par
+affaire. Détail :
 `docs/JOURNAL.md`.
 
 ## Priorités (à traiter dans cet ordre — voir `docs/ROADMAP.md` § Priorités)
@@ -57,7 +59,8 @@ points « à faire valider par V.R » sont désormais à valider par l'utilisate
    favoris** (par utilisateur) et **format des numéros de fils** (par folio / colonne).
 7. 🔴 **Organisation des dossiers** : ✅ sociétés + rôles (super-admin, admin, utilisateur,
    lecteur) → ✅ clients / affaires (n° WhySoft, page `/affaires`, rattachement des schémas)
-   → page Projets → connecteur ERP Dumortier.
+   → ✅ page Projets (Client › Affaire › Schémas, filtres, création guidée, fiche affaire
+   `/affaires/[id]` avec PDF) → connecteur ERP Dumortier (attend la doc de l'API).
    **Toute donnée appartient à une société** : filtrer par `locals.user.organizationId`,
    gardes `requireEditor` / `requireProject` (voir ARCHITECTURE § 6).
    Détail et état : `docs/ROADMAP.md` § Organisation des dossiers.

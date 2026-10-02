@@ -275,6 +275,19 @@ affaire par client + n° d'affaire, dossiers ouverts en édition laissés de cô
 : création d'un projet, Propriétés du dossier (champs imposés grisés), duplication
 (`affaireId`). `GET /api/affaires` pour l'éditeur.
 
+**Page Projets** (2026-10-02, `/`) : arbre **Client › Affaire › Schémas** calculé par
+`model/projectTree.ts` (`buildProjectTree`, `treeYears`, testés : tri client alphabétique,
+affaires récentes d'abord, schémas récents d'abord ; groupe « Non classé » ; recherche sans
+accents sur nom, n° WhySoft, n° d'affaire, client, désignation) ; filtres client / année /
+statut (dont « Non classé ») ; vue « Récents » (à plat, mémorisée dans `localStorage`).
+Création guidée `lib/projects/NewProjectDialog.svelte` (action `/?/create` : affaire
+existante, **nouvelle affaire** et au besoin **nouveau client** via `findOrCreateClient` /
+`saveAffaire`, ou non classé), utilisable depuis la fiche affaire. **Fiche affaire**
+`/affaires/[id]` : identité, statut modifiable (action `status`, aussi pour une affaire
+ERP), schémas avec PDF (`export/projectPdf.ts` : relit le dossier, enregistre ses symboles
+maison, exporte comme l'éditeur), « Tous les PDF », duplication (vers la même affaire ou
+une autre), nouveau schéma dans l'affaire.
+
 SQLite (libSQL) + Drizzle, tables créées au démarrage. Auth maison (Argon2id, sessions
 hachées). Verrou d'édition par projet (expire après 2 min sans heartbeat). API JSON :
 projets (GET/PUT), verrou, macros, symboles maison, modèles, catalogue (`/api/catalog` : GET,

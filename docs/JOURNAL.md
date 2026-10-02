@@ -11,6 +11,28 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-02 (suite 4) — Organisation des dossiers, étape 3 : page Projets
+
+**Fait** :
+- `model/projectTree.ts` (testé) : arbre Client › Affaire › Schémas, filtres client / année
+  / statut / « Non classé », recherche (nom, n° WhySoft, client, désignation), années.
+- Page **Projets** : vue « Par affaire » (clients repliables, affaires avec statut et « + »
+  pour un nouveau schéma, groupe « Non classé ») ou « Récents » (à plat, mémorisée), filtres,
+  compteur, PDF d'un schéma depuis la liste.
+- **Création guidée** : 1. affaire (existante, nouvelle avec au besoin nouveau client, ou non
+  classé) ; 2. schéma (nom, n° de plan, modèle) ; bouton « Créer et ouvrir ».
+- **Fiche affaire** (`/affaires/[id]`, lien depuis la page Projets et la page Affaires) :
+  infos, statut modifiable, schémas, PDF par schéma et « Tous les PDF », duplication vers
+  cette affaire ou une autre, nouveau schéma dans l'affaire.
+
+**Reste / suite** : étape 4 (connecteur ERP, attend la doc de l'API). Idées : PDF unique
+de toute l'affaire (fusion), comparaison de deux versions.
+
+**Pièges / à savoir** : la fenêtre « Nouveau projet » poste vers `/?/create` depuis
+n'importe quelle page (gestion du résultat dans le composant : redirection → `goto`).
+Tests e2e : deux liens « Affaires » sur la page Projets (menu + aide) → viser
+`getByRole('navigation')` ; les libellés de `Field` incluent l'aide (`name: /^Affaire/`).
+
 ## 2026-10-02 (suite 3) — Organisation des dossiers, étape 2 : clients et affaires
 
 **Fait** :

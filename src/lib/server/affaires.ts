@@ -106,6 +106,19 @@ export type SaveResult<T> =
 
 const ERP_READONLY = 'Fiche reprise de l’ERP : elle se modifie dans l’ERP.';
 
+/** Client de ce nom (accents et casse ignorés), créé s'il n'existe pas. */
+export async function findOrCreateClient(organizationId: string, name: string): Promise<string> {
+	const db = await getDb();
+	const [same] = await db
+		.select({ id: clients.id })
+		.from(clients)
+		.where(and(eq(clients.organizationId, organizationId), eq(clients.nameKey, nameKey(name))));
+	if (same) return same.id;
+	const res = await saveClient(organizationId, { name: name.trim(), code: '', city: '' });
+	if (res.status !== 'ok') throw new Error('Création du client impossible');
+	return res.item.id;
+}
+
 /** Crée (`id` absent) ou modifie un client ; un seul client par nom dans la société. */
 export async function saveClient(
 	organizationId: string,

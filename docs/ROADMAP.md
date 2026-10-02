@@ -45,7 +45,7 @@ n° WhySoft ensuite. Statuts d'affaire : en cours / terminée / archivée (ou ce
 |---|---|---|
 | 1 | **Sociétés et rôles** : table sociétés, rattachement de toutes les données, 4 rôles, mode lecteur dans l'éditeur, écran super-admin « Sociétés », bascule de société | ✅ 2026-10-02 |
 | 2 | **Clients et affaires** : tables, saisie manuelle, schéma rattaché à une affaire, cartouche alimenté (`{whysoft}`), reprise de l'existant (« Non classé ») | ✅ 2026-10-02 |
-| 3 | **Page Projets** : filtres année / client / statut / récents, recherche n° WhySoft, liste Client › Affaire › Schémas, création guidée, fiche affaire (PDF de l'affaire), duplication vers une autre affaire | ⬜ |
+| 3 | **Page Projets** : filtres année / client / statut / récents, recherche n° WhySoft, liste Client › Affaire › Schémas, création guidée, fiche affaire (PDF de l'affaire), duplication vers une autre affaire | ✅ 2026-10-02 |
 | 4 | **Connecteur ERP** (Dumortier) : synchro clients / affaires — attend la documentation de l'API (format, authentification) | ⬜ |
 
 **Rituel de session** :

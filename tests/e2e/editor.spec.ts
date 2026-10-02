@@ -64,7 +64,7 @@ test('dessiner un folio, renvois, numéros de fils, sauvegarde et export PDF', a
 	// Nouveau projet
 	await page.getByRole('button', { name: /Nouveau projet/ }).click();
 	await page.getByLabel('Nom du projet').fill('Chaufferie test');
-	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
 	await expect(page).toHaveURL(/\/projets\//);
 	await expect(page.locator('.status.saved')).toBeVisible();
 
@@ -404,7 +404,7 @@ test('câble multi-conducteurs tracé en travers des fils', async ({ page }) => 
 	await page.waitForLoadState('networkidle');
 	await page.getByRole('button', { name: /Nouveau projet/ }).click();
 	await page.getByLabel('Nom du projet').fill('Pompes ECS');
-	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
 	await expect(page).toHaveURL(/\/projets\//);
 	await expect(page.locator('.status.saved')).toBeVisible();
 
@@ -652,7 +652,7 @@ test('modèle de cartouche et de page de garde : création, choix, champ libre, 
 	await page.getByRole('button', { name: /Nouveau projet/ }).click();
 	await page.getByLabel('Nom du projet').fill('Chaufferie Lot CVC');
 	await page.locator('select[name=template]').selectOption({ label: 'Dumortier' });
-	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
 	await expect(page).toHaveURL(/\/projets\//);
 	await expect(page.locator('.status.saved')).toBeVisible();
 	expect(await evalEditor<string>(page, 'editor.project.template.name')).toBe('Dumortier');
@@ -685,7 +685,7 @@ test('raccourcis clavier : aide, recherche de symbole, reprise de pose, barre, F
 	await page.waitForLoadState('networkidle');
 	await page.getByRole('button', { name: /Nouveau projet/ }).click();
 	await page.getByLabel('Nom du projet').fill('Raccourcis');
-	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
 	await expect(page).toHaveURL(/\/projets\//);
 	await expect(page.locator('.status.saved')).toBeVisible();
 
@@ -1268,7 +1268,7 @@ test('clients et affaires : saisie, rattachement, cartouche, reprise de l’exis
 	await expect(page).toHaveURL(/\/$/);
 
 	// Reprise de l'existant : les dossiers de démonstration sont classés par leur cartouche.
-	await page.getByRole('link', { name: /Affaires/ }).click();
+	await page.getByRole('navigation').getByRole('link', { name: 'Affaires' }).click();
 	await page.waitForLoadState('networkidle');
 	await expect(page.getByText(/schéma\(s\) non classé\(s\)/)).toBeVisible();
 	await page.getByRole('button', { name: /Classer l’existant/ }).click();
@@ -1309,9 +1309,9 @@ test('clients et affaires : saisie, rattachement, cartouche, reprise de l’exis
 	await page.getByLabel('Nom du projet').fill('Armoire chaufferie');
 	await page
 		.getByRole('combobox', { name: /^Affaire/ })
-		.selectOption({ label: 'Collège Jean Moulin — WS-E2E-1 · Chaufferie' });
+		.selectOption({ label: 'Collège Jean Moulin — WS-E2E-1 · Chaufferie (2026)' });
 	await expect(page.getByRole('textbox', { name: 'Client', exact: true })).toHaveCount(0);
-	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
 	await expect(page).toHaveURL(/\/projets\//);
 	await page.waitForLoadState('networkidle');
 	expect(await evalEditor<string>(page, 'editor.project.meta.client')).toBe('Collège Jean Moulin');
@@ -1325,16 +1325,100 @@ test('clients et affaires : saisie, rattachement, cartouche, reprise de l’exis
 	await page.getByRole('button', { name: 'Annuler', exact: true }).click();
 	await page.goto('/');
 	await page.waitForLoadState('networkidle');
+	await page.getByRole('tab', { name: 'Récents' }).click();
 	const row = page.locator('tr', { hasText: 'Armoire chaufferie' });
 	await expect(row.getByRole('link', { name: 'WS-E2E-1' })).toBeVisible();
 	await page.getByPlaceholder(/WhySoft/).fill('ws-e2e');
 	await expect(page.locator('table a.name')).toHaveCount(1);
 
 	// Affaire avec un schéma : suppression refusée ; fiche avec ses schémas.
-	await page.getByRole('link', { name: /Affaires/ }).click();
+	await page.getByRole('navigation').getByRole('link', { name: 'Affaires' }).click();
 	await page.waitForLoadState('networkidle');
 	const affaireRow = page.locator('tr', { hasText: 'WS-E2E-1' });
 	await expect(affaireRow.getByRole('button', { name: 'Supprimer' })).toHaveCount(0);
 	await affaireRow.getByRole('button', { name: /Schémas de l’affaire/ }).click();
 	await expect(page.getByRole('link', { name: 'Armoire chaufferie' })).toBeVisible();
+});
+
+test('page Projets : arbre par affaire, filtres, création guidée, fiche affaire et PDF', async ({
+	page
+}) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.waitForLoadState('networkidle');
+
+	// Vue « Par affaire » (par défaut) : client › affaire › schémas.
+	await expect(page.getByRole('tab', { name: 'Par affaire' })).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
+	await expect(page.getByRole('button', { name: 'Collège Jean Moulin' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'WS-E2E-1 · Chaufferie' })).toBeVisible();
+	const total = await page.locator('table a.name').count();
+
+	// Filtres : non classé, client.
+	await page.getByRole('combobox', { name: 'Statut' }).selectOption('non_classe');
+	await expect(page.getByRole('button', { name: 'Non classé' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Collège Jean Moulin' })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Effacer les filtres' }).click();
+	await page
+		.getByRole('combobox', { name: 'Client' })
+		.selectOption({ label: 'Collège Jean Moulin' });
+	await expect(page.locator('table a.name')).toHaveCount(1);
+	await page.getByRole('button', { name: 'Effacer les filtres' }).click();
+	await expect(page.locator('table a.name')).toHaveCount(total);
+
+	// Création guidée : nouvelle affaire chez un nouveau client.
+	await page.getByRole('button', { name: /Nouveau projet/ }).click();
+	await page
+		.getByRole('combobox', { name: /^Affaire/ })
+		.selectOption({ label: '+ Nouvelle affaire…' });
+	await page
+		.getByRole('combobox', { name: 'Client de l’affaire' })
+		.selectOption({ label: '+ Nouveau client…' });
+	await page.getByLabel('Nom du nouveau client').fill('Hôpital de Laon');
+	await page.getByLabel('N° WhySoft').fill('WS-E2E-2');
+	await page.getByLabel('Désignation de l’affaire').fill('Sous-station');
+	await page.getByLabel('Nom du projet').fill('Armoire sous-station');
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	expect(await evalEditor<string>(page, 'editor.project.meta.client')).toBe('Hôpital de Laon');
+	expect(await evalEditor<string>(page, 'editor.project.meta.whysoft')).toBe('WS-E2E-2');
+	await expect(page.locator('.status.saved')).toBeVisible();
+
+	// Fiche affaire : schémas, PDF, nouveau schéma dans l'affaire, statut.
+	await page.goto('/');
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('link', { name: 'WS-E2E-2 · Sous-station' }).click();
+	await expect(page).toHaveURL(/\/affaires\/aff/);
+	await page.waitForLoadState('networkidle');
+	await expect(page.getByRole('heading', { name: 'WS-E2E-2 · Sous-station' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Armoire sous-station' })).toBeVisible();
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'PDF du dossier' }).click();
+	expect((await download).suggestedFilename()).toMatch(/\.pdf$/);
+	await page.screenshot({ path: 'test-results/fiche-affaire.png' });
+	await page
+		.getByRole('button', { name: /Nouveau schéma/ })
+		.first()
+		.click();
+	await expect(page.getByRole('combobox', { name: /^Affaire/ })).toHaveValue(/^aff/);
+	await page.getByLabel('Nom du projet').fill('Armoire sous-station 2');
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	expect(await evalEditor<string>(page, 'editor.project.meta.whysoft')).toBe('WS-E2E-2');
+	await page.goBack();
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('table a.name')).toHaveCount(2);
+	await page.getByRole('combobox', { name: 'Statut de l’affaire' }).selectOption('terminee');
+	await expect(page.locator('.toolbar .status')).toHaveText('Terminée');
+	await page.goto('/');
+	await page.waitForLoadState('networkidle');
+	await page.screenshot({ path: 'test-results/projets-par-affaire.png' });
 });
