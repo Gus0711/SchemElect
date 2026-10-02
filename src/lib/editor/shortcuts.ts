@@ -89,6 +89,11 @@ export const SHORTCUTS: ShortcutGroup[] = [
 		items: [
 			{ keys: [['Ctrl', 'S']], label: 'Enregistrer tout de suite', hint: 'Sinon : automatique' },
 			{ keys: [['Ctrl', 'E']], label: 'Exporter (PDF, CSV)' },
+			{
+				keys: [['Ctrl', 'F']],
+				label: 'Rechercher dans le dossier',
+				hint: 'Repère, borne, n° de fil, référence, câble, folio ; Entrée : y aller'
+			},
 			{ keys: [['?'], ['F1']], label: 'Cette aide' }
 		]
 	},
@@ -96,6 +101,11 @@ export const SHORTCUTS: ShortcutGroup[] = [
 		title: 'Souris',
 		items: [
 			{ keys: [['Molette']], label: 'Zoom sur le curseur' },
+			{
+				keys: [['Double-clic onglet']],
+				label: 'Onglets de folios (en bas) : renommer',
+				hint: 'Glisser : réordonner · clic droit : dupliquer, supprimer · « + » : nouveau folio'
+			},
 			{ keys: [['Maj', 'Molette']], label: 'Défilement horizontal' },
 			{ keys: [['Clic droit']], label: 'Menu contextuel' },
 			{ keys: [['Clic droit glissé'], ['Clic milieu']], label: 'Déplacer la vue' },

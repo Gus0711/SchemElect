@@ -1,14 +1,18 @@
 /** Tout ce qui est calculé à partir du projet (jamais stocké). */
 import { analyzeCables, type CableAnalysis } from './cables';
 import { computeCrossRefs, type CrossRef } from './crossrefs';
-import { analyzeNets, type NetAnalysis } from './nets';
+import { analyzeNets, sectionLabel, type NetAnalysis } from './nets';
 import { computeStrips, type TerminalStrip } from './strips';
 import type { Id, Project } from './types';
 
 export interface WireStyle {
 	stroke?: string;
+	/** Couleur du fil (« Rouge ») à tracer à la place du tracé du potentiel. */
+	color?: string;
 	dashed?: boolean;
 	number?: string;
+	/** Section à afficher (« 1,5² »), selon le réglage d'affichage du dossier. */
+	section?: string;
 }
 
 export interface ProjectAnalysis {
@@ -22,9 +26,19 @@ export function analyzeProject(project: Project): ProjectAnalysis {
 	const nets = analyzeNets(project);
 	const potentials = new Map(project.potentials.map((p) => [p.id, p]));
 	const wireStyle = new Map<Id, WireStyle>();
+	const display = project.settings.sectionDisplay ?? 'all';
 	for (const [wireId, net] of nets.netOfWire) {
 		const pot = net.potentialId ? potentials.get(net.potentialId) : undefined;
-		wireStyle.set(wireId, { stroke: pot?.stroke, dashed: pot?.dashed, number: net.number });
+		const showSection =
+			!!net.section && (display === 'all' || (display === 'imposed' && !!net.sectionImposed));
+		wireStyle.set(wireId, {
+			stroke: pot?.stroke,
+			// Couleur imposée sur un fil ou par défaut du dossier : prime sur le tracé du potentiel.
+			color: net.color && (net.colorImposed || !pot) ? net.color : undefined,
+			dashed: pot?.dashed,
+			number: net.number,
+			section: showSection ? sectionLabel(net.section!) : undefined
+		});
 	}
 	return { nets, crossRefs: computeCrossRefs(project), wireStyle, cables: analyzeCables(project) };
 }

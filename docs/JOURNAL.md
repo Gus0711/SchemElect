@@ -11,6 +11,280 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-02 (suite 6) — Traçage des fils et couleur des fils
+
+**Fait** (retours de Gus : traçage peu naturel, accroche trop large) :
+- `routeWire` (`model/geometry.ts`, testé) : le fil **sort dans le sens de la borne** de
+  départ (au moins 5 mm avant le premier coude) et **arrive dans le sens de la borne** visée ;
+  des deux coudes possibles, celui qui ne revient pas en arrière et a le moins de coudes ;
+  Espace impose l'autre. Sans borne : comportement d'avant.
+- **Accroche des bornes limitée à 1,5 mm** (`TERMINAL_SNAP_MAX`), quel que soit le zoom :
+  entre deux bornes serrées d'un automate, on peut poser un point sur la grille sans
+  accrocher la voisine. Repères des bornes libres plus petits.
+- Outil Fil : le nom de la borne visée s'affiche près du curseur (« KM1 : A2 »).
+- **Couleur des fils** : `Wire.color` (imposée → toute l'équipotentielle, une seule par
+  équipotentielle), sinon couleur du potentiel, sinon couleur par défaut du dossier
+  (`settings.wireColor`, onglet « Numérotation, sections, couleurs ») ; palette `WIRE_COLORS`,
+  tracé dans `theme/schematic.ts` (`wireColors`) ; écran et PDF ; colonne Couleur de la
+  liste des fils (CSV). Choix dans l'inspecteur du fil (pastille + liste).
+
+- Symboles maison : boutons **Pivoter à gauche / à droite** (quart de tour de l'image,
+  `rotateImage` ; bornes déjà posées qui tournent avec, `rotateTerminals` testé ; annulable).
+
+- Symboles maison, **finesse du placement des bornes** : retour au placement libre au 0,1 mm
+  par défaut (la grille par défaut faisait sauter les bornes de 2,5 mm) ; calage sur les
+  bornes déjà posées (même hauteur / même aplomb à 4 px près, guide pointillé ;
+  `alignToTerminals` testé ; Alt : sans calage) ; **Maj + glisser** = déplacement 5 fois
+  plus fin ; une borne glissée ne saute plus sous le curseur (déplacement relatif).
+
+**Reste / idées** : tirer un fil depuis une borne sans changer d'outil, tracé en nappe
+(plusieurs fils parallèles), contournement automatique des symboles.
+
+## 2026-10-02 (suite 5) — Fenêtre « Nouveau symbole » repensée
+
+**Fait** (retour de Gus : fenêtre trop petite, fonctions peu simples) :
+- Fenêtre de travail presque plein écran (`Modal` : props `height` et `dismissible` — Échap
+  et clic à côté ne ferment plus une fenêtre de travail).
+- Zone de dessin qui remplit l'espace (vue calée sur les proportions de la zone, recadrage
+  au redimensionnement), boutons zoom − / + / voir tout ; zone d'accueil « Collez une
+  capture (Ctrl+V) / glissez une image / Choisir une image / Bloc sans image ».
+- Barre d'outils unique : image (changer, sans image), outils Bornes / Rogner / Gommer
+  (touches B / R / G, Échap = retour aux bornes), fond transparent, Annuler.
+- **Annuler / Ctrl+Z pour tout** (bornes posées, déplacées, supprimées, réparties, taille,
+  retouches d'image), pas seulement les retouches.
+- **Nommage automatique des bornes** (`expandNames`, `nextTerminalName`, testés) : liste
+  « Noms des prochaines bornes » (« 24V, 0V, IP1..IP8 »), chaque clic prend la suivante,
+  sinon la précédente + 1 ; le nom du prochain clic est affiché dans l'aide. Le même champ
+  sert à « Répartir » une rangée sur un côté.
+- Panneau de droite en sections (Identité, Taille, Bornes) ; la liste des bornes occupe
+  toute la hauteur restante.
+
+## 2026-10-02 (suite 4) — Organisation des dossiers, étape 3 : page Projets
+
+**Fait** :
+- `model/projectTree.ts` (testé) : arbre Client › Affaire › Schémas, filtres client / année
+  / statut / « Non classé », recherche (nom, n° WhySoft, client, désignation), années.
+- Page **Projets** : vue « Par affaire » (clients repliables, affaires avec statut et « + »
+  pour un nouveau schéma, groupe « Non classé ») ou « Récents » (à plat, mémorisée), filtres,
+  compteur, PDF d'un schéma depuis la liste.
+- **Création guidée** : 1. affaire (existante, nouvelle avec au besoin nouveau client, ou non
+  classé) ; 2. schéma (nom, n° de plan, modèle) ; bouton « Créer et ouvrir ».
+- **Fiche affaire** (`/affaires/[id]`, lien depuis la page Projets et la page Affaires) :
+  infos, statut modifiable, schémas, PDF par schéma et « Tous les PDF », duplication vers
+  cette affaire ou une autre, nouveau schéma dans l'affaire.
+
+**Reste / suite** : étape 4 (connecteur ERP, attend la doc de l'API). Idées : PDF unique
+de toute l'affaire (fusion), comparaison de deux versions.
+
+**Pièges / à savoir** : la fenêtre « Nouveau projet » poste vers `/?/create` depuis
+n'importe quelle page (gestion du résultat dans le composant : redirection → `goto`).
+Tests e2e : deux liens « Affaires » sur la page Projets (menu + aide) → viser
+`getByRole('navigation')` ; les libellés de `Field` incluent l'aide (`name: /^Affaire/`).
+
+## 2026-10-02 (suite 3) — Organisation des dossiers, étape 2 : clients et affaires
+
+**Fait** :
+- Modèle `model/affaires.ts` (testé) : client, affaire (= 1 n° WhySoft, client, n° d'affaire
+  du cartouche facultatif, désignation, année, statut en cours / terminée / archivée),
+  `applyAffaire` (cartouche imposé), `planClassification` (reprise de l'existant).
+- Base : tables `clients`, `affaires`, colonne `projects.affaire_id` (migration testée).
+  `meta.whysoft` / `meta.affaireId` dans le document ; champ de cartouche `{whysoft}`.
+- Serveur : rattachement résolu à l'ouverture et à chaque enregistrement (le cartouche suit
+  l'affaire : client renommé, n° WhySoft corrigé) ; n° WhySoft unique par société ;
+  suppression refusée si client / affaire utilisés.
+- Page **Affaires** (menu du haut) : onglets Affaires / Clients, recherche, filtres statut /
+  année, schémas de chaque affaire, saisie (utilisateur et administrateur ; lecteur en
+  consultation), bandeau « N schémas non classés » et **Classer l'existant** (administrateur).
+- Rattachement d'un schéma : à la création (liste des projets), dans Propriétés du dossier
+  (« Non classé » possible ; champs imposés grisés), à la duplication. Liste des projets :
+  colonne Affaire (n° WhySoft + client), recherche par WhySoft / client.
+
+**Reste / suite** : étape 3 (page Projets : arborescence Client › Affaire › Schémas, filtres
+année / client / statut / récents, création guidée, fiche affaire avec PDF) ; étape 4
+(connecteur ERP, attend la doc de l'API — prévu : `source = 'erp'`, `external_id`).
+
+**Pièges / à savoir** : le rattachement est dans le document (`meta.affaireId`) et recopié
+dans `projects.affaire_id` à chaque enregistrement ; « Classer l'existant » saute les dossiers
+verrouillés (sinon leur prochain enregistrement effacerait le rattachement). Une restauration
+de version garde l'affaire actuelle.
+
+## 2026-10-02 (suite 2) — Organisation des dossiers, étape 1 : sociétés et rôles
+
+**Décisions** (voir `ROADMAP.md` § Organisation des dossiers) : Société → Client → Affaire
+(= 1 n° WhySoft) → Schémas ; rôles super-admin / admin / utilisateur / lecteur ; clients et
+affaires de Dumortier issus plus tard de l'API de l'ERP ; multi-société préparé maintenant.
+
+**Fait** :
+- Table `organizations`, `organization_id` sur toutes les données ; migration testée (base
+  existante → « Dumortier », 1er administrateur → super-administrateur) ; `/setup` crée la
+  1re société.
+- Cloisonnement : toutes les routes filtrent par société (dossiers, versions, macros,
+  symboles maison, modèles, catalogue) ; un dossier d'une autre société répond 404.
+- **Lecteur** : lecture seule partout (éditeur sans verrou ni sauvegarde, « Lecture seule
+  (compte lecteur) », actions de création / modification masquées, serveur en 403).
+- Page **Utilisateurs** : 4 rôles avec explication, rôle modifiable dans la liste, dernier
+  administrateur protégé. Page **Sociétés** (super-admin) : créer une société et son
+  administrateur, renommer, entrer ; sélecteur de société dans l'en-tête. **Sauvegardes**
+  réservées au super-administrateur (la base contient toutes les sociétés).
+- Tests : 453 unitaires + 17 parcours e2e (nouveau : rôles et sociétés).
+
+**Reste / suite** : étape 2 (clients et affaires), étape 3 (page Projets), étape 4
+(connecteur ERP, attend la documentation de l'API).
+
+**Pièges / à savoir** : identifiants de connexion uniques sur toute la plateforme. Toute
+nouvelle table de données doit avoir `organization_id` (ajout dans `ORG_TABLES` de
+`migrate.ts`) et être filtrée par société.
+
+---
+
+## 2026-10-02 (suite) — Symboles favoris, format des numéros de fils
+
+**Fait** (retenus après comparaison avec WinRelais / Schemaplic ; mis de côté :
+surlignage d'équipotentielle, caractéristiques techniques par famille, vignettes) :
+- **Symboles favoris** : barre en haut du panneau Symboles (12 symboles par défaut : contacts,
+  bobines, voyant, BP, disjoncteur 2P, bornes, renvois, terre), étoile au survol de chaque
+  symbole, clic droit, glisser pour ranger ; mémorisés **par utilisateur** sur le serveur
+  (table `user_prefs`, API `/api/prefs/favoriteSymbols`).
+- **Format des numéros de fils** (Propriétés › Numérotation et sections) : séquentiel,
+  `{F}/{N}`, `F{F}/{N}` (WinRelais), `{F}{N}`, `{F}{C}{N}` ou modèle personnalisé, avec
+  aperçu. Par folio : insérer un folio ne renumérote plus les autres.
+- Tests : 448 unitaires + 16 parcours e2e.
+
+---
+
+## 2026-10-02 — Nouvelle disposition de l'éditeur
+
+**Décisions de l'utilisateur** : folios en onglets en bas ; Symboles et Macros restent
+distincts ; colonne d'icônes à gauche ; menu « Dossier ».
+
+**Fait** :
+- **Onglets de folios** sous le dessin (`FolioTabs`) : clic, double-clic pour renommer,
+  glisser-déposer pour réordonner, clic droit (renommer, dupliquer, déplacer, supprimer),
+  « + » pour un nouveau folio (schéma, implantation, façade, borniers). L'ancien onglet
+  « Folios » et `FolioList` sont supprimés.
+- **Colonne d'icônes** à gauche : Symboles (« À placer » sur un folio d'armoire), Macros,
+  Appareils, **Contrôles** (déplacés depuis l'inspecteur, badge rouge = nombre de
+  problèmes) ; clic sur l'icône active = replier le panneau.
+- **Menu Dossier** : propriétés, historique, borniers, nomenclature et liste de commande,
+  dupliquer, exporter. Restent visibles : Rechercher, thème, Exporter.
+- Contrôles calculés dans `model/checks.ts` (testé) ; `Editor.issues`.
+- Tests : 440 unitaires + 15 parcours e2e (nouveau : disposition).
+
+---
+
+## 2026-10-01 (suite 3) — Liste de commande complète
+
+**Fait** :
+- **Liste de commande par fabricant** (onglet de la fenêtre Nomenclature, CSV, pages PDF en
+  option) : appareils et bornes + accessoires ; **matériel d'armoire** calculé depuis
+  l'implantation (enveloppe, rails en barres de 2 m, goulottes en mètres par dimension, 2
+  butées + 1 flasque par bornier) avec leurs références saisissables (catalogue) ;
+  **câbles** regroupés par référence / désignation, longueur saisie sur chaque câble
+  (inspecteur : Longueur (m), Référence), câbles sans longueur signalés ; **lignes libres**
+  (presse-étoupes, visserie…). Pas de prix.
+- Correctif : `(x ??= {})[k] = …` sur l'état Svelte modifiait l'objet brut (fiches catalogue
+  recopiées dans un dossier neuf, lignes libres) — remplacé partout.
+- Tests : 439 unitaires + 14 parcours e2e.
+
+**Reste / suite** : retours de l'utilisateur après test. Idées : section dans les borniers,
+comparaison de deux versions, export .xlsx natif.
+
+---
+
+## 2026-10-01 (suite 2) — Section des fils, accessoires liés
+
+**Fait** :
+- **Section des fils** (mm²) : par potentiel (onglet Potentiels), par défaut pour les fils
+  hors potentiel, ou imposée sur un fil (inspecteur, s'applique à l'équipotentielle).
+  Affichée sur le dessin en petit, du côté opposé au numéro (évite les chevauchements entre
+  fils voisins) ; affichage réglable (toutes / imposées / aucune) dans Propriétés ›
+  Numérotation et sections. Liste des fils CSV : colonne Section.
+- **Accessoires liés** dans le catalogue (embase de relais, bloc additif…) : champ
+  « Accessoires » de la fiche et colonne CSV ; ajoutés automatiquement à la nomenclature.
+  Catalogue de départ : embases Zelio RXZE2S108M / RXZE2S114M, support Finder 95.05, liés aux
+  relais (à vérifier).
+- Correctif : boucle d'effets Svelte (`effect_update_depth_exceeded`) à l'ouverture de
+  Propriétés du dossier (relecture de `meta` dans l'effet) — la page pouvait se figer.
+- Tests : 434 unitaires + 14 parcours e2e.
+
+**Reste / suite** (nomenclature de commande, dans l'ordre convenu) : matériel d'armoire
+calculé (rails, goulottes, butées), câbles par type / section, lignes libres, sortie groupée
+par fabricant. Pas de prix. Section dans les borniers : à voir.
+
+**Pièges / à savoir** : un catalogue de départ déjà importé n'est pas modifié par
+« Importer le catalogue de départ » (seules les fiches manquantes sont ajoutées) : lier les
+accessoires à la main sur les fiches existantes.
+
+---
+
+## 2026-10-01 (suite) — Historique des versions et duplication
+
+**Décisions de l'utilisateur** : versions automatiques (15 min de travail + fermeture ;
+48 h complètes puis 1 par jour pendant 30 jours), versions nommées sans limite, version
+automatique à chaque nouvel indice ; restauration ouverte à l'administrateur **et aux
+intervenants du dossier** ; mode de duplication pour une nouvelle affaire.
+
+**Fait** :
+- Table `project_versions` (document compressé), règles pures `model/versions.ts`, stockage
+  `server/versions.ts`, API versions / restauration / duplication.
+- Bouton **Historique** : enregistrer une version commentée, liste (nommées surlignées,
+  auteur, nb de folios / appareils), **Voir** (lecture seule, PDF de la version, nouveau
+  dossier à partir de la version), **Restaurer** (l'état actuel est d'abord gardé en
+  « Avant restauration… », donc annulable), dupliquer.
+- **Dupliquer** (liste des projets, historique, consultation) : nom, n° d'affaire, n° de
+  plan, client, « repartir sans indice » ; la copie s'ouvre, son historique repart de zéro.
+- Tests : 429 unitaires + 14 parcours e2e.
+
+**Reste / suite** : comparaison de deux versions (liste des écarts) ; éventuellement
+suppression d'une version nommée par l'administrateur.
+
+**Pièges / à savoir** : les libellés générés côté serveur (« Avant restauration de la version
+du … ») sont en heure de Paris (`Europe/Paris`), la liste en heure du navigateur. Les dossiers
+existants n'ont pas d'historique avant leur premier enregistrement.
+
+---
+
+## 2026-10-01 — Panneau Appareils, recherche Ctrl+F, catalogue matériel, nomenclature
+
+**Contexte** : l'application est déployée sur le serveur interne ; V.R a quitté la société
+(l'utilisateur teste, puis un collègue). `CLAUDE.md` et la feuille de route mis à jour.
+
+**Fait** :
+- **Panneau « Appareils »** (onglet de la barre latérale ; sur un folio d'armoire l'ancien
+  onglet « Appareils » s'appelle maintenant « À placer ») : tous les repères groupés par
+  famille, recherche, filtres « Sans réf. » / « Contacts » (dépassement), bornes en option,
+  clic = aller au symbole principal + liste des emplacements cliquables, bouton
+  « Nomenclature » (aperçu + CSV).
+- **Recherche Ctrl+F** (et bouton « Rechercher ») : repères, références, désignations,
+  n° de fils, bornes, câbles, folios (titre ou numéro), textes ; ↑ ↓ Entrée.
+- **Catalogue matériel** : page `/catalogue` (lien dans l'en-tête), fiche (référence,
+  fabricant, désignation, catégorie, contacts NO/NC, L × H, montage, remarque), import CSV
+  (colonnes reconnues en FR/EN, séparateur détecté, même référence = mise à jour), export CSV,
+  modèle de fichier. **Catalogue de départ** (bouton) : ~54 fiches — TeSys K/D, GV2ME, Acti9
+  iC60N / iID, relais Zelio / Finder, Phaseo, Harmony XB5, bornes Phoenix + 5 références
+  relevées dans le dossier DW261136 (le `.xrs` n'en contient que 5). Toutes marquées
+  « à vérifier ».
+- **Dans l'éditeur** : la référence se choisit dans le catalogue (liste déroulante,
+  casse / espaces indifférents) ; la fiche est recopiée dans le projet, le fabricant repris ;
+  « ajouter au catalogue » si la référence est inconnue. Contacts disponibles et
+  encombrement déduits de la fiche (alerte de contacts, implantation). Fiches transportées
+  par copier / coller et macros.
+- **Nomenclature par référence** : CSV + pages « NOMENCLATURE » en fin de PDF (option).
+- Tests : 420 unitaires + 13 parcours e2e (nouveau : catalogue → Appareils → Ctrl+F → PDF).
+
+**Reste / suite** :
+1. Test par l'utilisateur sur le serveur ; vérifier / corriger le catalogue de départ.
+2. Historique par indice de révision : **à discuter** avant de coder.
+3. Éventuel : référence affichée sur le symbole depuis la fiche, export .xlsx.
+
+**Pièges / à savoir** :
+- Session cloud Linux : pas d'Edge → e2e avec une config hors dépôt (sans `channel`,
+  `executablePath: '/opt/pw-browsers/chromium'`). Au tout premier lancement, l'export PDF du
+  1er parcours peut dépasser le délai (Vite optimise jsPDF et recharge la page) : relancer.
+- `Project.catalog` est repris dans `migrateProject` (fiches normalisées).
+
+---
+
 ## 2026-09-29 (suite 8) — Folio borniers automatique (dessin)
 
 **Fait** : nouveau type de folio (« + Folio » › Folio borniers) : dessin calculé des borniers

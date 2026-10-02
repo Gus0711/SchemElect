@@ -1,16 +1,16 @@
 import { json } from '@sveltejs/kit';
-import { requireUser } from '$lib/server/guards';
+import { requireEditor, requireUser } from '$lib/server/guards';
 import { insertMacro, listMacros } from '$lib/server/projects';
 import type { Fragment } from '$lib/model/fragments';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals }) => {
-	requireUser(locals);
-	return json(await listMacros());
+	const user = requireUser(locals);
+	return json(await listMacros(user.organizationId));
 };
 
 export const POST: RequestHandler = async ({ locals, request }) => {
-	const user = requireUser(locals);
+	const user = requireEditor(locals);
 	let body: { name?: unknown; category?: unknown; data?: unknown };
 	try {
 		body = await request.json();
@@ -29,6 +29,6 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	) {
 		return json({ error: 'Fragment invalide' }, { status: 400 });
 	}
-	const macro = await insertMacro({ name, category, data }, user.id);
+	const macro = await insertMacro({ name, category, data }, user.id, user.organizationId);
 	return json(macro, { status: 201 });
 };

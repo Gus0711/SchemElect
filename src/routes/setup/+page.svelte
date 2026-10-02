@@ -12,7 +12,7 @@
 
 <AuthLayout
 	title="Premier lancement"
-	subtitle="Créez le compte administrateur. Il permettra ensuite de créer les autres comptes."
+	subtitle="Créez votre société et le compte super-administrateur. Il permettra ensuite de créer les autres comptes (et d’autres sociétés)."
 >
 	<form
 		method="POST"
@@ -24,6 +24,12 @@
 			};
 		}}
 	>
+		<Field
+			label="Société"
+			name="organization"
+			value={form?.organization ?? ''}
+			placeholder="Dumortier"
+		/>
 		<Field
 			label="Identifiant"
 			name="login"

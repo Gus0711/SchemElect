@@ -4,7 +4,17 @@ import { addSymbol, addWire } from '$lib/model/edit';
 import { extractFragment, insertFragment } from '$lib/model/fragments';
 import { createProject } from '$lib/model/project';
 import { symbolTerminals } from '$lib/model/symbolGeometry';
-import { buildCustomSymbol, nearestSide, specOf, spreadTerminals } from './custom';
+import {
+	alignToTerminals,
+	buildCustomSymbol,
+	expandNames,
+	nearestSide,
+	nextTerminalName,
+	rotateTerminals,
+	specOf,
+	spreadTerminals,
+	type CustomTerminalSpec
+} from './custom';
 import { registerCustomSymbols } from './index';
 
 const spec = {
@@ -37,6 +47,50 @@ describe('symboles maison', () => {
 	it('magnétise sur la grille si demandé', () => {
 		const def = buildCustomSymbol({ ...spec, snapToGrid: true });
 		expect(def.terminals[0]).toMatchObject({ x: 2.5, y: 5 });
+	});
+
+	it('noms de bornes : listes, plages, suivante', () => {
+		expect(expandNames('24V, 0V; IP1..IP3\n 1..2 , ')).toEqual([
+			'24V',
+			'0V',
+			'IP1',
+			'IP2',
+			'IP3',
+			'1',
+			'2'
+		]);
+		expect(expandNames('DO3..1')).toEqual(['DO3', 'DO2', 'DO1']);
+		expect(expandNames('UI08..UI10')).toEqual(['UI08', 'UI09', 'UI10']);
+		expect(expandNames('A..B')).toEqual(['A..B']);
+		expect(nextTerminalName([])).toBe('1');
+		expect(nextTerminalName(['24V', 'IP3'])).toBe('IP4');
+		expect(nextTerminalName(['09'])).toBe('10');
+		expect(nextTerminalName(['COM'])).toBe('2');
+	});
+
+	it('pivote les bornes avec l’image (quart de tour)', () => {
+		const t: CustomTerminalSpec[] = [{ id: '1', x: 10, y: 0, dir: 'n' }];
+		// Corps 40 × 30 : la borne du haut passe à droite (horaire) ou à gauche (anti-horaire).
+		expect(rotateTerminals(t, 40, 30, true)).toEqual([{ id: '1', x: 30, y: 10, dir: 'e' }]);
+		expect(rotateTerminals(t, 40, 30, false)).toEqual([{ id: '1', x: 0, y: 30, dir: 'w' }]);
+		// Quatre quarts de tour : retour au départ.
+		let r = t;
+		let [w, h] = [40, 30];
+		for (let i = 0; i < 4; i++) {
+			r = rotateTerminals(r, w, h, true);
+			[w, h] = [h, w];
+		}
+		expect(r).toEqual(t);
+	});
+
+	it('aligne une borne sur la rangée voisine', () => {
+		const row = [
+			{ x: 10, y: 5 },
+			{ x: 14, y: 5 }
+		];
+		expect(alignToTerminals({ x: 18.2, y: 5.3 }, row, 0.5)).toEqual({ x: 18.2, y: 5, guideY: 5 });
+		expect(alignToTerminals({ x: 14.2, y: 20 }, row, 0.5)).toEqual({ x: 14, y: 20, guideX: 14 });
+		expect(alignToTerminals({ x: 30, y: 30 }, row, 0.5)).toEqual({ x: 30, y: 30 });
 	});
 
 	it('déduit la sortie du fil du bord le plus proche', () => {

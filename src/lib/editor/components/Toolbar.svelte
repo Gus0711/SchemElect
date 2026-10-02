@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { Button, ThemeToggle } from '$lib/ui';
+	import { Button, ContextMenu, ThemeToggle } from '$lib/ui';
 	import {
 		ArrowLeft,
-		Cable,
 		Check,
+		ChevronDown,
 		Ellipse,
 		FileDown,
+		FolderCog,
 		LoaderCircle,
 		Lock,
 		Maximize,
@@ -14,7 +15,7 @@
 		RectangleVertical,
 		SeparatorHorizontal,
 		Redo2,
-		Settings,
+		Search,
 		Spline,
 		Square,
 		TriangleAlert,
@@ -31,14 +32,30 @@
 		session,
 		onproject,
 		onstrips,
-		onexport
+		onexport,
+		onhistory,
+		onnomenclature,
+		onduplicate
 	}: {
 		editor: Editor;
 		session: EditSession;
 		onproject: () => void;
 		onstrips: () => void;
 		onexport: () => void;
+		/** Historique du dossier (absent : consultation d'une version). */
+		onhistory?: () => void;
+		onnomenclature: () => void;
+		/** Dupliquer le dossier (absent : consultation d'une version, qui a son propre bouton). */
+		onduplicate?: () => void;
 	} = $props();
+
+	/** Menu « Dossier » ouvert sous son bouton. */
+	let dossierMenu: { x: number; y: number } | null = $state(null);
+
+	function openDossierMenu(e: MouseEvent) {
+		const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		dossierMenu = { x: r.left, y: r.bottom + 2 };
+	}
 
 	const tool = $derived(editor.tool.kind);
 	const vp = $derived(editor.viewport);
@@ -50,7 +67,9 @@
 			pending: 'Modifications…',
 			saving: 'Enregistrement…',
 			error: session.error || 'Erreur',
-			readonly: `Lecture seule — ouvert par ${session.lock?.userName ?? 'un autre utilisateur'}`
+			readonly: `Lecture seule — ouvert par ${session.lock?.userName ?? 'un autre utilisateur'}`,
+			archive: 'Version archivée — lecture seule',
+			viewer: 'Lecture seule (compte lecteur)'
 		}[session.status]
 	);
 </script>
@@ -68,7 +87,9 @@
 				class="spin"
 			/>
 		{:else if session.status === 'error'}<TriangleAlert size={14} />
-		{:else if session.status === 'readonly'}<Lock size={14} />
+		{:else if session.status === 'readonly' || session.status === 'archive' || session.status === 'viewer'}<Lock
+				size={14}
+			/>
 		{:else}<Check size={14} />{/if}
 		<span class="label">{statusText}</span>
 	</span>
@@ -196,15 +217,39 @@
 
 	<div class="sep"></div>
 
-	<Button variant="ghost" size="sm" title="Borniers" onclick={onstrips}
-		><Cable size={16} /> Borniers</Button
+	<Button
+		variant="ghost"
+		size="sm"
+		title="Rechercher dans le dossier (Ctrl+F) : repère, n° de fil, borne, référence…"
+		onclick={() => (editor.searchOpen = true)}><Search size={16} /> Rechercher</Button
+	>
+	<Button
+		variant="ghost"
+		size="sm"
+		title="Dossier : propriétés, historique, borniers, nomenclature, duplication"
+		aria-haspopup="menu"
+		onclick={openDossierMenu}><FolderCog size={16} /> Dossier <ChevronDown size={14} /></Button
 	>
 	<ThemeToggle size="sm" />
-	<Button variant="ghost" size="sm" title="Propriétés du dossier" onclick={onproject}
-		><Settings size={16} /></Button
-	>
 	<Button variant="primary" size="sm" onclick={onexport}><FileDown size={16} /> Exporter</Button>
 </header>
+
+{#if dossierMenu}
+	<ContextMenu
+		x={dossierMenu.x}
+		y={dossierMenu.y}
+		onclose={() => (dossierMenu = null)}
+		items={[
+			{ label: 'Propriétés du dossier…', action: onproject },
+			...(onhistory ? [{ label: 'Historique des versions…', action: onhistory }] : []),
+			{ label: 'Borniers…', action: onstrips },
+			{ label: 'Nomenclature et liste de commande…', action: onnomenclature },
+			{ separator: true },
+			...(onduplicate ? [{ label: 'Dupliquer le dossier…', action: onduplicate }] : []),
+			{ label: 'Exporter (PDF, CSV)…', action: onexport, shortcut: 'Ctrl+E' }
+		]}
+	/>
+{/if}
 
 <style>
 	.toolbar {
@@ -251,7 +296,9 @@
 	.status.error {
 		color: var(--c-danger);
 	}
-	.status.readonly {
+	.status.readonly,
+	.status.archive,
+	.status.viewer {
 		color: var(--c-warning);
 	}
 	.status :global(.spin) {

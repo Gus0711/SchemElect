@@ -3,6 +3,6 @@ import { listTemplates } from '$lib/server/templates';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	requireUser(locals);
-	return { templates: await listTemplates() };
+	const user = requireUser(locals);
+	return { templates: await listTemplates(user.organizationId) };
 };

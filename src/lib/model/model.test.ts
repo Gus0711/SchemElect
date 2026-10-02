@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { analyzeProject } from './analysis';
+import { projectIssues } from './checks';
 import {
 	addBar,
 	addSymbol,
@@ -12,7 +13,7 @@ import {
 } from './edit';
 import { duplicateFolio, extractFragment, insertFragment } from './fragments';
 import { folioRef } from './layout';
-import { createProject } from './project';
+import { createFolio, createProject } from './project';
 import { symbolTerminals } from './symbolGeometry';
 import { nextFreeTag, parseTag } from './tags';
 
@@ -260,5 +261,144 @@ describe('navigation entre renvois', () => {
 		setSymbolTag(project, c, project.devices[coil.deviceId].tag);
 		expect(crossTargets(project, c.id).map((t) => t.symbolId)).toEqual([coil.id]);
 		expect(crossTargets(project, coil.id).map((t) => t.kind)).toEqual(['contact']);
+	});
+});
+
+describe('sections des fils', () => {
+	it('fil imposé > potentiel > défaut du dossier ; affichage réglable', () => {
+		const project = createProject('Sections');
+		const folio = project.folios[0];
+		addBar(folio, 'L1', 30);
+		const h = addSymbol(project, folio, 'voyant', { x: 100, y: 60 });
+		const [x1, x2] = symbolTerminals(h);
+		const pw = addWire(folio, [{ x: 100, y: 30 }, x1])!;
+		const cw = addWire(folio, [x2, { x: 100, y: 100 }])!;
+
+		// Rien de réglé : pas de section.
+		let a = analyzeProject(project);
+		expect(a.wireStyle.get(cw.id)?.section).toBeUndefined();
+
+		project.settings.wireSection = '0.75';
+		project.potentials.find((p) => p.id === 'L1')!.section = '2,5';
+		a = analyzeProject(project);
+		expect(a.nets.netOfWire.get(pw.id)?.section).toBe('2,5');
+		expect(a.wireStyle.get(pw.id)?.section).toBe('2,5²');
+		expect(a.wireStyle.get(cw.id)?.section).toBe('0,75²');
+		expect(a.nets.netOfWire.get(cw.id)?.sectionImposed).toBe(false);
+
+		// Section imposée sur un fil : toute l'équipotentielle.
+		cw.section = '1,5';
+		project.settings.sectionDisplay = 'imposed';
+		a = analyzeProject(project);
+		expect(a.wireStyle.get(cw.id)?.section).toBe('1,5²');
+		expect(a.wireStyle.get(pw.id)?.section).toBeUndefined();
+
+		project.settings.sectionDisplay = 'none';
+		expect(analyzeProject(project).wireStyle.get(cw.id)?.section).toBeUndefined();
+		// Texte libre conservé tel quel.
+		cw.section = '2x1,5';
+		project.settings.sectionDisplay = 'all';
+		expect(analyzeProject(project).wireStyle.get(cw.id)?.section).toBe('2x1,5');
+	});
+});
+
+describe('couleurs des fils', () => {
+	it('fil imposé > potentiel > défaut du dossier ; tracé de la couleur', () => {
+		const project = createProject('Couleurs');
+		const folio = project.folios[0];
+		addBar(folio, 'L1', 30);
+		const h = addSymbol(project, folio, 'voyant', { x: 100, y: 60 });
+		const [x1, x2] = symbolTerminals(h);
+		const pw = addWire(folio, [{ x: 100, y: 30 }, x1])!;
+		const cw = addWire(folio, [x2, { x: 100, y: 100 }])!;
+		const cw2 = addWire(folio, [
+			{ x: 100, y: 100 },
+			{ x: 140, y: 100 }
+		])!;
+
+		let a = analyzeProject(project);
+		// Potentiel : sa couleur de fil, tracé du potentiel.
+		expect(a.nets.netOfWire.get(pw.id)?.color).toBe('Marron');
+		expect(a.wireStyle.get(pw.id)?.color).toBeUndefined();
+		expect(a.nets.netOfWire.get(cw.id)?.color).toBeUndefined();
+
+		project.settings.wireColor = 'Rouge';
+		a = analyzeProject(project);
+		expect(a.wireStyle.get(cw.id)?.color).toBe('Rouge');
+		expect(a.wireStyle.get(cw2.id)?.color).toBe('Rouge');
+
+		// Imposée sur un fil : toute l'équipotentielle, même un fil de potentiel.
+		cw2.color = 'Bleu clair';
+		pw.color = 'Noir';
+		a = analyzeProject(project);
+		expect(a.wireStyle.get(cw.id)?.color).toBe('Bleu clair');
+		expect(a.nets.netOfWire.get(cw.id)?.colorImposed).toBe(true);
+		expect(a.wireStyle.get(pw.id)?.color).toBe('Noir');
+	});
+});
+
+describe('contrôles du dossier', () => {
+	it('signale les bornes non raccordées et les renvois orphelins', () => {
+		const project = createProject('Contrôles');
+		const folio = project.folios[0];
+		expect(projectIssues(project, analyzeProject(project))).toEqual([]);
+		addSymbol(project, folio, 'voyant', { x: 100, y: 60 });
+		addSymbol(project, folio, 'renvoi-sortie', { x: 200, y: 60 });
+		const texts = projectIssues(project, analyzeProject(project)).map((i) => i.text);
+		expect(texts.some((t) => /borne\(s\) non raccordée/.test(t))).toBe(true);
+		expect(texts.some((t) => /sans correspondance/.test(t))).toBe(true);
+	});
+});
+
+describe('format des numéros de fils', () => {
+	/** Deux folios avec chacun deux fils libres (équipotentielles numérotées). */
+	function twoFolios() {
+		const project = createProject('Numéros');
+		const f1 = project.folios[0];
+		const f2 = createFolio('F2');
+		project.folios.push(f2);
+		const w = (f: typeof f1, x: number) =>
+			addWire(f, [
+				{ x, y: 50 },
+				{ x, y: 80 }
+			])!;
+		return {
+			project,
+			wires: [w(f1, 60), w(f1, 200), w(f2, 60), w(f2, 200)]
+		};
+	}
+	const numbers = (p: ReturnType<typeof twoFolios>) => {
+		const a = analyzeProject(p.project);
+		return p.wires.map((w) => a.nets.netOfWire.get(w.id)?.number);
+	};
+
+	it('séquentiel par défaut', () => {
+		expect(numbers(twoFolios())).toEqual(['01', '02', '03', '04']);
+	});
+
+	it('par folio : le compteur repart à chaque folio', () => {
+		const t = twoFolios();
+		t.project.settings.wireNumberTemplate = 'F{F}/{N}';
+		expect(numbers(t)).toEqual(['F01/01', 'F01/02', 'F02/01', 'F02/02']);
+		t.project.settings.wireNumberTemplate = '{F}{N}';
+		expect(numbers(t)).toEqual(['0101', '0102', '0201', '0202']);
+	});
+
+	it('par folio et colonne', () => {
+		const t = twoFolios();
+		t.project.settings.wireNumberTemplate = '{F}{C}{N}';
+		t.project.settings.wireNumberDigits = 1;
+		const [a, b, c] = numbers(t);
+		expect(a).toMatch(/^01[A-Q]1$/);
+		expect(b).toMatch(/^01[A-Q]1$/);
+		expect(a).not.toBe(b);
+		expect(c).toBe(a!.replace(/^01/, '02'));
+	});
+
+	it('un numéro imposé n’est jamais redonné', () => {
+		const t = twoFolios();
+		t.project.settings.wireNumberTemplate = '{F}/{N}';
+		t.wires[3].numberOverride = '01/01';
+		expect(numbers(t)).toEqual(['01/02', '01/03', '02/01', '01/01']);
 	});
 });

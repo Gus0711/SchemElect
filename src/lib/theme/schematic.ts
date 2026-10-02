@@ -29,7 +29,23 @@ export const schematic = {
 		cable: '#111111',
 		cableColors: '#111111',
 		/** Câble plein (plus de fils que de conducteurs) — éditeur seulement. */
-		cableOverflow: '#e0001a'
+		cableOverflow: '#e0001a',
+		/** Tracé d'un fil selon sa couleur (`WIRE_COLORS`) ; blanc en gris clair sur le papier. */
+		wireColors: {
+			Noir: '#1a1a1a',
+			Marron: '#8a4b16',
+			Rouge: '#e0241b',
+			Orange: '#f07c00',
+			Jaune: '#d9b200',
+			Vert: '#2e9e3c',
+			Bleu: '#1f4fe0',
+			'Bleu clair': '#4aa3e0',
+			Violet: '#a24bc8',
+			Gris: '#8a8a8a',
+			Blanc: '#bdbdbd',
+			Rose: '#e66aa8',
+			'Vert/Jaune': '#2e9e3c'
+		} as Record<string, string>
 	},
 
 	stroke: {

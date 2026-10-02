@@ -82,6 +82,7 @@ export interface FieldContext {
 export const BUILTIN_FIELDS: { key: string; label: string }[] = [
 	{ key: 'nom', label: 'Nom du projet' },
 	{ key: 'affaire', label: 'N° d’affaire' },
+	{ key: 'whysoft', label: 'N° WhySoft' },
 	{ key: 'plan', label: 'N° de plan' },
 	{ key: 'client', label: 'Client / site' },
 	{ key: 'dessinateur', label: 'Dessinateur' },
@@ -110,6 +111,8 @@ export function fieldValue(project: Project, key: string, ctx: FieldContext = {}
 			return m.name;
 		case 'affaire':
 			return m.affaireNumber;
+		case 'whysoft':
+			return m.whysoft ?? '';
 		case 'plan':
 			return m.planNumber;
 		case 'client':

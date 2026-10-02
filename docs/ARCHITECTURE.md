@@ -30,6 +30,7 @@ ADR-001 bis).
 | `Project` | `meta` (cartouche), `revisions`, `potentials`, `devices` (map id → Device), `folios`, `settings` |
 | `Folio` | `symbols`, `wires`, `bars`, `texts`, `rects`, `cables` |
 | `Device` | appareil physique : `tag` (KM1), valeur, désignation, référence, fabricant |
+| `CatalogItem` | fiche du catalogue matériel (référence, fabricant, désignation, contacts, encombrement, montage) ; le projet garde une copie des fiches utilisées (`Project.catalog`, clé `referenceKey`) |
 | `SymbolInstance` | symbole posé : `defId`, `deviceId`, position, rotation, miroir |
 | `Wire` | polyligne orthogonale ; `numberOverride` optionnel |
 | `Bar` | barre de potentiel horizontale |
@@ -46,6 +47,16 @@ Format versionné (`schemaVersion`) ; toute lecture passe par `migrateProject`.
 - **Connectivité géométrique** (`nets.ts`) : une extrémité de fil connecte ce qu'elle touche
   (borne, fil, barre). Bornes pontées d'un symbole (`bridges`), renvois de même repère et
   barres de même potentiel relient entre folios. Union-find.
+- **Sections des fils** (`sectionNets` dans `nets.ts`) : par équipotentielle — section
+  imposée sur un fil (`Wire.section`) > section du potentiel (`Potential.section`) > section
+  par défaut du dossier (`settings.wireSection`, fils hors potentiel). Affichage réglable
+  (`settings.sectionDisplay` : toutes / imposées / aucune) : `WireStyle.section`, dessinée par
+  `WireView` du côté opposé au numéro (verticale à gauche d'un fil vertical, sous un fil
+  horizontal). Colonne « Section » de la liste des fils CSV.
+- **Format des numéros de fils** (`settings.wireNumberTemplate`, défaut `{N}`) : modèle avec
+  `{N}` compteur, `{F}` folio, `{C}` colonne ; le compteur repart à chaque folio avec `{F}`,
+  à chaque colonne avec `{C}` (`formatWireNumber`, `WIRE_NUMBER_TEMPLATES`). Une
+  équipotentielle prend le folio / la colonne de son point d'origine (renvois compris).
 - **Numérotation des fils** : séquentielle sur tout le dossier, ordre folio → x → y ; les
   réseaux reliés à un potentiel ne sont pas numérotés ; `numberOverride` imposable.
 - **Repères** (`tags.ts`, `edit.ts`) : repère auto par préfixe à la pose. Taper le repère
@@ -72,6 +83,82 @@ Format versionné (`schemaVersion`) ; toute lecture passe par `migrateProject`.
 - **Édition** (`edit.ts`) : déplacement avec fils élastiques orthogonaux, glisser de
   segment, rotation, suppression (appareils orphelins nettoyés).
 
+## 3 bis. Catalogue matériel, inventaire, nomenclature
+
+- **Catalogue** (`model/catalog.ts`) : une fiche par référence ; comparaison des références
+  par `referenceKey` (sans espaces / points / tirets, majuscules : « 4 067 71 » = « 406771 »).
+  Bibliothèque partagée (table `catalog`, `server/catalog.ts`, API `/api/catalog`, page
+  `/catalogue` : recherche, fiche, import / export CSV, catalogue de départ
+  `model/catalogStarter.ts`). Le projet garde **une copie** des fiches utilisées
+  (`Project.catalog`) : `assignReference` (choix de la référence dans l'inspecteur) recopie la
+  fiche, reprend le fabricant et retire les copies inutiles ; `catalogUpdates` /
+  `applyCatalogUpdates` = bouton « Reprendre les fiches du catalogue » du panneau Appareils.
+  Les fragments (copier/coller, macros) transportent les fiches.
+- **Déduit d'une fiche** (jamais recopié sur l'appareil) : contacts disponibles
+  (`deviceContacts` : saisie de l'appareil, sinon fiche → alerte de dépassement) et
+  encombrement / montage (`deviceFootprint` : fiche, sinon valeur par symbole).
+- **Inventaire** (`model/inventory.ts`) : `listDevices` (appareils physiques hors renvois /
+  décors, famille = catégorie du symbole principal, emplacements, problèmes « sans
+  référence » / « contacts ») et `searchProject` (recherche Ctrl+F : repères, références,
+  désignations, n° de fils, bornes, câbles, folios, textes ; classement par pertinence).
+- **Accessoires liés** (`CatalogItem.accessories` : référence + quantité, saisis en texte
+  « 2 × LADN11, RXZE2S114M ») : recopiés dans le projet avec la fiche, ajoutés à la
+  nomenclature (quantité × appareils, « accessoire de KA1 à KA4 »). Un seul niveau.
+- **Nomenclature** (`model/nomenclature.ts`) : une ligne par référence (quantité, repères
+  compactés « KA1 à KA4 » par `compressTags`), puis les appareils sans référence par préfixe
+  (« À compléter »). Bornes comprises.
+
+## 3 bis-2. Liste de commande (`model/orderList.ts`)
+
+Tout ce qu'il faut acheter, groupé par fabricant (`groupByManufacturer` : fabricants, puis
+« Sans fabricant », puis « À compléter » = lignes sans référence). Sources : nomenclature
+(appareils, bornes, accessoires) ; matériel d'armoire calculé depuis les folios
+d'implantation — enveloppe (`Panel.reference`), rails en barres de 2 m, goulottes en mètres
+par dimension (`ductSize`), 2 butées + 1 flasque par bornier ; câbles par référence ou
+désignation, longueur `CableItem.cableLength` (m) ; lignes libres `Project.orderExtras`.
+Références du matériel : `Project.materials` ; leurs fiches sont recopiées par
+`linkReference` et gardées par `pruneProjectCatalog` (`orderReferences`). Pas de prix.
+Sorties : onglet « Liste de commande » de la fenêtre Nomenclature (saisie des références et
+lignes libres), CSV, pages « LISTE DE COMMANDE » en fin de PDF (`export/orderTable.ts`,
+`render/OrderPage.svelte`).
+
+**Piège Svelte** : sur l'état réactif, ne pas écrire `(p.x ??= {})[k] = v` ni
+`(p.list ??= []).push(…)` — `??=` renvoie l'objet brut, la modification n'est pas vue (et
+peut être perdue). Écrire `p.x ??= {}; p.x[k] = v`.
+
+## 3 ter. Historique des versions et duplication
+
+- Règles pures (`model/versions.ts`, testées) : version **automatique** à l'enregistrement si
+  la précédente a plus de 15 min, à la fermeture du dossier (libération du verrou), à la
+  création — jamais sans changement (empreinte SHA-256 du document sans `modifiedAt`) ;
+  version **nommée** à la main, à chaque nouvel indice de révision (« Indice B — … »), avant
+  une restauration. Conservation (`versionsToPrune`) : automatiques gardées 48 h, puis la
+  dernière de chaque jour pendant 30 jours ; nommées toujours. Restauration (`canRestore`) :
+  administrateur ou intervenant (auteur d'une version ou dernier modificateur).
+- Stockage (`server/versions.ts`) : table `project_versions` (document gzip + base64,
+  résumé folios / appareils, empreinte). Branché dans `server/projects.ts` (`insertProject`,
+  `saveProjectData`, `restoreVersion`, `duplicateProject`, `versionOnClose`).
+- API : `/api/projects/[id]/versions` (GET liste + droit, POST version nommée),
+  `…/versions/[vid]` (GET document), `…/versions/[vid]/restore` (POST, verrou requis),
+  `/api/projects/[id]/duplicate` (POST : nom, affaire, plan, client, indices remis à zéro,
+  `versionId` optionnel).
+- Interface : bouton **Historique** (`HistoryDialog` : enregistrer une version, voir,
+  restaurer, dupliquer) ; consultation d'une version = route `/projets/[id]/versions/[vid]`
+  (`EditorApp` avec `version` : lecture seule, `EditSession.archive()`, bandeau PDF /
+  duplication) ; `DuplicateDialog` (éditeur, historique, liste des projets). Restauration :
+  `session.flush()` → `session.suspend()` → API → rechargement de la page.
+
+## 3 quater. Fils : tracé et couleur
+
+- Tracé (`geometry.ts` `routeWire`, testé) : départ et arrivée dans le sens des bornes
+  (`DIR_VEC`, `WIRE_STUB` = 5 mm), choix du coude sans demi-tour ; utilisé par l'outil Fil
+  (`interaction.svelte.ts`, Espace = autre coude). Accroche des bornes ≤ `TERMINAL_SNAP_MAX`
+  (1,5 mm, `snap.ts`). Nom de la borne visée affiché (`Canvas.svelte`).
+- Couleur (`nets.ts` `colorNets`, testé) : `Wire.color` imposée > `Potential.wireColor` >
+  `settings.wireColor` (fils hors potentiel) → `Net.color` / `colorImposed` ;
+  `WireStyle.color` (imposée ou défaut) tracée via `schematic.color.wireColors`, sinon le
+  tracé du potentiel. Liste des fils CSV : colonne Couleur.
+
 ## 4. Bibliothèque de symboles (`src/lib/symbols/`)
 
 Définitions déclaratives (`SymbolDef`) : primitives graphiques, bornes, rôle
@@ -82,10 +169,15 @@ Aperçu de toute la bibliothèque : route `/symboles`.
 **Symboles maison** (`custom.ts`, éditeur `CustomSymbolDialog.svelte`) : une image de
 documentation (déposée, choisie ou collée Ctrl+V, réduite et ré-encodée en data URL) ou un
 cadre titré, plus des bornes posées **exactement au clic** (sur les vis de l'image),
-déplaçables à la souris et aux flèches (0,1 mm), zoom molette ; « ajout rapide » d'une
-rangée ; magnétisme grille optionnel (désactivé par défaut). Retouches d'image dans
-l'éditeur (`editor/image.ts`, canvas) : rogner, gommer une zone, fond blanc → transparent,
-annuler ; poignée de redimensionnement (bornes mises à l'échelle). Rendu : les fils sont
+déplaçables à la souris et aux flèches (0,1 mm), zoom molette et boutons ; noms des
+bornes automatiques (`expandNames` : « IP1..IP8 » ; `nextTerminalName` : précédente + 1),
+le même champ sert à répartir une rangée sur un côté ; calage sur les bornes voisines
+(`alignToTerminals`, guides ; Alt : sans), Maj + glisser = précision ×5 ; magnétisme grille
+optionnel (désactivé par défaut). Fenêtre presque plein écran, non fermée par Échap
+(`Modal dismissible={false}`), vue calée sur les proportions de la zone de dessin ;
+Annuler / Ctrl+Z pour toute modification (bornes, taille, image). Retouches d'image dans
+l'éditeur (`editor/image.ts`, canvas) : rogner, gommer une zone, pivoter d'un quart de tour
+(bornes suivies par `rotateTerminals`), fond blanc → transparent ; poignée de redimensionnement (bornes mises à l'échelle). Rendu : les fils sont
 dessinés **au-dessus** des symboles. Redimensionnement **par exemplaire** sur le folio
 (`SymbolInstance.scale`, `scaleSymbol`, poignée `Editor.scaleHandle`, champ « Échelle % »),
 réservé aux symboles maison ; les fils suivent, les traits gardent leur épaisseur. Stockés dans la bibliothèque partagée (table `custom_symbols`, API `/api/symbols`),
@@ -135,9 +227,21 @@ un folio = une page ; série = folios borniers de même filtre (`stripFolioPage`
 - `interaction.svelte.ts` — gestes souris/clavier → commandes (aucune règle métier).
 - `viewport.svelte.ts` — zoom / déplacement.
 - `session.svelte.ts` — verrou (heartbeat 30 s) et sauvegarde automatique (1,2 s).
-- `components/` — `EditorApp` (assemblage), `Toolbar`, `Sidebar` (Folios / Symboles /
-  Macros), `Canvas`, `Inspector`, `ChecksPanel`, `ProjectDialog`, `StripsDialog`,
-  `StatusBar`.
+- Disposition : barre du haut (`Toolbar` : outils, zoom, Rechercher, menu **Dossier** —
+  propriétés, historique, borniers, nomenclature / commande, duplication, export — et
+  Exporter) ; à gauche `Sidebar` = colonne d'icônes **Symboles** (« À placer » sur un folio
+  d'armoire) / **Macros** / **Appareils** / **Contrôles** (badge = nombre de problèmes,
+  `model/checks.ts`), clic sur l'icône active = replier ; au centre `Canvas` ; à droite
+  `Inspector` ; en bas **`FolioTabs`** (onglets de folios : clic, double-clic renommer,
+  glisser réordonner, clic droit menu, « + » nouveau folio — commandes dans
+  `editor/folioActions.ts`) puis `StatusBar`.
+- `components/` — `EditorApp` (assemblage), `Toolbar`, `Sidebar`, `FolioTabs`, `Canvas`,
+  `Inspector`, `ChecksPanel`, `ProjectDialog`, `StripsDialog`, `StatusBar`, `DevicesPanel`
+  (liste des appareils, filtres, emplacements), `SearchDialog` (Ctrl+F), `NomenclatureDialog`
+  (`Editor.nomenclatureOpen`), `CatalogItemDialog` (fiche catalogue, aussi utilisée par
+  `/catalogue`), `HistoryDialog`, `DuplicateDialog`.
+- Catalogue dans l'éditeur : `Editor.catalog` (chargé au démarrage), `setReference`,
+  `catalogChanges`, `applyCatalogChanges` ; navigation générique `Editor.goToItem`.
 
 Raccourcis : liste complète dans `shortcuts.ts`, affichée par l'aide (**?** / F1,
 `ShortcutsDialog`). Principaux : S sélection, W fil, B barre, K câble, T texte, C cadre,
@@ -150,11 +254,62 @@ clic droit glissé ou bouton du milieu : déplacer la vue ; pendant un fil : ter
 Navigation (`crossTargets` dans `crossrefs.ts`, `Editor.goToSymbol`) : double-clic sur un
 renvoi de fil → renvoi jumeau ; sur un contact → sa bobine ; menu clic droit « Aller à… ».
 
+**Symboles favoris** (`editor/favorites.ts`) : barre « Favoris » en haut du panneau
+Symboles (clic : poser, glisser : ranger, clic droit : retirer), étoile sur chaque symbole ;
+favoris par défaut tant que l'utilisateur n'a rien choisi ; mémorisés par utilisateur
+(`Editor.favorites`, préférence `favoriteSymbols`).
+
 ## 6. Serveur (`src/lib/server/`, `src/routes/api/`)
+
+**Sociétés et rôles** (2026-10-02) : table `organizations` ; colonne `organization_id` sur
+`users`, `projects`, `macros`, `custom_symbols`, `templates`, `catalog` (clé catalogue
+`société|référence`). Rôles (`model/access.ts`, testé) : `superadmin` (plateforme : page
+`/admin/societes`, sauvegardes, bascule de société par le cookie `org` →
+`/api/session/organization`), `admin` (utilisateurs de sa société), `user`, `viewer`
+(lecture seule). `locals.user.organizationId` = société active (résolue dans
+`hooks.server.ts`) ; **toute** lecture / écriture est filtrée par société. Gardes
+(`server/guards.ts`) : `requireUser`, `requireEditor` (refuse le lecteur), `requireAdmin`,
+`requireSuperAdmin` ; `server/access.ts` `requireProject(locals, id, 'read' | 'write')` :
+404 si le dossier est d'une autre société, 403 en écriture pour un lecteur. Le lecteur ne
+prend jamais de verrou (`EditSession.viewOnly()`). Migration (`db/migrate.ts`, testée) :
+base existante → société « Dumortier » (`org_main`), plus ancien administrateur promu
+super-administrateur ; premier lancement (`/setup`) → première société + super-admin.
+
+**Clients et affaires** (2026-10-02) : règles pures `model/affaires.ts` (testées) ; tables
+`clients` (nom unique par société via `name_key`, code, ville, `source` manual / erp,
+`external_id`) et `affaires` (client, **n° WhySoft** unique par société s'il est renseigné,
+n° d'affaire du cartouche facultatif, désignation, année, statut en cours / terminée /
+archivée) ; `projects.affaire_id` (null = **non classé**), miroir de `meta.affaireId` du
+document. `server/affaires.ts` `resolveAffaire` est appelé à la lecture (`getProject`) et à
+chaque écriture (`insertProject`, `saveProjectData`, `restoreVersion` — qui garde l'affaire
+actuelle) : le cartouche reprend client, n° WhySoft (champ `{whysoft}`) et n° d'affaire de
+l'affaire ; une affaire inconnue ou d'une autre société est détachée. Page `/affaires`
+(onglets Affaires / Clients, filtres statut / année, schémas d'une affaire ; actions de
+formulaire ; suppression refusée si utilisée ; fiches ERP non modifiables sauf le statut) ;
+« Classer l'existant » (administrateur, `planClassification`) : un client par nom, une
+affaire par client + n° d'affaire, dossiers ouverts en édition laissés de côté. Rattachement
+: création d'un projet, Propriétés du dossier (champs imposés grisés), duplication
+(`affaireId`). `GET /api/affaires` pour l'éditeur.
+
+**Page Projets** (2026-10-02, `/`) : arbre **Client › Affaire › Schémas** calculé par
+`model/projectTree.ts` (`buildProjectTree`, `treeYears`, testés : tri client alphabétique,
+affaires récentes d'abord, schémas récents d'abord ; groupe « Non classé » ; recherche sans
+accents sur nom, n° WhySoft, n° d'affaire, client, désignation) ; filtres client / année /
+statut (dont « Non classé ») ; vue « Récents » (à plat, mémorisée dans `localStorage`).
+Création guidée `lib/projects/NewProjectDialog.svelte` (action `/?/create` : affaire
+existante, **nouvelle affaire** et au besoin **nouveau client** via `findOrCreateClient` /
+`saveAffaire`, ou non classé), utilisable depuis la fiche affaire. **Fiche affaire**
+`/affaires/[id]` : identité, statut modifiable (action `status`, aussi pour une affaire
+ERP), schémas avec PDF (`export/projectPdf.ts` : relit le dossier, enregistre ses symboles
+maison, exporte comme l'éditeur), « Tous les PDF », duplication (vers la même affaire ou
+une autre), nouveau schéma dans l'affaire.
 
 SQLite (libSQL) + Drizzle, tables créées au démarrage. Auth maison (Argon2id, sessions
 hachées). Verrou d'édition par projet (expire après 2 min sans heartbeat). API JSON :
-projets (GET/PUT), verrou, macros. Client typé : `src/lib/api/client.ts`.
+projets (GET/PUT), verrou, macros, symboles maison, modèles, catalogue (`/api/catalog` : GET,
+POST d'une fiche ou `{ items }` pour un import — même référence = mise à jour),
+préférences de l'utilisateur (`/api/prefs/[key]`, table `user_prefs`, clés autorisées dans
+`server/prefs.ts`). Client typé : `src/lib/api/client.ts`.
 
 Sauvegarde automatique (`backup.ts`, démarrée par le hook `init` de `hooks.server.ts`) :
 copie cohérente `VACUUM INTO` dans `backups/` à côté de la base (ou `BACKUP_DIR`), toutes les
@@ -164,7 +319,9 @@ Page admin `/admin/sauvegardes` : liste, « Sauvegarder maintenant », télécha
 ## 7. Export (`src/lib/export/`)
 
 PDF (jsPDF + svg2pdf.js) à partir des MÊMES composants SVG : page de garde, folios,
-borniers. CSV (`;`, BOM UTF-8) : borniers, appareils, fils.
+borniers, nomenclature (option, cochée dès qu'un appareil a une référence ;
+`export/bomTable.ts` + `render/BomPage.svelte`). CSV (`;`, BOM UTF-8) : borniers,
+nomenclature par référence, liste des appareils, fils, câbles.
 
 ## 8. Design
 

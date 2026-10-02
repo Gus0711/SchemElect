@@ -10,7 +10,10 @@
 	} from '$lib/model/cables';
 	import { detachSymbol, scaleSymbol, setSymbolTag, symbolsOfDevice } from '$lib/model/edit';
 	import { folioRef } from '$lib/model/layout';
+	import { WIRE_COLORS, WIRE_SECTIONS } from '$lib/model/nets';
+	import { schematic } from '$lib/theme/schematic';
 	import { isPanelKind } from '$lib/model/panel';
+	import { deviceCatalogItem, linkReference, type CatalogItem } from '$lib/model/catalog';
 	import { deviceFootprint } from '$lib/model/footprints';
 	import { parseTag } from '$lib/model/tags';
 	import type { CableItem, Device, SymbolInstance } from '$lib/model/types';
@@ -18,11 +21,11 @@
 	import { getSymbolDef } from '$lib/symbols';
 	import { specOf } from '$lib/symbols/custom';
 	import { Button, Field, Panel } from '$lib/ui';
-	import { FlipHorizontal, RotateCw, Trash } from '@lucide/svelte';
+	import { FlipHorizontal, Package, RotateCw, Trash } from '@lucide/svelte';
 	import { tick } from 'svelte';
 	import type { Editor } from '../editor.svelte';
 	import AlignTools from './AlignTools.svelte';
-	import ChecksPanel from './ChecksPanel.svelte';
+	import CatalogItemDialog from './CatalogItemDialog.svelte';
 	import PanelInspector from './PanelInspector.svelte';
 	import StripsFolioInspector from './StripsFolioInspector.svelte';
 
@@ -51,11 +54,17 @@
 	);
 	const cableInfo = $derived(cable ? editor.analysis.cables.byId.get(cable.id) : undefined);
 	const device = $derived(symbol ? editor.project.devices[symbol.deviceId] : undefined);
+	const catalogItem = $derived(deviceCatalogItem(editor.project, device));
+	/** Fiche à créer dans le catalogue (« ajouter au catalogue »). */
+	let newCatalogItem: Partial<CatalogItem> | null = $state(null);
 	const def = $derived(symbol ? getSymbolDef(symbol.defId) : undefined);
 	/** Symbole coloré par sa valeur (voyant) : la valeur est une couleur. */
 	const isSignal = $derived(!!def?.graphics.some((p) => 'tone' in p && p.tone === 'signal'));
 	const siblings = $derived(device ? symbolsOfDevice(editor.project, device.id) : []);
 	const wireStyle = $derived(wire ? editor.analysis.wireStyle.get(wire.id) : undefined);
+	/** Le fil appartient-il à la même équipotentielle que le fil sélectionné ? */
+	const sameNet = (id: string) =>
+		!!wireNet && editor.analysis.nets.netOfWire.get(id)?.id === wireNet.id;
 	const wireNet = $derived(wire ? editor.analysis.nets.netOfWire.get(wire.id) : undefined);
 	const ro = $derived(editor.readonly);
 
@@ -182,7 +191,6 @@
 				{folio.symbols.length} symboles · {folio.wires.length} fils · {folio.bars.length} barres
 			</p>
 		</Panel>
-		<ChecksPanel {editor} />
 	{:else if symbol && def}
 		<Panel title={def.name}>
 			<div class="thumb"><SymbolThumb defId={def.id} size={56} /></div>
@@ -227,10 +235,32 @@
 						<input
 							class="control"
 							value={device.reference ?? ''}
+							list="catalog-references"
+							placeholder="Choisir dans le catalogue…"
 							disabled={ro}
-							onchange={(e) => setDevice('reference', val(e))}
+							onchange={(e) => editor.setReference(device.id, val(e))}
 						/>
 					</Field>
+					{#if catalogItem}
+						<p class="small muted catalog">
+							<Package size={12} />
+							{catalogItem.designation || 'Fiche catalogue'}
+						</p>
+					{:else if device.reference && !ro}
+						<p class="small muted catalog">
+							Hors catalogue —
+							<button
+								class="link"
+								onclick={() => {
+									newCatalogItem = {
+										reference: device.reference,
+										manufacturer: device.manufacturer ?? '',
+										contacts: device.contacts
+									};
+								}}>ajouter au catalogue</button
+							>
+						</p>
+					{/if}
 					<Field label="Fabricant">
 						<input
 							class="control"
@@ -270,7 +300,8 @@
 									type="number"
 									min="0"
 									max="20"
-									placeholder="—"
+									placeholder={catalogItem?.contacts ? String(catalogItem.contacts[k]) : '—'}
+									title={catalogItem?.contacts ? 'Vide : valeur de la fiche catalogue' : undefined}
 									value={device.contacts?.[k] ?? ''}
 									disabled={ro}
 									onchange={(e) => setContacts(k, val(e))}
@@ -362,6 +393,72 @@
 			{#if wireNet?.shortedPotentials.length}
 				<p class="warn small">Court-circuit entre potentiels !</p>
 			{/if}
+			<Field
+				label="Section (mm²)"
+				hint={wire.section?.trim()
+					? 'Imposée sur ce fil : s’applique à toute l’équipotentielle.'
+					: wireNet?.section
+						? `Vide = ${wireNet.section} mm² (${wireNet.potentialId ? 'section du potentiel' : 'section par défaut du dossier'}).`
+						: 'Vide = pas de section (réglages : Propriétés du dossier).'}
+			>
+				<input
+					class="control"
+					value={wire.section ?? ''}
+					placeholder={wireNet?.section ?? '—'}
+					list="inspector-wire-sections"
+					disabled={ro}
+					onchange={(e) => {
+						const v = val(e).trim();
+						const id = wire.id;
+						editor.transact('Section de fil', (_, f) => {
+							const w = f.wires.find((x) => x.id === id);
+							if (w) w.section = v || undefined;
+						});
+					}}
+				/>
+				<datalist id="inspector-wire-sections">
+					{#each WIRE_SECTIONS as s (s)}<option value={s}></option>{/each}
+				</datalist>
+			</Field>
+			<Field
+				label="Couleur du fil"
+				hint={wire.color
+					? 'Imposée sur ce fil : s’applique à toute l’équipotentielle.'
+					: wireNet?.color
+						? `Automatique = ${wireNet.color} (${wireNet.potentialId ? 'couleur du potentiel' : 'couleur par défaut du dossier'}).`
+						: 'Automatique = pas de couleur (réglage : Propriétés du dossier).'}
+			>
+				<div class="color-row">
+					<span
+						class="swatch"
+						style:background={schematic.color.wireColors[wire.color ?? wireNet?.color ?? ''] ??
+							'transparent'}
+					></span>
+					<select
+						class="control"
+						aria-label="Couleur du fil"
+						value={wire.color ?? ''}
+						disabled={ro}
+						onchange={(e) => {
+							const v = (e.currentTarget as HTMLSelectElement).value;
+							const id = wire.id;
+							editor.transact('Couleur de fil', (p) => {
+								// Une seule couleur imposée par équipotentielle : celle de ce fil.
+								for (const fo of p.folios)
+									for (const w of fo.wires) {
+										if (w.id === id) w.color = v || undefined;
+										else if (w.color && sameNet(w.id)) delete w.color;
+									}
+							});
+						}}
+					>
+						<option value=""
+							>Automatique{wireNet?.color && !wire.color ? ` (${wireNet.color})` : ''}</option
+						>
+						{#each WIRE_COLORS as c (c)}<option value={c}>{c}</option>{/each}
+					</select>
+				</div>
+			</Field>
 			{#if !wireNet?.potentialId}
 				<Field
 					label="Numéro imposé"
@@ -516,6 +613,41 @@
 					/>
 				</Field>
 			</div>
+			<div class="row">
+				<Field label="Longueur (m)" hint="Liste de commande">
+					<input
+						class="control"
+						type="number"
+						min="0"
+						step="0.5"
+						value={cable.cableLength ?? ''}
+						placeholder="—"
+						disabled={ro}
+						onchange={(e) => {
+							const n = Number(val(e).replace(',', '.'));
+							setCable('Longueur du câble', (c) => (c.cableLength = n > 0 ? n : undefined));
+						}}
+					/>
+				</Field>
+				<Field label="Référence">
+					<input
+						class="control"
+						value={cable.reference ?? ''}
+						list="catalog-references"
+						placeholder="Catalogue…"
+						disabled={ro}
+						onchange={(e) => {
+							const v = val(e).trim();
+							const id = cable.id;
+							editor.transact('Référence du câble', (p, f) => {
+								const c = f.cables.find((x) => x.id === id);
+								if (c) c.reference = v || undefined;
+								linkReference(p, v, editor.catalog);
+							});
+						}}
+					/>
+				</Field>
+			</div>
 			<label class="check">
 				<input
 					type="checkbox"
@@ -639,7 +771,39 @@
 	{/if}
 </aside>
 
+<!-- Références du catalogue (appareil, câble). -->
+<datalist id="catalog-references">
+	{#each editor.catalog as c (c.id)}<option value={c.reference}
+			>{[c.manufacturer, c.designation].filter(Boolean).join(' — ')}</option
+		>{/each}
+</datalist>
+
+<CatalogItemDialog
+	bind:open={() => !!newCatalogItem, (v) => !v && (newCatalogItem = null)}
+	initial={newCatalogItem}
+	categories={[...new Set(editor.catalog.map((c) => c.category).filter((c): c is string => !!c))]}
+	onsaved={(item) => {
+		editor.catalogSaved(item);
+		if (device) editor.setReference(device.id, item.reference);
+	}}
+/>
+
 <style>
+	.catalog {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-1);
+		margin: calc(-1 * var(--sp-1)) 0 0;
+	}
+	.link {
+		padding: 0;
+		border: none;
+		background: none;
+		color: var(--c-primary);
+		text-decoration: underline;
+		cursor: pointer;
+		font-size: inherit;
+	}
 	.inspector {
 		width: var(--inspector-w);
 		flex-shrink: 0;
@@ -696,5 +860,19 @@
 	.siblings button.current {
 		background: var(--c-primary-soft);
 		color: var(--c-primary);
+	}
+	.color-row {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+	}
+	.color-row select {
+		flex: 1;
+	}
+	.swatch {
+		flex: 0 0 18px;
+		height: 18px;
+		border: 1px solid var(--c-border-strong);
+		border-radius: var(--radius-sm);
 	}
 </style>

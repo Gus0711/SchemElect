@@ -8,6 +8,7 @@ import {
 	setSessionCookie,
 	validateSessionToken
 } from '$lib/server/auth';
+import { ORG_COOKIE, resolveOrganization } from '$lib/server/organizations';
 
 const PUBLIC_PATHS = new Set(['/login', '/setup']);
 
@@ -43,7 +44,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (token) {
 		const session = await validateSessionToken(token);
 		if (session) {
-			event.locals.user = session.user;
+			// Société active : celle du compte, ou celle choisie par le super-administrateur.
+			const org = await resolveOrganization(session.user, event.cookies.get(ORG_COOKIE));
+			event.locals.user = { ...session.user, organizationId: org.id, organizationName: org.name };
 			if (session.renewed) setSessionCookie(event.cookies, event.url, token, session.expiresAt);
 		} else {
 			deleteSessionCookie(event.cookies, event.url);

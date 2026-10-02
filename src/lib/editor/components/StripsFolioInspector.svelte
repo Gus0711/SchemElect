@@ -9,7 +9,6 @@
 	import { Button, Field, Panel } from '$lib/ui';
 	import { Plus } from '@lucide/svelte';
 	import type { Editor } from '../editor.svelte';
-	import ChecksPanel from './ChecksPanel.svelte';
 
 	let { editor }: { editor: Editor } = $props();
 
@@ -102,7 +101,6 @@
 		symbole.
 	</p>
 </Panel>
-<ChecksPanel {editor} />
 
 <style>
 	.group {

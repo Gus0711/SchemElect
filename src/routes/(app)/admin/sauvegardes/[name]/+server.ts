@@ -1,12 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { error } from '@sveltejs/kit';
-import { requireAdmin } from '$lib/server/guards';
+import { requireSuperAdmin } from '$lib/server/guards';
 import { backupPath } from '$lib/server/backup';
 import type { RequestHandler } from './$types';
 
 /** Téléchargement d'une sauvegarde (administrateurs). */
 export const GET: RequestHandler = async ({ locals, params }) => {
-	requireAdmin(locals);
+	requireSuperAdmin(locals);
 	const path = backupPath(params.name);
 	if (!path) error(404, 'Sauvegarde introuvable');
 	let data: Buffer;

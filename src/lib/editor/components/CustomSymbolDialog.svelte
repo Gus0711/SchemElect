@@ -2,13 +2,18 @@
 	/**
 	 * Création / modification d'un symbole maison : image de documentation (ou cadre
 	 * titré) + bornes posées EXACTEMENT où l'on clique, déplaçables à la souris et au
-	 * clavier, avec zoom molette pour la précision.
+	 * clavier, avec zoom pour la précision. Fenêtre de travail presque plein écran, en trois
+	 * étapes : image (et retouches), identité / taille, bornes (nommées automatiquement).
 	 */
 	import type { Dir } from '$lib/model/geometry';
 	import Prim from '$lib/render/Prim.svelte';
 	import {
+		alignToTerminals,
 		buildCustomSymbol,
+		expandNames,
 		nearestSide,
+		nextTerminalName,
+		rotateTerminals,
 		spreadTerminals,
 		terminalPoint,
 		type CustomSymbolSpec
@@ -21,11 +26,16 @@
 		ImagePlus,
 		Maximize,
 		MousePointer2,
+		Square,
 		Trash,
 		Undo2,
-		Wand
+		RotateCcw,
+		RotateCw,
+		Wand,
+		ZoomIn,
+		ZoomOut
 	} from '@lucide/svelte';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import type { Editor } from '../editor.svelte';
 	import {
 		cropImage,
@@ -33,6 +43,7 @@
 		imageFromClipboard,
 		prepareImage,
 		removeBackground,
+		rotateImage,
 		type FracRect,
 		type PreparedImage
 	} from '../image';
@@ -65,28 +76,34 @@
 		h: 40,
 		title: '',
 		terminals: [],
+		// Placement libre au 0,1 mm (sur les vis de l'image) ; grille en option.
 		snapToGrid: false
 	});
 
 	let spec: CustomSymbolSpec = $state(blank());
 	let ratio: number | null = $state(null);
 	let quickSide: Dir = $state('n');
+	/** Noms des prochaines bornes (« 24V, 0V, IP1..IP8 ») : chaque clic prend le suivant. */
 	let quickNames = $state('');
 	let busy = $state(false);
 	let error = $state('');
 	let svg: SVGSVGElement | undefined = $state();
-	let svgWidth = $state(600);
+	let stageW = $state(800);
+	let stageH = $state(500);
 	let listEl: HTMLDivElement | undefined = $state();
 	/** Borne sélectionnée (index) : surlignée, déplaçable aux flèches. */
 	let selected: number | null = $state(null);
-	/** Vue de l'aperçu (mm). */
-	let view = $state({ x: -10, y: -10, w: 80, h: 60 });
+	/** Vue de l'aperçu (mm) ; sa hauteur suit les proportions de la zone de dessin. */
+	let viewBox = $state({ x: -10, y: -10, w: 80 });
+	const view = $derived({ ...viewBox, h: (viewBox.w * stageH) / Math.max(1, stageW) });
+	/** Fichier image (bouton « Choisir une image »). */
+	let fileInput: HTMLInputElement | undefined = $state();
 	/** Outil de l'aperçu : poser les bornes, rogner ou gommer l'image. */
 	let tool: 'terminals' | 'crop' | 'erase' = $state('terminals');
 	/** Zone en cours de tracé (rogner / gommer), en mm. */
 	let region: { x: number; y: number; w: number; h: number } | null = $state(null);
 	let processing = $state(false);
-	/** Historique des retouches d'image (annuler). */
+	/** Historique des modifications (image, taille, bornes) : Annuler / Ctrl+Z. */
 	type ImageState = Pick<CustomSymbolSpec, 'image' | 'w' | 'h' | 'terminals'> & {
 		ratio: number | null;
 	};
@@ -103,20 +120,56 @@
 		error = '';
 		tool = 'terminals';
 		history = [];
-		fit(next.w, next.h);
+		quickNames = '';
+		tick().then(() => fit(next.w, next.h));
 	});
 
 	const def = $derived(buildCustomSymbol({ ...spec, id: spec.id ?? 'custom-preview' }));
 	const canSave = $derived(!!spec.name.trim() && spec.w > 0 && spec.h > 0);
 	/** mm par pixel écran : marqueurs et textes de taille constante à l'écran. */
-	const mmPerPx = $derived(view.w / Math.max(1, svgWidth));
+	const mmPerPx = $derived(view.w / Math.max(1, stageW));
+	/** Nom de la borne posée au prochain clic. */
+	const nextName = $derived(
+		expandNames(quickNames)[0] ?? nextTerminalName(spec.terminals.map((t) => t.id))
+	);
+	const empty = $derived(!spec.image && !spec.title);
 
+	/** Cadre la vue sur le corps du symbole, en occupant toute la zone de dessin. */
 	function fit(w = spec.w, h = spec.h) {
-		const m = Math.max(w, h) * 0.04 + 3;
-		view = { x: -m, y: -m, w: w + 2 * m, h: h + 2 * m };
+		const m = Math.max(w, h) * 0.06 + 2;
+		const aspect = stageH / Math.max(1, stageW);
+		const vw = Math.max(w + 2 * m, (h + 2 * m) / aspect);
+		viewBox = { x: w / 2 - vw / 2, y: h / 2 - (vw * aspect) / 2, w: vw };
 	}
 
+	/** Zoom autour du centre de la vue (boutons) ou d'un point (molette). */
+	function zoom(k: number, at = { x: view.x + view.w / 2, y: view.y + view.h / 2 }) {
+		const w = Math.min(Math.max(view.w * k, 5), 2000);
+		const f = w / view.w;
+		viewBox = { x: at.x - (at.x - view.x) * f, y: at.y - (at.y - view.y) * f, w };
+	}
+
+	// La zone de dessin change de taille (fenêtre redimensionnée) : garder le cadrage.
+	let lastStage = '';
+	$effect(() => {
+		const key = `${stageW}x${stageH}`;
+		if (open && key !== lastStage) {
+			lastStage = key;
+			untrack(() => fit());
+		}
+	});
+
 	const round1 = (v: number) => Math.round(v * 10) / 10;
+
+	/** Guides d'alignement affichés pendant le déplacement d'une borne. */
+	let guides: { x?: number; y?: number } = $state({});
+
+	/** Calage sur les autres bornes (à 4 pixels écran près). */
+	function align(p: { x: number; y: number }, except?: number) {
+		const others = spec.terminals.filter((_, i) => i !== except);
+		const r = alignToTerminals(p, others, 4 * mmPerPx);
+		return { ...r, x: round1(r.x), y: round1(r.y) };
+	}
 
 	function toMm(e: MouseEvent) {
 		const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg!.getScreenCTM()!.inverse());
@@ -129,6 +182,7 @@
 		if (!file) return;
 		try {
 			const img = await prepareImage(file);
+			if (spec.image) remember();
 			const oldH = spec.h;
 			spec.image = img.href;
 			ratio = img.ratio;
@@ -143,8 +197,16 @@
 	}
 
 	function removeImage() {
+		remember();
 		spec.image = undefined;
 		ratio = null;
+		if (!spec.title) spec.title = spec.name.toUpperCase() || 'MODULE';
+	}
+
+	/** Bloc rectangulaire titré, sans image. */
+	function blankBlock() {
+		if (!spec.name) spec.name = 'Nouveau module';
+		spec.title = spec.name.toUpperCase();
 	}
 
 	/**
@@ -152,6 +214,7 @@
 	 * l'échelle pour rester sur leurs vis (ou sur les bords d'un cadre).
 	 */
 	function resizeTo(w: number, h?: number, refit = true) {
+		if (refit) remember();
 		const nw = Math.max(5, round1(w || 5));
 		const nh = ratio ? round1(nw * ratio) : Math.max(5, round1(h ?? spec.h));
 		const kx = nw / spec.w,
@@ -180,15 +243,23 @@
 			ratio
 		}) as ImageState;
 
-	function undoImage() {
+	/** Mémorise l'état avant une modification (Annuler). */
+	function remember() {
+		history.push(snapshotState());
+		if (history.length > 100) history.shift();
+	}
+
+	function undo() {
 		const prev = history.pop();
 		if (!prev) return;
+		const resized = prev.w !== spec.w || prev.h !== spec.h || prev.image !== spec.image;
 		spec.image = prev.image;
 		spec.w = prev.w;
 		spec.h = prev.h;
 		spec.terminals = prev.terminals;
 		ratio = prev.ratio;
-		fit();
+		selected = null;
+		if (resized) fit();
 	}
 
 	/** Applique une retouche (asynchrone) avec annulation possible. */
@@ -202,6 +273,7 @@
 			const before = snapshotState();
 			const img = await op(spec.image);
 			history.push(before);
+			if (history.length > 100) history.shift();
 			spec.image = img.href;
 			after?.(img);
 		} catch (e) {
@@ -217,6 +289,26 @@
 		w: r.w / spec.w,
 		h: r.h / spec.h
 	});
+
+	/** Quart de tour : l'image pivote, le corps passe de w × h à h × w, les bornes suivent. */
+	function rotate(clockwise: boolean) {
+		retouch(
+			(href) => rotateImage(href, clockwise),
+			(img) => {
+				const { w, h } = spec;
+				spec.terminals = rotateTerminals(
+					$state.snapshot(spec.terminals) as CustomSymbolSpec['terminals'],
+					w,
+					h,
+					clockwise
+				);
+				ratio = img.ratio;
+				spec.w = h;
+				spec.h = w;
+				fit();
+			}
+		);
+	}
 
 	/** Rogner : même échelle (mm par pixel), les bornes restent sur leurs vis. */
 	function crop(r: { x: number; y: number; w: number; h: number }) {
@@ -252,7 +344,16 @@
 
 	type Drag =
 		| { kind: 'none' }
-		| { kind: 'move'; index: number; moved: boolean }
+		| {
+				kind: 'move';
+				index: number;
+				moved: boolean;
+				/** Position de départ (souris et borne) : Maj = déplacement de précision. */
+				sx: number;
+				sy: number;
+				tx: number;
+				ty: number;
+		  }
 		| { kind: 'pan'; sx: number; sy: number; vx: number; vy: number }
 		| { kind: 'pending'; sx: number; sy: number }
 		| { kind: 'region'; start: { x: number; y: number } }
@@ -266,6 +367,7 @@
 			return;
 		}
 		if ((e.target as Element).closest('[data-resize]')) {
+			remember();
 			drag = { kind: 'resize' };
 			return;
 		}
@@ -279,7 +381,8 @@
 		if (target) {
 			const index = Number(target.getAttribute('data-terminal'));
 			selected = index;
-			drag = { kind: 'move', index, moved: false };
+			const t = spec.terminals[index];
+			drag = { kind: 'move', index, moved: false, sx: e.clientX, sy: e.clientY, tx: t.x, ty: t.y };
 			return;
 		}
 		drag = { kind: 'pending', sx: e.clientX, sy: e.clientY };
@@ -287,10 +390,21 @@
 
 	function onpointermove(e: PointerEvent) {
 		if (drag.kind === 'move') {
-			const p = toMm(e);
+			if (!drag.moved) remember();
+			// Maj : la borne avance 5 fois moins vite que la souris (réglage fin).
+			const k = e.shiftKey ? 0.2 : 1;
+			const raw = {
+				x: drag.tx + (e.clientX - drag.sx) * mmPerPx * k,
+				y: drag.ty + (e.clientY - drag.sy) * mmPerPx * k
+			};
+			const p =
+				e.altKey || e.shiftKey
+					? { ...raw, guideX: undefined, guideY: undefined }
+					: align(raw, drag.index);
 			const t = spec.terminals[drag.index];
-			t.x = p.x;
-			t.y = p.y;
+			t.x = round1(p.x);
+			t.y = round1(p.y);
+			guides = { x: p.guideX, y: p.guideY };
 			drag.moved = true;
 		} else if (drag.kind === 'region') {
 			region = clampRegion(drag.start, toMm(e));
@@ -298,14 +412,15 @@
 			const p = toMm(e);
 			resizeTo(p.x, p.y, false);
 		} else if (drag.kind === 'pan') {
-			view.x = drag.vx - (e.clientX - drag.sx) * mmPerPx;
-			view.y = drag.vy - (e.clientY - drag.sy) * mmPerPx;
+			viewBox.x = drag.vx - (e.clientX - drag.sx) * mmPerPx;
+			viewBox.y = drag.vy - (e.clientY - drag.sy) * mmPerPx;
 		}
 	}
 
 	async function onpointerup(e: PointerEvent) {
 		const d = drag;
 		drag = { kind: 'none' };
+		guides = {};
 		if (d.kind === 'resize') {
 			fit();
 			return;
@@ -320,10 +435,17 @@
 			return;
 		}
 		if (d.kind !== 'pending' || Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 4) return;
-		// Clic dans le vide : nouvelle borne à l'endroit exact.
-		const p = toMm(e);
+		// Clic dans le vide : nouvelle borne à l'endroit exact (calée sur la rangée voisine si
+		// on clique tout près ; Alt : sans calage), nommée d'après la liste saisie (ou la
+		// précédente + 1).
+		const at = toMm(e);
+		const p = e.altKey ? at : align(at);
+		remember();
+		const queue = expandNames(quickNames);
+		const id = queue.shift() ?? nextTerminalName(spec.terminals.map((t) => t.id));
+		quickNames = queue.join(', ');
 		spec.terminals.push({
-			id: String(spec.terminals.length + 1),
+			id,
 			x: p.x,
 			y: p.y,
 			dir: nearestSide(spec.w, spec.h, p.x, p.y)
@@ -336,17 +458,31 @@
 	function onwheel(e: WheelEvent) {
 		e.preventDefault();
 		const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg!.getScreenCTM()!.inverse());
-		const k = Math.exp(e.deltaY * 0.0015);
-		const w = Math.min(Math.max(view.w * k, 5), 2000);
-		const f = w / view.w;
-		view = { x: p.x - (p.x - view.x) * f, y: p.y - (p.y - view.y) * f, w, h: view.h * f };
+		zoom(Math.exp(e.deltaY * 0.0015), { x: p.x, y: p.y });
 	}
 
 	/** Flèches : déplacement fin de la borne sélectionnée (0,1 mm ; Maj : 1 mm). */
 	function onkeydown(e: KeyboardEvent) {
-		if (selected === null || !open) return;
+		if (!open) return;
 		const el = e.target as HTMLElement;
 		if (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) return;
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+			e.preventDefault();
+			undo();
+			return;
+		}
+		if (e.key === 'Escape') {
+			selected = null;
+			tool = 'terminals';
+			return;
+		}
+		const tools: Record<string, typeof tool> = { b: 'terminals', r: 'crop', g: 'erase' };
+		if (!e.ctrlKey && !e.metaKey && tools[e.key.toLowerCase()]) {
+			if (tools[e.key.toLowerCase()] === 'terminals' || spec.image)
+				tool = tools[e.key.toLowerCase()];
+			return;
+		}
+		if (selected === null) return;
 		const step = e.shiftKey ? 1 : 0.1;
 		const t = spec.terminals[selected];
 		if (!t) return;
@@ -358,6 +494,7 @@
 		};
 		if (e.key in moves) {
 			e.preventDefault();
+			if (!e.repeat) remember();
 			t.x = round1(t.x + moves[e.key][0]);
 			t.y = round1(t.y + moves[e.key][1]);
 		} else if (e.key === 'Delete') {
@@ -374,16 +511,15 @@
 	// ------------------------------------------------------------ liste
 
 	function spread() {
-		const names = quickNames
-			.split(/[,;]/)
-			.map((n) => n.trim())
-			.filter(Boolean);
+		const names = expandNames(quickNames);
 		if (!names.length) return;
+		remember();
 		spec.terminals = [...spec.terminals, ...spreadTerminals(names, quickSide, spec.w, spec.h)];
 		quickNames = '';
 	}
 
 	function removeTerminal(index: number) {
+		remember();
 		spec.terminals = spec.terminals.filter((_, i) => i !== index);
 		selected = null;
 	}
@@ -424,61 +560,106 @@
 	}}
 />
 
-<Modal bind:open title={initial ? 'Modifier le symbole' : 'Nouveau symbole'} width="1100px">
+<Modal
+	bind:open
+	title={initial ? 'Modifier le symbole' : 'Nouveau symbole'}
+	width="min(1600px, 96vw)"
+	height="92vh"
+	dismissible={false}
+>
 	<div class="layout">
-		<div class="preview">
-			<p class="muted hint">
-				{#if !spec.image && !spec.title}
-					Collez (Ctrl+V) une capture de la documentation, déposez une image, ou donnez un titre
-					pour un bloc rectangulaire.
-				{:else if tool === 'crop'}
-					<strong>Tracez le rectangle à conserver</strong> (les cotes et le blanc autour seront supprimés).
-					Les bornes déjà posées restent sur leurs vis.
-				{:else if tool === 'erase'}
-					<strong>Tracez un rectangle à effacer</strong> (une cote qui traverse l'appareil, un texte inutile…).
-				{:else}
-					<strong>Clic</strong> : poser une borne à cet endroit · <strong>glisser</strong> une borne
-					: la déplacer · <strong>flèches</strong> : ajuster (0,1 mm, Maj 1 mm) ·
-					<strong>molette</strong>
-					: zoom · clic droit glissé : déplacer la vue · <strong>coin bas-droit</strong> : redimensionner
+		<section class="preview">
+			<div class="toolbar">
+				<input
+					bind:this={fileInput}
+					class="hidden"
+					type="file"
+					accept="image/*"
+					onchange={(e) => useImage(e.currentTarget.files?.[0])}
+				/>
+				<Button size="sm" onclick={() => fileInput?.click()}
+					><ImagePlus size={14} /> {spec.image ? 'Changer l’image' : 'Choisir une image'}</Button
+				>
+				{#if spec.image}
+					<Button
+						size="sm"
+						variant="ghost"
+						title="Remplacer l’image par un cadre titré"
+						onclick={removeImage}><Square size={14} /> Sans image</Button
+					>
 				{/if}
-			</p>
-			{#if spec.image || spec.title}
-				<div class="tools">
-					<div class="seg" role="group" aria-label="Outil">
-						<button class:on={tool === 'terminals'} onclick={() => (tool = 'terminals')}
-							><MousePointer2 size={14} /> Bornes</button
-						>
-						<button
-							class:on={tool === 'crop'}
-							disabled={!spec.image}
-							onclick={() => (tool = 'crop')}><Crop size={14} /> Rogner</button
-						>
-						<button
-							class:on={tool === 'erase'}
-							disabled={!spec.image}
-							onclick={() => (tool = 'erase')}><Eraser size={14} /> Gommer</button
-						>
-					</div>
-					<Button
-						size="sm"
-						variant="ghost"
-						disabled={!spec.image || processing}
-						title="Rend le fond blanc transparent (les fils et le schéma restent visibles)"
-						onclick={() => retouch((href) => removeBackground(href))}
-						><Wand size={14} /> Fond transparent</Button
+				<span class="sep"></span>
+				<div class="seg" role="group" aria-label="Outil">
+					<button
+						class:on={tool === 'terminals'}
+						title="Poser et déplacer les bornes (B)"
+						onclick={() => (tool = 'terminals')}><MousePointer2 size={14} /> Bornes</button
 					>
-					<Button
-						size="sm"
-						variant="ghost"
-						disabled={!history.length || processing}
-						title="Annuler la dernière retouche d'image"
-						onclick={undoImage}><Undo2 size={14} /> Annuler ({history.length})</Button
+					<button
+						class:on={tool === 'crop'}
+						disabled={!spec.image}
+						title="Garder seulement une partie de l’image (R)"
+						onclick={() => (tool = 'crop')}><Crop size={14} /> Rogner</button
 					>
-					{#if processing}<span class="muted small">Traitement…</span>{/if}
+					<button
+						class:on={tool === 'erase'}
+						disabled={!spec.image}
+						title="Effacer une zone de l’image : cote, texte… (G)"
+						onclick={() => (tool = 'erase')}><Eraser size={14} /> Gommer</button
+					>
 				</div>
-			{/if}
-			<div class="stage" class:region-tool={tool !== 'terminals'} bind:clientWidth={svgWidth}>
+				<Button
+					size="sm"
+					variant="ghost"
+					disabled={!spec.image || processing}
+					title="Pivoter l’image d’un quart de tour vers la gauche (les bornes suivent)"
+					aria-label="Pivoter à gauche"
+					onclick={() => rotate(false)}><RotateCcw size={14} /></Button
+				>
+				<Button
+					size="sm"
+					variant="ghost"
+					disabled={!spec.image || processing}
+					title="Pivoter l’image d’un quart de tour vers la droite (les bornes suivent)"
+					aria-label="Pivoter à droite"
+					onclick={() => rotate(true)}><RotateCw size={14} /></Button
+				>
+				<Button
+					size="sm"
+					variant="ghost"
+					disabled={!spec.image || processing}
+					title="Rend le fond blanc transparent (les fils et le schéma restent visibles)"
+					onclick={() => retouch((href) => removeBackground(href))}
+					><Wand size={14} /> Fond transparent</Button
+				>
+				<Button
+					size="sm"
+					variant="ghost"
+					disabled={!history.length || processing}
+					title="Annuler la dernière modification (Ctrl+Z)"
+					onclick={undo}><Undo2 size={14} /> Annuler ({history.length})</Button
+				>
+				{#if processing}<span class="muted small">Traitement…</span>{/if}
+				<span class="spacer"></span>
+				<div class="zoom" role="group" aria-label="Zoom">
+					<button title="Zoom arrière" aria-label="Zoom arrière" onclick={() => zoom(1.25)}
+						><ZoomOut size={15} /></button
+					>
+					<button title="Zoom avant" aria-label="Zoom avant" onclick={() => zoom(0.8)}
+						><ZoomIn size={15} /></button
+					>
+					<button title="Voir tout" aria-label="Voir tout" onclick={() => fit()}
+						><Maximize size={15} /></button
+					>
+				</div>
+			</div>
+
+			<div
+				class="stage"
+				class:region-tool={tool !== 'terminals'}
+				bind:clientWidth={stageW}
+				bind:clientHeight={stageH}
+			>
 				<svg
 					bind:this={svg}
 					viewBox="{view.x} {view.y} {view.w} {view.h}"
@@ -500,10 +681,10 @@
 					{/each}
 					{#each spec.terminals as t, i (i)}
 						{@const p = terminalPoint(spec, t)}
-						{@const r = 5 * mmPerPx}
+						{@const r = 6 * mmPerPx}
 						<g class="terminal" class:selected={selected === i} data-terminal={i}>
 							<path
-								d={exitPath(p, t.dir, 14 * mmPerPx)}
+								d={exitPath(p, t.dir, 16 * mmPerPx)}
 								stroke={schematic.color.terminal}
 								stroke-width={1.5 * mmPerPx}
 							/>
@@ -517,13 +698,39 @@
 							/>
 							<text
 								x={p.x + 7 * mmPerPx}
-								y={p.y - 5 * mmPerPx}
-								font-size={11 * mmPerPx}
+								y={p.y - 6 * mmPerPx}
+								font-size={13 * mmPerPx}
+								font-weight="bold"
 								font-family={schematic.font}
-								fill={schematic.color.accent}>{t.id}</text
+								fill={schematic.color.accent}
+								paint-order="stroke"
+								stroke={schematic.color.paper}
+								stroke-width={3 * mmPerPx}>{t.id}</text
 							>
 						</g>
 					{/each}
+					{#if guides.x !== undefined}
+						<line
+							class="guide"
+							x1={guides.x}
+							x2={guides.x}
+							y1={view.y}
+							y2={view.y + view.h}
+							stroke-width={1 * mmPerPx}
+							stroke-dasharray="{4 * mmPerPx} {3 * mmPerPx}"
+						/>
+					{/if}
+					{#if guides.y !== undefined}
+						<line
+							class="guide"
+							x1={view.x}
+							x2={view.x + view.w}
+							y1={guides.y}
+							y2={guides.y}
+							stroke-width={1 * mmPerPx}
+							stroke-dasharray="{4 * mmPerPx} {3 * mmPerPx}"
+						/>
+					{/if}
 					{#if region}
 						<rect
 							class="region {tool}"
@@ -535,114 +742,143 @@
 							stroke-dasharray="{6 * mmPerPx} {4 * mmPerPx}"
 						/>
 					{/if}
-					<!-- Poignée de redimensionnement (coin bas-droit du corps) -->
-					<rect
-						class="resize"
-						data-resize
-						x={spec.w - 5 * mmPerPx}
-						y={spec.h - 5 * mmPerPx}
-						width={10 * mmPerPx}
-						height={10 * mmPerPx}
-						stroke-width={1.5 * mmPerPx}
-					>
-						<title>Redimensionner</title>
-					</rect>
+					{#if !empty}
+						<!-- Poignée de redimensionnement (coin bas-droit du corps) -->
+						<rect
+							class="resize"
+							data-resize
+							x={spec.w - 6 * mmPerPx}
+							y={spec.h - 6 * mmPerPx}
+							width={12 * mmPerPx}
+							height={12 * mmPerPx}
+							stroke-width={1.5 * mmPerPx}
+						>
+							<title>Redimensionner</title>
+						</rect>
+					{/if}
 				</svg>
-				<button class="fit" title="Voir tout" onclick={() => fit()}><Maximize size={14} /></button>
-			</div>
-			<div class="row left">
-				<label class="file">
-					<ImagePlus size={16} />
-					<span>{spec.image ? 'Changer l’image' : 'Choisir une image'}</span>
-					<input
-						type="file"
-						accept="image/*"
-						onchange={(e) => useImage(e.currentTarget.files?.[0])}
-					/>
-				</label>
-				{#if spec.image}
-					<Button size="sm" variant="ghost" onclick={removeImage}
-						>Retirer l’image (bloc rectangulaire)</Button
-					>
+				{#if empty}
+					<div class="drop">
+						<ImagePlus size={40} />
+						<strong>Collez une capture de la documentation (Ctrl+V)</strong>
+						<span>ou glissez une image ici</span>
+						<div class="drop-actions">
+							<Button variant="primary" onclick={() => fileInput?.click()}
+								><ImagePlus size={16} /> Choisir une image…</Button
+							>
+							<Button onclick={blankBlock}><Square size={16} /> Bloc sans image</Button>
+						</div>
+					</div>
 				{/if}
 			</div>
-		</div>
 
-		<div class="form">
-			<Field label="Nom" bind:value={spec.name} placeholder="Sontay IO-RMA" />
-			<div class="row">
-				<Field label="Catégorie (palette)" bind:value={spec.category} />
-				<Field label="Préfixe de repère" bind:value={spec.prefix} placeholder="A" />
-			</div>
-			{#if !spec.image}
-				<Field label="Titre dans le cadre" bind:value={spec.title} placeholder="SONTAY IO-RMA" />
-			{/if}
-			<div class="row">
-				<Field
-					label="Largeur (mm)"
-					type="number"
-					min="5"
-					step="0.5"
-					value={spec.w}
-					onchange={(e) => setWidth(Number(e.currentTarget.value))}
-				/>
-				<Field
-					label="Hauteur (mm)"
-					type="number"
-					min="5"
-					step="0.5"
-					bind:value={spec.h}
-					disabled={!!ratio}
-					hint={ratio ? 'Suit les proportions de l’image' : undefined}
-				/>
-			</div>
-			<label class="check">
-				<input type="checkbox" bind:checked={spec.snapToGrid} /> Aligner les bornes sur la grille (2,5
-				mm)
-			</label>
+			<p class="help">
+				{#if empty}
+					1. Une image de l’appareil (capture de la notice) ou un simple cadre titré.
+				{:else if tool === 'crop'}
+					<strong>Rogner</strong> : tracez le rectangle à <strong>garder</strong>. Les bornes déjà
+					posées restent sur leurs vis. Échap : revenir aux bornes.
+				{:else if tool === 'erase'}
+					<strong>Gommer</strong> : tracez un rectangle à <strong>effacer</strong> (cote, texte inutile…).
+					Échap : revenir aux bornes.
+				{:else}
+					<strong>Clic</strong> : poser la borne <strong class="next">{nextName}</strong> ·
+					<strong>glisser</strong> une borne : la déplacer (<strong>Maj</strong> : précision, Alt :
+					sans calage) · <strong>flèches</strong> : ajuster (Maj : 1 mm) · <strong>Suppr</strong> :
+					supprimer · <strong>molette</strong> : zoom ·
+					<strong>clic droit glissé</strong> : déplacer la vue · <strong>Ctrl+Z</strong> : annuler
+				{/if}
+			</p>
+		</section>
 
-			<fieldset>
-				<legend>Ajout rapide d'une rangée (à ajuster ensuite à la souris)</legend>
+		<aside class="side">
+			<section>
+				<h3>Identité</h3>
+				<Field label="Nom" bind:value={spec.name} placeholder="Sontay IO-RMA" />
 				<div class="row">
-					<select bind:value={quickSide}>
+					<Field label="Catégorie (palette)" bind:value={spec.category} />
+					<Field label="Préfixe de repère" bind:value={spec.prefix} placeholder="A" />
+				</div>
+				{#if !spec.image && !empty}
+					<Field label="Titre dans le cadre" bind:value={spec.title} placeholder="SONTAY IO-RMA" />
+				{/if}
+			</section>
+
+			<section>
+				<h3>Taille sur le schéma</h3>
+				<div class="row">
+					<Field
+						label="Largeur (mm)"
+						type="number"
+						min="5"
+						step="0.5"
+						value={spec.w}
+						onchange={(e) => setWidth(Number(e.currentTarget.value))}
+					/>
+					<Field
+						label="Hauteur (mm)"
+						type="number"
+						min="5"
+						step="0.5"
+						value={spec.h}
+						onchange={(e) => resizeTo(spec.w, Number(e.currentTarget.value))}
+						disabled={!!ratio}
+						hint={ratio ? 'Suit les proportions de l’image' : undefined}
+					/>
+				</div>
+				<label class="check">
+					<input type="checkbox" bind:checked={spec.snapToGrid} /> Aligner les bornes sur la grille (2,5
+					mm)
+				</label>
+			</section>
+
+			<section class="terms">
+				<h3>Bornes <span class="count">{spec.terminals.length}</span></h3>
+				<Field
+					label="Noms des prochaines bornes"
+					bind:value={quickNames}
+					placeholder="24V, 0V, IP1..IP8"
+					hint="Chaque clic sur l’image pose la suivante. « IP1..IP8 » = IP1 à IP8. Vide : numérotation automatique."
+				/>
+				<div class="row spread">
+					<span class="small muted">ou d’un coup, réparties sur le côté</span>
+					<select bind:value={quickSide} aria-label="Côté">
 						{#each SIDES as s (s.id)}<option value={s.id}>{s.label}</option>{/each}
 					</select>
-					<input
-						class="quick"
-						placeholder="24V, 0V, 0V, IP"
-						bind:value={quickNames}
-						onkeydown={(e) => e.key === 'Enter' && spread()}
-					/>
-					<Button size="sm" onclick={spread}>Ajouter</Button>
+					<Button size="sm" disabled={!expandNames(quickNames).length} onclick={spread}
+						>Répartir</Button
+					>
 				</div>
-			</fieldset>
 
-			<div class="terminals" bind:this={listEl}>
-				<div class="thead">
-					<span>Borne</span><span>X (mm)</span><span>Y (mm)</span><span>Sortie</span><span></span>
-				</div>
-				{#each spec.terminals as t, i (i)}
-					<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-					<div class="trow" class:selected={selected === i} onclick={() => (selected = i)}>
-						<input class="name" bind:value={t.id} />
-						<input type="number" step="0.1" bind:value={t.x} />
-						<input type="number" step="0.1" bind:value={t.y} />
-						<select bind:value={t.dir} title="Côté par lequel le fil sort">
-							{#each SIDES as s (s.id)}<option value={s.id}>{s.label}</option>{/each}
-						</select>
-						<button class="del" title="Supprimer" onclick={() => removeTerminal(i)}
-							><Trash size={13} /></button
-						>
+				<div class="terminals" bind:this={listEl}>
+					<div class="thead">
+						<span>Nom</span><span>X (mm)</span><span>Y (mm)</span><span>Sortie du fil</span><span
+						></span>
 					</div>
-				{:else}
-					<p class="muted">Aucune borne : cliquez sur l'image à l'endroit de chaque borne.</p>
-				{/each}
-			</div>
+					{#each spec.terminals as t, i (i)}
+						<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+						<div class="trow" class:selected={selected === i} onclick={() => (selected = i)}>
+							<input class="name" bind:value={t.id} aria-label="Nom de la borne" />
+							<input type="number" step="0.1" bind:value={t.x} aria-label="X (mm)" />
+							<input type="number" step="0.1" bind:value={t.y} aria-label="Y (mm)" />
+							<select bind:value={t.dir} title="Côté par lequel le fil sort">
+								{#each SIDES as s (s.id)}<option value={s.id}>{s.label}</option>{/each}
+							</select>
+							<button class="del" title="Supprimer" onclick={() => removeTerminal(i)}
+								><Trash size={13} /></button
+							>
+						</div>
+					{:else}
+						<p class="muted small">Aucune borne : cliquez sur l’image à l’endroit de chaque vis.</p>
+					{/each}
+				</div>
+			</section>
 			{#if error}<p class="error">{error}</p>{/if}
-		</div>
+		</aside>
 	</div>
 
 	{#snippet actions()}
+		<span class="footnote muted small">Échap ne ferme pas la fenêtre : utilisez Annuler.</span>
 		<Button onclick={() => (open = false)}>Annuler</Button>
 		<Button variant="primary" onclick={save} disabled={!canSave || busy}>
 			{busy ? 'Enregistrement…' : 'Enregistrer dans la bibliothèque'}
@@ -653,24 +889,50 @@
 <style>
 	.layout {
 		display: grid;
-		grid-template-columns: 1fr 400px;
+		grid-template-columns: minmax(0, 1fr) 400px;
 		gap: var(--sp-4);
-		min-height: 480px;
+		height: 100%;
+		min-height: 0;
 	}
 	.preview {
 		display: flex;
 		flex-direction: column;
 		gap: var(--sp-2);
 		min-width: 0;
+		min-height: 0;
 	}
-	.hint {
+	.toolbar {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		flex-wrap: wrap;
+	}
+	.hidden {
+		display: none;
+	}
+	.sep {
+		width: 1px;
+		height: 20px;
+		background: var(--c-border);
+	}
+	.spacer {
+		flex: 1;
+	}
+	.help {
 		margin: 0;
 		font-size: var(--fs-sm);
+		color: var(--c-text-muted);
+	}
+	.help .next {
+		padding: 0 4px;
+		border-radius: var(--radius-sm);
+		background: var(--c-primary-soft);
+		color: var(--c-primary);
 	}
 	.stage {
 		position: relative;
 		flex: 1;
-		min-height: 420px;
+		min-height: 200px;
 	}
 	.stage svg {
 		position: absolute;
@@ -678,17 +940,39 @@
 		width: 100%;
 		height: 100%;
 		background: var(--c-drawing-bg);
-		border: 1px dashed var(--c-border-strong);
+		border: 1px solid var(--c-border-strong);
 		border-radius: var(--radius);
 		cursor: crosshair;
 		touch-action: none;
 		user-select: none;
 	}
+	.drop {
+		position: absolute;
+		inset: var(--sp-4);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: var(--sp-2);
+		border: 2px dashed var(--c-border-strong);
+		border-radius: var(--radius-lg);
+		background: var(--c-surface);
+		color: var(--c-text-muted);
+		text-align: center;
+	}
+	.drop strong {
+		color: var(--c-text);
+		font-size: var(--fs-md);
+	}
+	.drop-actions {
+		display: flex;
+		gap: var(--sp-2);
+		margin-top: var(--sp-2);
+	}
 	.terminal {
 		cursor: move;
 	}
 	.terminal.selected rect {
-		outline: none;
 		stroke: var(--c-selection);
 		stroke-width: 0.4;
 	}
@@ -697,41 +981,47 @@
 		stroke: var(--c-selection);
 		stroke-width: 0.2;
 	}
-	.tools {
-		display: flex;
-		align-items: center;
-		gap: var(--sp-2);
-		flex-wrap: wrap;
-	}
-	.seg {
+	.seg,
+	.zoom {
 		display: inline-flex;
 		border: 1px solid var(--c-border);
 		border-radius: var(--radius);
 		overflow: hidden;
 	}
-	.seg button {
+	.seg button,
+	.zoom button {
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
-		padding: 4px var(--sp-2);
+		padding: 5px var(--sp-2);
 		border: none;
 		background: var(--c-surface);
 		font-size: var(--fs-sm);
 		cursor: pointer;
 	}
-	.seg button + button {
+	.seg button + button,
+	.zoom button + button {
 		border-left: 1px solid var(--c-border);
 	}
 	.seg button.on {
 		background: var(--c-primary-soft);
 		color: var(--c-primary);
+		font-weight: var(--fw-medium);
 	}
 	.seg button:disabled {
 		opacity: 0.4;
 		cursor: default;
 	}
+	.zoom button:hover,
+	.seg button:hover:not(:disabled):not(.on) {
+		background: var(--c-surface-2);
+	}
 	.small {
 		font-size: var(--fs-xs);
+	}
+	.guide {
+		stroke: var(--c-selection);
+		pointer-events: none;
 	}
 	.region-tool svg {
 		cursor: cell;
@@ -741,7 +1031,8 @@
 		stroke: var(--c-selection);
 	}
 	.region.erase {
-		fill: rgba(217, 45, 32, 0.12);
+		fill: var(--c-danger-soft);
+		fill-opacity: 0.6;
 		stroke: var(--c-danger);
 	}
 	.resize {
@@ -749,44 +1040,58 @@
 		stroke: var(--c-selection);
 		cursor: nwse-resize;
 	}
-	.fit {
-		position: absolute;
-		top: var(--sp-2);
-		right: var(--sp-2);
-		display: grid;
-		place-items: center;
-		width: 28px;
-		height: 28px;
-		border: 1px solid var(--c-border);
-		border-radius: var(--radius-sm);
-		background: var(--c-surface);
-		cursor: pointer;
-	}
-	.file {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--sp-2);
-		padding: var(--sp-1) var(--sp-3);
-		border: 1px solid var(--c-border);
-		border-radius: var(--radius);
-		cursor: pointer;
-		font-size: var(--fs-sm);
-	}
-	.file input {
-		display: none;
-	}
-	.form {
+	.side {
 		display: flex;
 		flex-direction: column;
 		gap: var(--sp-3);
 		min-width: 0;
+		min-height: 0;
+	}
+	.side section {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-2);
+		padding-bottom: var(--sp-3);
+		border-bottom: 1px solid var(--c-border);
+	}
+	.side section.terms {
+		flex: 1;
+		min-height: 0;
+		border-bottom: none;
+		padding-bottom: 0;
+	}
+	h3 {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		margin: 0;
+		font-size: var(--fs-xs);
+		font-weight: var(--fw-bold);
+		color: var(--c-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+	.count {
+		padding: 0 6px;
+		border-radius: 999px;
+		background: var(--c-surface-2);
+		color: var(--c-text);
 	}
 	.row {
 		display: flex;
 		gap: var(--sp-2);
-		align-items: flex-end;
+		align-items: flex-start;
 	}
-	.row:not(.left) > :global(*) {
+	.row > :global(*) {
+		flex: 1;
+	}
+	.row.spread {
+		align-items: center;
+	}
+	.row.spread > :global(*) {
+		flex: 0 0 auto;
+	}
+	.row.spread span {
 		flex: 1;
 	}
 	.check {
@@ -795,18 +1100,7 @@
 		gap: var(--sp-1);
 		font-size: var(--fs-sm);
 	}
-	fieldset {
-		margin: 0;
-		padding: var(--sp-2);
-		border: 1px solid var(--c-border);
-		border-radius: var(--radius);
-	}
-	legend {
-		font-size: var(--fs-xs);
-		color: var(--c-text-muted);
-	}
 	select,
-	input.quick,
 	.trow input {
 		height: 28px;
 		min-width: 0;
@@ -816,14 +1110,12 @@
 		background: var(--c-surface);
 		font-size: var(--fs-sm);
 	}
-	fieldset select {
-		flex: 0 0 90px;
-	}
 	.terminals {
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
-		max-height: 260px;
+		flex: 1;
+		min-height: 120px;
 		overflow-y: auto;
 	}
 	.thead,
@@ -841,6 +1133,9 @@
 		background: var(--c-primary-soft);
 	}
 	.thead {
+		position: sticky;
+		top: 0;
+		background: var(--c-surface);
 		font-size: var(--fs-xs);
 		color: var(--c-text-muted);
 	}
@@ -854,7 +1149,12 @@
 		color: var(--c-danger);
 	}
 	.error {
+		margin: 0;
 		color: var(--c-danger);
 		font-size: var(--fs-sm);
+	}
+	.footnote {
+		margin-right: auto;
+		align-self: center;
 	}
 </style>

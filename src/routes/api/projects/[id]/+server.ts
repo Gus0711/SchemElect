@@ -1,12 +1,12 @@
 import { json } from '@sveltejs/kit';
-import { requireUser } from '$lib/server/guards';
+import { requireProject } from '$lib/server/access';
 import { getLock } from '$lib/server/locks';
 import { getProject, saveProjectData } from '$lib/server/projects';
 import type { ProjectResponse } from '$lib/api/types';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
-	requireUser(locals);
+	await requireProject(locals, params.id, 'read');
 	const project = await getProject(params.id);
 	if (!project) return json({ error: 'Projet introuvable' }, { status: 404 });
 	const lock = (await getLock(params.id)) ?? null;
@@ -14,7 +14,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 };
 
 export const PUT: RequestHandler = async ({ params, locals, request }) => {
-	const user = requireUser(locals);
+	const user = await requireProject(locals, params.id, 'write');
 	let body: unknown;
 	try {
 		body = await request.json();

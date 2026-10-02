@@ -19,7 +19,7 @@ Interface **en français**. Utilisateurs : dessinateur(s) armoire, techniciens.
 **Outil autonome** : ne dépend d'aucun autre outil interne et **ne modifie jamais un autre
 dépôt** (en particulier DumTools — interdit d'y toucher).
 
-**État actuel (2026-09-29)** : V1 fonctionnelle (phases 1 à 11) + menu clic droit,
+**État actuel (2026-10-02)** : déployée sur le serveur interne. V1 fonctionnelle (phases 1 à 11) + menu clic droit,
 alignement, alerte de contacts, navigation par renvois (double-clic), voyants colorés,
 **symboles maison** (image de documentation retouchable — rogner / gommer / fond
 transparent — ou cadre titré, bornes posées au clic, bibliothèque partagée) et
@@ -27,25 +27,47 @@ redimensionnement des symboles maison sur le folio, câbles, **folios d'implanta
 façade** (armoire à l'échelle, rails, goulottes, placement auto), **modèles de cartouche et
 de page de garde** (logo, champs libres, cases configurables, bibliothèque « Modèles »),
 **folio borniers automatique** (dessin des borniers), **grille** réglable et imprimable,
-**raccourcis clavier** avec aide (touche ?), exemple « armoire complète ». Détail :
+**raccourcis clavier** avec aide (touche ?), exemple « armoire complète », **panneau
+Appareils** + **recherche Ctrl+F**, **catalogue matériel** (page `/catalogue`, catalogue de
+départ) + **nomenclature par référence** (CSV + PDF), **historique des versions** et
+**duplication**, liste de commande, nouvelle disposition (onglets de folios), favoris,
+**sociétés et rôles**, **clients / affaires (n° WhySoft)** et page Projets classée par
+affaire. Détail :
 `docs/JOURNAL.md`.
 
 ## Priorités (à traiter dans cet ordre — voir `docs/ROADMAP.md` § Priorités)
 
+L'application est **déployée** sur le serveur interne. Le testeur est l'utilisateur
+(Gus) ; l'accès sera ouvert à un collègue ensuite. V.R n'est plus dans la société : les
+points « à faire valider par V.R » sont désormais à valider par l'utilisateur.
+
 1. ✅ **Sécuriser** : fait (commit initial + sauvegarde automatique de la base, page
    admin « Sauvegardes »). Toujours demander l'accord avant de committer.
-2. 🔴 **Test par le dessinateur (V.R)** sur le dossier DW261136 → ses retours priment sur
-   tout le reste de la liste.
-3. 🔴 **Mise en service** sur le serveur interne (Docker : `ORIGIN`, HTTPS éventuel,
-   sauvegarde du volume `data/`).
-4. ✅ **Câbles** multi-conducteurs : fait (outil Câble, `model/cables.ts`). Reste à faire
-   valider par V.R les couleurs SYT1 au-delà de 3 paires.
-5. 🟡 **Panneau « Appareils »** (liste de tous les repères, recherche, appareils sans
-   référence) + **recherche** dans le dossier (« KM3 », « P12 »).
-6. 🟠 Selon les retours : catalogue matériel (vraies dimensions et contacts par référence)
-   + nomenclature par référence dans le PDF ; historique par indice de révision.
-   (Implantation / façade, modèles de cartouche et folio borniers : faits le 2026-09-29.)
-7. 🟡 Plus tard : récupération locale en cas de coupure réseau, import `.xrs` WinRelais.
+2. ✅ **Mise en service** sur le serveur interne : fait.
+3. ✅ **Panneau « Appareils »** + **recherche Ctrl+F** : fait le 2026-10-01, à tester par
+   l'utilisateur.
+4. ✅ **Catalogue matériel** + **nomenclature par référence** (CSV + PDF) : fait le
+   2026-10-01. Catalogue de départ (~54 fiches) **à vérifier** (désignations, encombrements).
+5. ✅ **Historique des versions** (automatiques / nommées / indices, restauration,
+   consultation, PDF d'une version) + **duplication** pour une nouvelle affaire : fait le
+   2026-10-01. Plus tard : comparaison de deux versions (liste des écarts).
+6. ✅ **Liste de commande** par fabricant (appareils + accessoires, matériel d'armoire
+   calculé, câbles, lignes libres ; CSV + PDF ; pas de prix) et **section des fils** : faits
+   le 2026-10-01. À tester par l'utilisateur.
+6 bis. ✅ **Disposition** (2026-10-02) : folios en onglets en bas, colonne d'icônes à gauche
+   (Symboles, Macros, Appareils, Contrôles, repliable), menu « Dossier ». **Symboles
+   favoris** (par utilisateur) et **format des numéros de fils** (par folio / colonne).
+7. 🔴 **Organisation des dossiers** : ✅ sociétés + rôles (super-admin, admin, utilisateur,
+   lecteur) → ✅ clients / affaires (n° WhySoft, page `/affaires`, rattachement des schémas)
+   → ✅ page Projets (Client › Affaire › Schémas, filtres, création guidée, fiche affaire
+   `/affaires/[id]` avec PDF) → connecteur ERP Dumortier (attend la doc de l'API).
+   **Toute donnée appartient à une société** : filtrer par `locals.user.organizationId`,
+   gardes `requireEditor` / `requireProject` (voir ARCHITECTURE § 6).
+   Détail et état : `docs/ROADMAP.md` § Organisation des dossiers.
+8. 🟡 Plus tard : récupération locale en cas de coupure réseau, import `.xrs` WinRelais.
+
+À valider par l'utilisateur (règles métier en attente) : couleurs SYT1 au-delà de 3 paires,
+encombrements par défaut de l'implantation, fiches du catalogue de départ.
 
 ## Documents de référence
 
@@ -103,6 +125,9 @@ de page de garde** (logo, champs libres, cases configurables, bibliothèque « M
 - `npm run build` — build de production
 
 Avant de terminer une session : `npm run check && npm run lint && npm test && npm run test:e2e`.
+Session cloud (Linux, sans Edge) : lancer les e2e avec une config hors dépôt qui reprend
+`playwright.config.ts` sans `channel` et avec
+`launchOptions.executablePath: '/opt/pw-browsers/chromium'` (voir JOURNAL 2026-10-01).
 
 Pièges : OneDrive peut verrouiller des fichiers (EBUSY) → réessayer ; les ports 5182–5281 sont
 réservés par Windows (le e2e utilise 4299). Ne pas utiliser `structuredClone` sur l'état

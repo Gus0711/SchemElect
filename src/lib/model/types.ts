@@ -1,4 +1,5 @@
 import type { SymbolDef } from '$lib/symbols/types';
+import type { CatalogItem } from './catalog';
 import type { DocTemplate } from './template';
 
 /**
@@ -25,6 +26,8 @@ export interface Potential {
 	/** Couleur du tracé (CSS). */
 	stroke: string;
 	dashed?: boolean;
+	/** Section des fils de ce potentiel en mm² (« 2,5 ») ; absente = section par défaut. */
+	section?: string;
 }
 
 /** Appareil physique (KM1, Q1, P12…). Plusieurs symboles peuvent le représenter. */
@@ -63,6 +66,10 @@ export interface Wire {
 	points: Point[];
 	/** Numéro imposé à l'équipotentielle (sinon numérotation automatique). */
 	numberOverride?: string;
+	/** Section imposée à l'équipotentielle, en mm² (« 1,5 ») ; sinon potentiel / défaut. */
+	section?: string;
+	/** Couleur imposée à l'équipotentielle (« Rouge », voir `WIRE_COLORS`) ; sinon potentiel / défaut. */
+	color?: string;
 }
 
 /** Barre de potentiel horizontale. */
@@ -121,6 +128,10 @@ export interface CableItem {
 	name?: string;
 	/** Afficher la couleur des conducteurs sur le schéma (défaut : oui). */
 	showColors?: boolean;
+	/** Référence à commander (liste de commande). */
+	reference?: string;
+	/** Longueur à commander, en mètres (liste de commande) ; à ne pas confondre avec `length`. */
+	cableLength?: number;
 }
 
 // ---------------------------------------------------------------- implantation / façade
@@ -182,6 +193,8 @@ export interface Panel {
 	enclosure: Enclosure;
 	/** Échelle imposée (dénominateur : 8 = 1:8) ; absente = automatique. */
 	scale?: number;
+	/** Référence de l'enveloppe (implantation) : liste de commande. */
+	reference?: string;
 	rails: Rail[];
 	ducts: Duct[];
 	items: PanelItem[];
@@ -208,6 +221,13 @@ export interface Folio {
 export interface ProjectMeta {
 	name: string;
 	affaireNumber: string;
+	/** N° WhySoft (CRM) : relie le schéma à la commande. Repris de l'affaire si rattaché. */
+	whysoft?: string;
+	/**
+	 * Affaire de rattachement (`clients` / `affaires` en base). Rattaché : client, n° WhySoft
+	 * et n° d'affaire viennent de l'affaire (imposés à l'enregistrement et à l'ouverture).
+	 */
+	affaireId?: string;
 	planNumber: string;
 	client: string;
 	company: string;
@@ -225,9 +245,50 @@ export interface Revision {
 	date: string;
 }
 
+/** Affichage des sections sur les fils : toutes, seulement celles imposées sur un fil, aucune. */
+export type SectionDisplay = 'all' | 'imposed' | 'none';
+
 export interface ProjectSettings {
 	wireNumberDigits: number;
 	wireNumberStart: number;
+	/**
+	 * Modèle du numéro de fil (défaut « {N} », numérotation séquentielle sur tout le dossier) :
+	 * {N} compteur, {F} numéro du folio (2 chiffres), {C} colonne. Le compteur repart à chaque
+	 * folio si le modèle contient {F}, à chaque colonne s'il contient aussi {C}.
+	 */
+	wireNumberTemplate?: string;
+	/** Section par défaut des fils hors potentiel (commande), en mm² ; vide = non renseignée. */
+	wireSection?: string;
+	/** Couleur par défaut des fils hors potentiel (commande) ; vide = non renseignée. */
+	wireColor?: string;
+	/** Affichage des sections sur le dessin (défaut : toutes). */
+	sectionDisplay?: SectionDisplay;
+}
+
+/**
+ * Références du matériel d'armoire calculé (liste de commande). Vide = ligne « à compléter »
+ * avec une désignation générique.
+ */
+export interface MaterialRefs {
+	/** Rail oméga, vendu en barres de 2 m. */
+	rail?: string;
+	/** Butée d'arrêt (2 par bornier). */
+	endClamp?: string;
+	/** Flasque d'extrémité (1 par bornier). */
+	endPlate?: string;
+	/** Goulottes : référence par dimension (« 40×60 »). */
+	ducts?: Record<string, string>;
+}
+
+/** Ligne ajoutée à la main dans la liste de commande (presse-étoupes, visserie…). */
+export interface OrderExtra {
+	id: Id;
+	reference: string;
+	manufacturer: string;
+	designation: string;
+	quantity: number;
+	/** Unité libre : « pce », « m », « lot »… (défaut pce). */
+	unit?: string;
 }
 
 export const SCHEMA_VERSION = 1;
@@ -250,6 +311,15 @@ export interface Project {
 	 * standard (voir `template.ts`).
 	 */
 	template?: DocTemplate;
+	/**
+	 * Copies des fiches du catalogue matériel utilisées par le projet, par
+	 * `referenceKey(reference)` (voir `catalog.ts`). Absent = aucune.
+	 */
+	catalog?: Record<string, CatalogItem>;
+	/** Références du matériel d'armoire (liste de commande). */
+	materials?: MaterialRefs;
+	/** Lignes libres de la liste de commande. */
+	orderExtras?: OrderExtra[];
 }
 
 /** Élément sélectionnable d'un folio. */

@@ -11,23 +11,33 @@ export interface SnapResult {
 	terminal?: AbsTerminal;
 }
 
+/** Rayon maximal d'accroche d'une borne (mm), quel que soit le zoom. */
+export const TERMINAL_SNAP_MAX = 1.5;
+
 /**
  * Point d'accroche le plus pertinent autour de `p` (tolérance en mm) :
  * borne > extrémité de fil > fil (projeté sur la grille) > barre > grille.
  */
 export function snapTarget(folio: Folio, p: Point, tol: number): SnapResult {
 	let best: { d: number; r: SnapResult } | null = null;
-	const consider = (d: number, r: SnapResult) => {
-		if (d <= tol && (!best || d < best.d - EPS)) best = { d, r };
+	const consider = (d: number, r: SnapResult, max = tol) => {
+		if (d <= max && (!best || d < best.d - EPS)) best = { d, r };
 	};
 
+	// Bornes : accroche limitée (bornes serrées d'un automate) — sinon un clic sur la grille
+	// juste à côté d'une rangée de bornes accrochait la voisine et terminait le fil.
+	const termTol = Math.min(tol, TERMINAL_SNAP_MAX);
 	for (const s of folio.symbols)
 		for (const t of symbolTerminals(s))
-			consider(Math.hypot(t.x - p.x, t.y - p.y), {
-				point: { x: t.x, y: t.y },
-				kind: 'terminal',
-				terminal: t
-			});
+			consider(
+				Math.hypot(t.x - p.x, t.y - p.y),
+				{
+					point: { x: t.x, y: t.y },
+					kind: 'terminal',
+					terminal: t
+				},
+				termTol
+			);
 	if (best) return (best as { r: SnapResult }).r;
 
 	for (const w of folio.wires)

@@ -4,6 +4,8 @@
 	import { fragmentOrigin } from '$lib/model/fragments';
 	import { AREA } from '$lib/model/layout';
 	import { panelTransform } from '$lib/model/panel';
+	import { samePoint } from '$lib/model/geometry';
+	import { symbolTerminals } from '$lib/model/symbolGeometry';
 	import type { ItemRef } from '$lib/model/types';
 	import FolioContent from '$lib/render/FolioContent.svelte';
 	import GridLayer from '$lib/render/GridLayer.svelte';
@@ -56,6 +58,18 @@
 	const tool = $derived(editor.tool);
 	const cursor = $derived(editor.cursor);
 	const px = $derived(1 / vp.scale);
+
+	/** Borne visée par l'outil Fil : « A1 : 18 » affiché près du curseur. */
+	const hoveredTerminal = $derived.by(() => {
+		const r = interaction.snapResult;
+		if (tool.kind !== 'wire' || r?.kind !== 'terminal' || !r.terminal) return null;
+		for (const s of editor.folio.symbols)
+			if (symbolTerminals(s).some((t) => t.id === r.terminal!.id && samePoint(t, r.point))) {
+				const tag = editor.project.devices[s.deviceId]?.tag ?? '';
+				return `${tag ? `${tag} : ` : ''}${r.terminal.label ?? r.terminal.id}`;
+			}
+		return null;
+	});
 	const cursorClass = $derived(
 		interaction.panning
 			? 'grabbing'
@@ -219,6 +233,15 @@
 					</g>
 				{:else}
 					<circle class="snap {k}" cx={cursor.x} cy={cursor.y} r={5 * px} />
+					{#if hoveredTerminal}
+						<text
+							class="snap-label"
+							x={cursor.x + 8 * px}
+							y={cursor.y - 8 * px}
+							font-size={12 * px}
+							stroke-width={3 * px}>{hoveredTerminal}</text
+						>
+					{/if}
 				{/if}
 			{/if}
 		</g>
@@ -314,6 +337,13 @@
 	}
 	.snap.terminal {
 		stroke: var(--c-danger);
+	}
+	.snap-label {
+		fill: var(--c-danger);
+		stroke: var(--c-surface);
+		paint-order: stroke;
+		font-weight: var(--fw-bold);
+		pointer-events: none;
 	}
 	.crosshair-mark line {
 		stroke: var(--c-selection);

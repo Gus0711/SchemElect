@@ -30,6 +30,18 @@ async function evalEditor<T>(page: Page, fn: string): Promise<T> {
 	) as Promise<T>;
 }
 
+/** Ouvre un panneau de la barre latérale (sans le replier s'il est déjà ouvert). */
+async function openPanel(page: Page, name: string) {
+	const button = page.locator('.rail').getByRole('button', { name, exact: true });
+	if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
+}
+
+/** Menu « Dossier » de la barre du haut. */
+async function dossierMenu(page: Page, item: string | RegExp) {
+	await page.getByRole('button', { name: /^Dossier/ }).click();
+	await page.getByRole('menuitem', { name: item }).click();
+}
+
 async function place(page: Page, name: RegExp, at: Pt) {
 	await page.getByRole('button', { name }).first().click();
 	await clickAt(page, at);
@@ -52,7 +64,7 @@ test('dessiner un folio, renvois, numéros de fils, sauvegarde et export PDF', a
 	// Nouveau projet
 	await page.getByRole('button', { name: /Nouveau projet/ }).click();
 	await page.getByLabel('Nom du projet').fill('Chaufferie test');
-	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
 	await expect(page).toHaveURL(/\/projets\//);
 	await expect(page.locator('.status.saved')).toBeVisible();
 
@@ -210,7 +222,11 @@ test('menu clic droit, alerte de contacts et alignement', async ({ page }) => {
 	await expect(page.getByText(/dépassement/)).toBeVisible();
 	await page.keyboard.press('Escape');
 	await page.locator('.canvas').click({ position: { x: 5, y: 5 } });
+	// Badge du panneau Contrôles, puis le détail dans le panneau.
+	await expect(page.locator('.rail .badge')).toBeVisible();
+	await openPanel(page, 'Contrôles');
 	await expect(page.getByText(/dessinés pour 1 NO/)).toBeVisible();
+	await openPanel(page, 'Symboles');
 
 	// Alignement sur l'axe : deux voyants décalés
 	await page.keyboard.press('f');
@@ -274,26 +290,40 @@ test('symbole maison depuis une image de documentation', async ({ page }) => {
 	};
 	await page.getByRole('button', { name: 'Rogner' }).click();
 	await dragStage([10, 10], [70, 50]);
-	await expect(page.getByRole('button', { name: /Annuler \(1\)/ })).toBeVisible();
+	// Largeur puis rognage : deux modifications annulables.
+	await expect(page.getByRole('button', { name: /Annuler \(2\)/ })).toBeVisible();
 	expect(Number(await page.getByLabel('Largeur (mm)').inputValue())).toBeCloseTo(60, 0);
 	await page.getByRole('button', { name: 'Fond transparent' }).click();
+	await expect(page.getByRole('button', { name: /Annuler \(3\)/ })).toBeVisible();
+	await page.getByRole('button', { name: /Annuler \(3\)/ }).click();
 	await expect(page.getByRole('button', { name: /Annuler \(2\)/ })).toBeVisible();
-	await page.getByRole('button', { name: /Annuler \(2\)/ }).click();
-	await expect(page.getByRole('button', { name: /Annuler \(1\)/ })).toBeVisible();
 	await page.getByRole('button', { name: 'Fond transparent' }).click();
+
+	// Quart de tour : largeur et hauteur s'échangent ; retour avec l'autre sens.
+	const w0 = Number(await page.getByLabel('Largeur (mm)').inputValue());
+	const h0 = Number(await page.getByLabel('Hauteur (mm)').inputValue());
+	await page.getByRole('button', { name: 'Pivoter à droite' }).click();
+	await expect(page.getByLabel('Largeur (mm)')).toHaveValue(String(h0));
+	await expect(page.getByLabel('Hauteur (mm)')).toHaveValue(String(w0));
+	await page.getByRole('button', { name: 'Pivoter à gauche' }).click();
+	await expect(page.getByLabel('Largeur (mm)')).toHaveValue(String(w0));
 
 	// Redimensionnement par la poignée : 60 → 80 mm
 	await page.getByRole('button', { name: 'Bornes' }).click();
 	const h = Number(await page.getByLabel('Hauteur (mm)').inputValue());
 	await dragStage([60, h], [80, h]);
 	expect(Number(await page.getByLabel('Largeur (mm)').inputValue())).toBeCloseTo(80, 0);
-	const quick = page.getByPlaceholder('24V, 0V, 0V, IP');
+	const quick = page.getByPlaceholder('24V, 0V, IP1..IP8');
 	await quick.fill('24V, COM, DO1, C1, DO2, C2');
-	await quick.press('Enter');
-	await page.locator('fieldset select').selectOption('s');
+	await page.getByRole('button', { name: 'Répartir' }).click();
+	await page.getByRole('combobox', { name: 'Côté', exact: true }).selectOption('s');
 	await quick.fill('UI1, COM, UI2');
-	await quick.press('Enter');
+	await page.getByRole('button', { name: 'Répartir' }).click();
 	await expect(page.locator('.trow')).toHaveCount(9);
+	// Nom de la prochaine borne : saisi d'avance (sinon la précédente + 1).
+	await expect(page.locator('.help .next')).toHaveText('UI3');
+	await quick.fill('DO3');
+	await expect(page.locator('.help .next')).toHaveText('DO3');
 
 	// Borne posée exactement au clic (centre de l'aperçu = centre de l'image), puis glissée
 	const clickAt2 = await page.evaluate(() => {
@@ -304,7 +334,7 @@ test('symbole maison depuis une image de documentation', async ({ page }) => {
 	await page.mouse.click(clickAt2.x, clickAt2.y);
 	await expect(page.locator('.trow')).toHaveCount(10);
 	const last = page.locator('.trow').last();
-	await last.locator('input.name').fill('DO3');
+	await expect(last.locator('input.name')).toHaveValue('DO3');
 	expect(Number(await last.locator('input[type=number]').nth(0).inputValue())).toBeCloseTo(40, 0);
 	expect(Number(await last.locator('input[type=number]').nth(1).inputValue())).toBeCloseTo(20, 0);
 	const to = await page.evaluate(() => {
@@ -317,6 +347,30 @@ test('symbole maison depuis une image de documentation', async ({ page }) => {
 	await page.mouse.move(to.x, to.y, { steps: 5 });
 	await page.mouse.up();
 	expect(Number(await last.locator('input[type=number]').nth(0).inputValue())).toBeCloseTo(45.5, 0);
+	// Ctrl+Z annule le déplacement ; Échap ne ferme pas la fenêtre.
+	await page.keyboard.press('Control+z');
+	expect(Number(await last.locator('input[type=number]').nth(0).inputValue())).toBeCloseTo(40, 0);
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('dialog', { name: 'Nouveau symbole' })).toBeVisible();
+	await page.screenshot({ path: 'test-results/nouveau-symbole.png' });
+	await page.mouse.move(clickAt2.x, clickAt2.y);
+	await page.mouse.down();
+	await page.mouse.move(to.x, to.y, { steps: 5 });
+	await page.mouse.up();
+	expect(Number(await last.locator('input[type=number]').nth(0).inputValue())).toBeCloseTo(45.5, 0);
+	// Maj + glisser : 5 mm de souris = 1 mm de borne (réglage fin).
+	const far = await page.evaluate(() => {
+		const svg = document.querySelector('.stage > svg') as SVGSVGElement;
+		const p = new DOMPoint(50.5, 20).matrixTransform(svg.getScreenCTM()!);
+		return { x: p.x, y: p.y };
+	});
+	await page.mouse.move(to.x, to.y);
+	await page.keyboard.down('Shift');
+	await page.mouse.down();
+	await page.mouse.move(far.x, far.y, { steps: 5 });
+	await page.mouse.up();
+	await page.keyboard.up('Shift');
+	expect(Number(await last.locator('input[type=number]').nth(0).inputValue())).toBeCloseTo(46.5, 1);
 	await page.getByRole('button', { name: 'Enregistrer dans la bibliothèque' }).click();
 	// Enregistrement côté serveur : attendre la fermeture de la fenêtre et l'outil de pose.
 	await expect(page.getByRole('button', { name: 'Enregistrer dans la bibliothèque' })).toBeHidden();
@@ -388,7 +442,7 @@ test('câble multi-conducteurs tracé en travers des fils', async ({ page }) => 
 	await page.waitForLoadState('networkidle');
 	await page.getByRole('button', { name: /Nouveau projet/ }).click();
 	await page.getByLabel('Nom du projet').fill('Pompes ECS');
-	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
 	await expect(page).toHaveURL(/\/projets\//);
 	await expect(page.locator('.status.saved')).toBeVisible();
 
@@ -469,16 +523,15 @@ test('folios d’implantation et de façade : placement automatique et à la mai
 	await expect(page.locator('.status.saved')).toBeVisible();
 
 	// Nouveau folio d'implantation (après le dernier folio)
-	await page.getByRole('button', { name: 'Folios', exact: true }).click();
 	const last = await evalEditor<number>(page, 'editor.project.folios.length');
 	await evalEditor(page, `editor.setFolio(editor.project.folios[${last - 1}].id)`);
-	await page.getByRole('button', { name: /^Folio$/ }).click();
+	await page.getByRole('button', { name: 'Nouveau folio' }).click();
 	await page.getByRole('menuitem', { name: /implantation/ }).click();
 	expect(await evalEditor<string>(page, 'editor.folio.panel.kind')).toBe('implantation');
 	expect(await evalEditor<number>(page, 'editor.folio.panel.rails.length')).toBe(4);
 
-	// Onglet « Appareils » : placement automatique
-	await page.getByRole('button', { name: 'Appareils', exact: true }).click();
+	// Onglet « À placer » : placement automatique
+	await openPanel(page, 'À placer');
 	await page.getByRole('button', { name: /Placer automatiquement/ }).click();
 	const placed = await evalEditor<number>(page, 'editor.folio.panel.items.length');
 	expect(placed).toBeGreaterThan(2);
@@ -525,20 +578,18 @@ test('folios d’implantation et de façade : placement automatique et à la mai
 	);
 
 	// Façade : voyants et commutateurs du schéma
-	await page.getByRole('button', { name: 'Folios', exact: true }).click();
-	await page.getByRole('button', { name: /^Folio$/ }).click();
+	await page.getByRole('button', { name: 'Nouveau folio' }).click();
 	await page.getByRole('menuitem', { name: /façade/ }).click();
 	expect(await evalEditor<string>(page, 'editor.folio.panel.kind')).toBe('facade');
-	await page.getByRole('button', { name: 'Appareils', exact: true }).click();
+	await openPanel(page, 'À placer');
 	await page.getByRole('button', { name: /Placer automatiquement/ }).click();
 	expect(await evalEditor<number>(page, 'editor.folio.panel.items.length')).toBeGreaterThan(0);
 	await page.keyboard.press('Escape');
 	await page.keyboard.press('f');
 	await page.screenshot({ path: 'test-results/facade.png' });
 	await page.getByRole('button', { name: /Thème : Clair/ }).click();
-	await page.getByRole('button', { name: 'Folios', exact: true }).click();
 	await page.screenshot({ path: 'test-results/facade-sombre.png' });
-	await page.getByRole('button', { name: 'Appareils', exact: true }).click();
+	await openPanel(page, 'À placer');
 	await page.screenshot({ path: 'test-results/facade-sombre-appareils.png' });
 
 	// Export PDF du dossier avec les folios d'armoire (même rendu qu'à l'écran)
@@ -571,6 +622,7 @@ test('exemple armoire complète : ouverture et export PDF', async ({ page }) => 
 	await page.waitForLoadState('networkidle');
 	await expect(page.locator('.status.saved')).toBeVisible();
 	expect(await evalEditor<number>(page, 'editor.project.folios.length')).toBe(5);
+	await openPanel(page, 'Contrôles');
 	await expect(page.getByText('Aucun problème détecté.')).toBeVisible();
 	for (let i = 1; i <= 5; i++) {
 		await page.screenshot({ path: `test-results/exemple-${i}.png` });
@@ -638,13 +690,13 @@ test('modèle de cartouche et de page de garde : création, choix, champ libre, 
 	await page.getByRole('button', { name: /Nouveau projet/ }).click();
 	await page.getByLabel('Nom du projet').fill('Chaufferie Lot CVC');
 	await page.locator('select[name=template]').selectOption({ label: 'Dumortier' });
-	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
 	await expect(page).toHaveURL(/\/projets\//);
 	await expect(page.locator('.status.saved')).toBeVisible();
 	expect(await evalEditor<string>(page, 'editor.project.template.name')).toBe('Dumortier');
 
 	// Valeur du champ libre → cartouche
-	await page.getByRole('button', { name: 'Propriétés du dossier' }).click();
+	await dossierMenu(page, 'Propriétés du dossier…');
 	await page.getByRole('dialog').getByLabel('Lot').fill('CVC');
 	await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
 	await expect(page.locator('.canvas svg text', { hasText: 'Lot : CVC' })).toBeVisible();
@@ -671,7 +723,7 @@ test('raccourcis clavier : aide, recherche de symbole, reprise de pose, barre, F
 	await page.waitForLoadState('networkidle');
 	await page.getByRole('button', { name: /Nouveau projet/ }).click();
 	await page.getByLabel('Nom du projet').fill('Raccourcis');
-	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
 	await expect(page).toHaveURL(/\/projets\//);
 	await expect(page.locator('.status.saved')).toBeVisible();
 
@@ -798,9 +850,8 @@ test('folio borniers automatique : dessin, filtre, double-clic, PDF', async ({ p
 	await expect(page.locator('.status.saved')).toBeVisible();
 
 	// Ajout après le folio 03 (pompe)
-	await page.getByRole('button', { name: 'Folios', exact: true }).click();
 	await evalEditor(page, 'editor.setFolio(editor.project.folios[2].id)');
-	await page.getByRole('button', { name: /^Folio$/ }).click();
+	await page.getByRole('button', { name: 'Nouveau folio' }).click();
 	await page.getByRole('menuitem', { name: /Folio borniers/ }).click();
 	expect(await evalEditor<number>(page, 'editor.folioIndex')).toBe(3);
 	const svg = page.locator('.canvas svg');
@@ -830,4 +881,631 @@ test('folio borniers automatique : dessin, filtre, double-clic, PDF', async ({ p
 	const download = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
 	await (await download).saveAs('test-results/export-folio-borniers.pdf');
+});
+
+test('catalogue matériel, panneau Appareils, recherche Ctrl+F et nomenclature', async ({
+	page
+}) => {
+	page.on('dialog', (d) => d.accept());
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+
+	// Catalogue : import du catalogue de départ, recherche.
+	await page.getByRole('link', { name: 'Catalogue' }).click();
+	await expect(page).toHaveURL(/\/catalogue/);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: /Importer le catalogue de départ/ }).click();
+	await expect(page.getByText(/fiche\(s\) ajoutée\(s\)/)).toBeVisible();
+	await expect(page.getByRole('cell', { name: 'LC1D09B7', exact: true })).toBeVisible();
+	await page.screenshot({ path: 'test-results/catalogue.png', fullPage: true });
+	await page.getByPlaceholder(/Rechercher \(référence/).fill('gv2 me08');
+	await expect(page.locator('tbody tr')).toHaveCount(1);
+
+	// Nouvelle fiche à la main.
+	await page.getByRole('button', { name: /Nouvelle fiche/ }).click();
+	await page.getByLabel('Référence *').fill('TEST-001');
+	await page.getByLabel('Fabricant').fill('Maison');
+	await page.getByLabel('Contacts NO').fill('2');
+	await page.getByRole('button', { name: 'Enregistrer' }).click();
+	await expect(page.getByText('Fiche « TEST-001 » enregistrée.')).toBeVisible();
+
+	// Dossier : panneau Appareils.
+	await page.getByRole('link', { name: 'Projets' }).click();
+	await page.getByRole('button', { name: 'Exemple armoire complète' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+	await openPanel(page, 'Appareils');
+	await page.getByRole('button', { name: /^Sans réf\./ }).click();
+	const firstRow = page.locator('.devices .row').first();
+	const tag = (await firstRow.locator('.tag').textContent())!.trim();
+	await firstRow.click();
+	expect(
+		await evalEditor<string>(
+			page,
+			`editor.project.devices[editor.folio.symbols.find((s) => s.id === editor.selection[0].id).deviceId].tag`
+		)
+	).toBe(tag);
+
+	// Référence choisie dans le catalogue (casse / espaces indifférents).
+	const ref = page.getByLabel('Référence constructeur');
+	await ref.fill('lc1d09 b7');
+	await ref.press('Tab');
+	await expect(page.locator('.inspector p.catalog')).toContainText('Contacteur TeSys D 3P 9 A');
+	const device = await evalEditor<{ reference: string; manufacturer: string }>(
+		page,
+		`Object.values(editor.project.devices).find((d) => d.tag === '${tag}')`
+	);
+	expect(device).toMatchObject({ reference: 'LC1D09B7', manufacturer: 'Schneider Electric' });
+	expect(await evalEditor<boolean>(page, `!!editor.project.catalog.LC1D09B7`)).toBe(true);
+	await page.screenshot({ path: 'test-results/appareils.png' });
+
+	// Recherche Ctrl+F : aller à un appareil d'un autre folio.
+	const target = await evalEditor<{ tag: string; folioId: string; symbolId: string }>(
+		page,
+		`(() => { const f = editor.project.folios.find((f) => f.id !== editor.folioId && f.symbols.length);
+			const s = f.symbols.find((s) => editor.project.devices[s.deviceId]);
+			return { tag: editor.project.devices[s.deviceId].tag, folioId: f.id, symbolId: s.id }; })()`
+	);
+	await page.keyboard.press('Escape');
+	await page.keyboard.press('Control+f');
+	const search = page.getByRole('textbox', { name: 'Rechercher dans le dossier' });
+	await expect(search).toBeFocused();
+	await search.fill(target.tag);
+	await expect(page.locator('.search li button').first()).toContainText(target.tag);
+	await page.screenshot({ path: 'test-results/recherche.png' });
+	await search.press('Enter');
+	await expect(search).toBeHidden();
+	expect(await evalEditor<string>(page, 'editor.folioId')).toBe(target.folioId);
+	expect(await evalEditor<number>(page, 'editor.selection.length')).toBe(1);
+
+	// Relais avec embase : l'accessoire arrive dans la nomenclature.
+	await evalEditor(
+		page,
+		`(() => { const d = Object.values(editor.project.devices).find((d) => d.tag === 'S1');
+			editor.setReference(d.id, 'RXM4AB2B7'); })()`
+	);
+	expect(await evalEditor<boolean>(page, '!!editor.project.catalog.RXZE2S114M')).toBe(true);
+
+	// Section par défaut des fils : affichée à côté du numéro.
+	await dossierMenu(page, 'Propriétés du dossier…');
+	await page.getByRole('button', { name: 'Numérotation, sections, couleurs' }).click();
+	await page.getByRole('combobox', { name: /Section par défaut/ }).fill('0,75');
+	await page.getByRole('button', { name: 'Enregistrer' }).click();
+	await expect(page.locator('.canvas svg text', { hasText: '0,75²' }).first()).toBeVisible();
+	await page.screenshot({ path: 'test-results/sections.png' });
+
+	// Nomenclature : aperçu, puis PDF avec la nomenclature en fin de dossier.
+	await page.getByRole('button', { name: /^Nomenclature$/ }).click();
+	await expect(page.getByRole('cell', { name: 'LC1D09B7' })).toBeVisible();
+	await expect(page.getByRole('cell', { name: 'accessoire de S1' })).toBeVisible();
+	await page.screenshot({ path: 'test-results/nomenclature.png' });
+
+	// Liste de commande : matériel d'armoire calculé, référence du rail, ligne libre.
+	await page.getByRole('button', { name: 'Liste de commande' }).click();
+	await expect(page.getByRole('cell', { name: /^Rail oméga/ })).toBeVisible();
+	await page.getByLabel('Référence du rail').fill('NSYSDR200');
+	await page.getByLabel('Référence du rail').press('Tab');
+	await expect(page.getByRole('cell', { name: 'NSYSDR200' })).toBeVisible();
+	await page.getByRole('button', { name: /Ajouter une ligne/ }).click();
+	await page.getByLabel('Désignation de la ligne libre').fill('Presse-étoupe M20');
+	await page.getByLabel('Désignation de la ligne libre').press('Tab');
+	await page.getByLabel('Quantité de la ligne libre').fill('6');
+	await page.getByLabel('Quantité de la ligne libre').press('Tab');
+	await expect(page.locator('.wrap td', { hasText: 'Presse-étoupe M20' })).toBeVisible();
+	expect(await evalEditor<number>(page, 'editor.project.orderExtras[0].quantity')).toBe(6);
+	await page.screenshot({ path: 'test-results/liste-commande.png' });
+	await page.getByRole('button', { name: 'Fermer' }).click();
+	await page
+		.locator('.toolbar')
+		.getByRole('button', { name: /Exporter/ })
+		.click();
+	await expect(page.getByLabel(/Nomenclature par référence/)).toBeChecked();
+	await page.getByLabel(/Liste de commande par/).check();
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
+	await (await download).saveAs('test-results/nomenclature.pdf');
+	await expect(page.locator('.status.saved')).toBeVisible();
+});
+
+test('historique : version nommée, restauration, consultation, duplication', async ({ page }) => {
+	page.on('dialog', (d) => d.accept());
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.getByRole('button', { name: 'Projet de démonstration' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+	const projectUrl = page.url();
+	const count = () => evalEditor<number>(page, 'editor.folio.symbols.length');
+	const initial = await count();
+
+	// Version nommée.
+	await dossierMenu(page, /Historique/);
+	const dialog = page.getByRole('dialog');
+	await expect(dialog.getByText('Création', { exact: true })).toBeVisible();
+	await dialog.getByLabel('Commentaire de la version').fill('Envoyé au client');
+	await dialog.getByRole('button', { name: /Enregistrer une version/ }).click();
+	await expect(dialog.getByText('Envoyé au client', { exact: true })).toBeVisible();
+	await page.keyboard.press('Escape');
+
+	// Modification : suppression d'un symbole, enregistrée.
+	await evalEditor(page, `editor.select([{ kind: 'symbol', id: editor.folio.symbols[0].id }])`);
+	await page.keyboard.press('Delete');
+	expect(await count()).toBe(initial - 1);
+	await expect(page.locator('.status.saved')).toBeVisible();
+
+	// Restauration de la version nommée : la page se recharge avec l'ancien état.
+	await dossierMenu(page, /Historique/);
+	const reloaded = page.waitForEvent('load');
+	await dialog
+		.locator('.version', { hasText: 'Envoyé au client' })
+		.getByRole('button', { name: /Restaurer/ })
+		.click();
+	await reloaded;
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+	expect(await count()).toBe(initial);
+	await dossierMenu(page, /Historique/);
+	await expect(dialog.getByText(/^Avant restauration de la version du/)).toBeVisible();
+	await expect(dialog.getByText(/^Restauration de la version du/)).toBeVisible();
+	await page.screenshot({ path: 'test-results/historique.png' });
+
+	// Consultation de la version « Avant restauration » (symbole supprimé) : lecture seule.
+	await dialog
+		.locator('.version', { hasText: 'Avant restauration' })
+		.getByRole('link', { name: /Voir/ })
+		.click();
+	await expect(page).toHaveURL(/\/versions\//);
+	await expect(page.getByText('Version archivée — lecture seule')).toBeVisible();
+	expect(await count()).toBe(initial - 1);
+	expect(await evalEditor<boolean>(page, 'editor.readonly')).toBe(true);
+	await page.screenshot({ path: 'test-results/version-consultation.png' });
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: /PDF de cette version/ }).click();
+	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
+	await (await download).saveAs('test-results/version.pdf');
+	await page.keyboard.press('Escape');
+
+	// Nouveau dossier à partir de cette version.
+	await page.getByRole('button', { name: /Nouveau dossier à partir de cette version/ }).click();
+	await page.getByLabel('Nom du nouveau dossier').fill('Chaufferie B');
+	await page.getByLabel("N° d'affaire").fill('DW999');
+	await page.getByRole('button', { name: 'Dupliquer et ouvrir' }).click();
+	await expect(page).not.toHaveURL(projectUrl);
+	await expect(page).toHaveURL(/\/projets\/[^/]+$/);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+	expect(await evalEditor<string>(page, 'editor.project.meta.name')).toBe('Chaufferie B');
+	expect(await evalEditor<string>(page, 'editor.project.meta.affaireNumber')).toBe('DW999');
+	expect(await count()).toBe(initial - 1);
+	await dossierMenu(page, /Historique/);
+	await expect(dialog.getByText(/^Copie de « .* » \(version du/)).toBeVisible();
+	await page.keyboard.press('Escape');
+
+	// Liste des projets : dupliquer ouvre la même fenêtre.
+	await page.goto('/');
+	await page.waitForLoadState('networkidle');
+	await page
+		.locator('tr', { hasText: 'Chaufferie B' })
+		.getByTitle(/Dupliquer/)
+		.click();
+	await expect(page.getByLabel('Nom du nouveau dossier')).toHaveValue('Chaufferie B (copie)');
+	await expect(page.getByLabel("N° d'affaire")).toHaveValue('DW999');
+});
+
+test('disposition : onglets de folios, barre latérale repliable, menu Dossier', async ({
+	page
+}) => {
+	page.on('dialog', (d) => d.accept());
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.getByRole('button', { name: 'Exemple armoire complète' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+	const titles = () => evalEditor<string[]>(page, 'editor.project.folios.map((f) => f.title)');
+	const tabs = page.getByRole('tab');
+	const initial = await titles();
+	await expect(tabs).toHaveCount(initial.length);
+
+	// Clic sur un onglet : on y va.
+	await tabs.nth(1).click();
+	expect(await evalEditor<number>(page, 'editor.folioIndex')).toBe(1);
+
+	// Double-clic : renommer.
+	await tabs.nth(1).dblclick();
+	await page.getByLabel('Titre du folio').first().fill('CHAUDIERE RENOMMEE');
+	await page.keyboard.press('Enter');
+	expect((await titles())[1]).toBe('CHAUDIERE RENOMMEE');
+
+	// Clic droit : dupliquer (le doublon arrive juste après).
+	await tabs.nth(1).click({ button: 'right' });
+	await page.getByRole('menuitem', { name: /Dupliquer/ }).click();
+	await expect(tabs).toHaveCount(initial.length + 1);
+	expect(await evalEditor<number>(page, 'editor.folioIndex')).toBe(2);
+
+	// Glisser l'onglet 1 tout à gauche.
+	await tabs.nth(1).dragTo(tabs.nth(0), { targetPosition: { x: 4, y: 10 } });
+	expect((await titles())[0]).toBe('CHAUDIERE RENOMMEE');
+
+	// Nouveau folio par « + ».
+	await page.getByRole('button', { name: 'Nouveau folio' }).click();
+	await page.getByRole('menuitem', { name: 'Folio de schéma' }).click();
+	await expect(tabs).toHaveCount(initial.length + 2);
+	await page.screenshot({ path: 'test-results/disposition.png' });
+
+	// Barre latérale : clic sur l'icône active = replier, puis rouvrir.
+	await openPanel(page, 'Macros');
+	await page.locator('.rail').getByRole('button', { name: 'Macros', exact: true }).click();
+	await expect(page.locator('.sidebar.collapsed')).toBeVisible();
+	await page.screenshot({ path: 'test-results/disposition-repliee.png' });
+	await openPanel(page, 'Appareils');
+	await expect(page.locator('.sidebar.collapsed')).toHaveCount(0);
+
+	// Menu Dossier : nomenclature.
+	await dossierMenu(page, /Nomenclature et liste de commande/);
+	await expect(page.getByRole('dialog', { name: 'Nomenclature' })).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(page.locator('.status.saved')).toBeVisible();
+});
+
+test('symboles favoris (mémorisés) et format des numéros de fils', async ({ page }) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.getByRole('button', { name: 'Projet de démonstration' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+
+	// Barre de favoris par défaut, ajout d'un symbole par l'étoile.
+	const favs = page.locator('.favorites .item');
+	await expect(favs.first()).toBeVisible();
+	const before = await favs.count();
+	await page
+		.locator('.cell:has(button.item[title^="Fusible ("])')
+		.getByRole('button', { name: 'Favori' })
+		.click();
+	await expect(favs).toHaveCount(before + 1);
+	await expect(favs.last()).toContainText('Fusible');
+	await page.screenshot({ path: 'test-results/favoris.png' });
+
+	// Mémorisé côté serveur : toujours là après rechargement.
+	await page.reload();
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.favorites .item').last()).toContainText('Fusible');
+
+	// Clic sur un favori : outil de pose de ce symbole.
+	await page.locator('.favorites .item', { hasText: 'Fusible' }).click();
+	expect(await evalEditor<string>(page, 'editor.tool.defId')).toBe('fusible');
+	await page.keyboard.press('Escape');
+
+	// Format des numéros de fils : par folio, façon WinRelais.
+	await dossierMenu(page, 'Propriétés du dossier…');
+	await page.getByRole('button', { name: 'Numérotation, sections, couleurs' }).click();
+	await page
+		.getByRole('combobox', { name: 'Format du numéro' })
+		.selectOption({ label: 'Par folio, façon WinRelais (F03/12)' });
+	await expect(page.getByText(/exemple : F03\/12/)).toBeVisible();
+	await page.getByRole('button', { name: 'Enregistrer' }).click();
+	await expect(page.locator('.canvas svg text', { hasText: /^F01\/01$/ }).first()).toBeVisible();
+	await page.keyboard.press('PageDown');
+	await expect(page.locator('.canvas svg text', { hasText: /^F02\/01$/ }).first()).toBeVisible();
+	await page.screenshot({ path: 'test-results/numeros-par-folio.png' });
+	await expect(page.locator('.status.saved')).toBeVisible();
+});
+
+test('sociétés et rôles : lecteur en lecture seule, sociétés cloisonnées', async ({ page }) => {
+	const login = async (id: string, password: string) => {
+		await page.goto('/login');
+		await page.waitForLoadState('networkidle');
+		await page.getByLabel('Identifiant').fill(id);
+		await page.getByLabel('Mot de passe').fill(password);
+		await page.locator('form button[type=submit]').click();
+		await expect(page).toHaveURL(/\/$/);
+		await page.waitForLoadState('networkidle');
+	};
+	const logout = async () => {
+		await page.getByRole('button', { name: /Déconnexion/ }).click();
+		await expect(page).toHaveURL(/\/login/);
+	};
+
+	// Le premier compte est super-administrateur : menus Sociétés et Sauvegardes.
+	await login('admin', 'motdepasse-e2e');
+	await expect(page.getByRole('link', { name: /Sociétés/ })).toBeVisible();
+	const projectCount = await page.locator('table a.name').count();
+	expect(projectCount).toBeGreaterThan(0);
+
+	// Un lecteur dans la société.
+	await page.getByRole('link', { name: /Utilisateurs/ }).click();
+	await page.getByRole('button', { name: /Nouvel utilisateur/ }).click();
+	await page.getByLabel('Identifiant').fill('lecteur');
+	await page.getByLabel('Nom affiché').fill('Léa Lecture');
+	await page.getByLabel('Mot de passe').fill('lecteur-e2e');
+	await page.getByLabel('Rôle').selectOption('viewer');
+	await expect(page.getByText(/Lecture seule : consulter/)).toBeVisible();
+	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await expect(page.getByText('Utilisateur créé.')).toBeVisible();
+
+	// Une autre société avec son administrateur.
+	await page.getByRole('link', { name: /Sociétés/ }).click();
+	await page.getByRole('button', { name: /Nouvelle société/ }).click();
+	await page.getByLabel('Nom de la société').fill('Autre Société');
+	await page.getByLabel('Identifiant').fill('autre-admin');
+	await page.getByLabel('Nom affiché').fill('Admin Autre');
+	await page.getByLabel('Mot de passe').fill('autre-e2e');
+	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await expect(page.getByText('Société créée avec son administrateur.')).toBeVisible();
+	await expect(page.getByRole('cell', { name: /Autre Société/ })).toBeVisible();
+	await page.screenshot({ path: 'test-results/societes.png' });
+	await logout();
+
+	// Lecteur : voit les dossiers, ne peut rien créer ni modifier.
+	await login('lecteur', 'lecteur-e2e');
+	await expect(page.locator('table a.name')).toHaveCount(projectCount);
+	await expect(page.getByRole('button', { name: /Nouveau projet/ })).toHaveCount(0);
+	await expect(page.getByRole('link', { name: /Utilisateurs/ })).toHaveCount(0);
+	await page.locator('table a.name').first().click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await expect(page.getByText('Lecture seule (compte lecteur)')).toBeVisible();
+	expect(await evalEditor<boolean>(page, 'editor.readonly')).toBe(true);
+	// Le serveur refuse aussi l'écriture.
+	const status = await page.evaluate(async () => {
+		const id = location.pathname.split('/').pop();
+		const res = await fetch(`/api/projects/${id}`, {
+			method: 'PUT',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ data: {} })
+		});
+		return res.status;
+	});
+	expect(status).toBe(403);
+	await page.screenshot({ path: 'test-results/lecteur.png' });
+	await page.goto('/');
+	await logout();
+
+	// Administrateur de l'autre société : aucun dossier de Dumortier.
+	await login('autre-admin', 'autre-e2e');
+	await expect(page.locator('table a.name')).toHaveCount(0);
+	await expect(page.getByText('Autre Société')).toBeVisible();
+	await expect(page.getByRole('link', { name: /Sociétés/ })).toHaveCount(0);
+	await logout();
+
+	// Super-administrateur : entre dans l'autre société, puis revient.
+	await login('admin', 'motdepasse-e2e');
+	await page.getByRole('combobox', { name: 'Société' }).selectOption({ label: 'Autre Société' });
+	await expect(page.locator('table a.name')).toHaveCount(0);
+	await page.getByRole('combobox', { name: 'Société' }).selectOption({ label: 'Ma société' });
+	await expect(page.locator('table a.name')).not.toHaveCount(0);
+});
+
+test('clients et affaires : saisie, rattachement, cartouche, reprise de l’existant', async ({
+	page
+}) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+
+	// Reprise de l'existant : les dossiers de démonstration sont classés par leur cartouche.
+	await page.getByRole('navigation').getByRole('link', { name: 'Affaires' }).click();
+	await page.waitForLoadState('networkidle');
+	await expect(page.getByText(/schéma\(s\) non classé\(s\)/)).toBeVisible();
+	await page.getByRole('button', { name: /Classer l’existant/ }).click();
+	await page.getByRole('button', { name: /^Classer \d+ schéma/ }).click();
+	await expect(page.getByText(/schéma\(s\) classé\(s\)/)).toBeVisible();
+	await expect(
+		page.locator('tr', { hasText: 'Démo — chaufferie collective' }).filter({ hasText: 'D223456' })
+	).toBeVisible();
+
+	// Un client, puis une affaire (n° WhySoft unique).
+	await page.getByRole('tab', { name: /Clients/ }).click();
+	await page.getByRole('button', { name: /Nouveau client/ }).click();
+	await page.getByLabel('Nom du client').fill('Collège Jean Moulin');
+	await page.getByLabel('Ville').fill('Laon');
+	await page.getByRole('button', { name: 'Enregistrer' }).click();
+	await expect(page.getByText('Client enregistré.')).toBeVisible();
+	await page.getByRole('tab', { name: /Affaires/ }).click();
+	const newAffaire = async (whysoft: string) => {
+		await page.getByRole('button', { name: /Nouvelle affaire/ }).click();
+		await page
+			.getByRole('combobox', { name: 'Client', exact: true })
+			.selectOption({ label: 'Collège Jean Moulin' });
+		await page.getByLabel('N° WhySoft').fill(whysoft);
+		await page.getByLabel('Désignation').fill('Chaufferie');
+		await page.getByRole('button', { name: 'Enregistrer' }).click();
+	};
+	await newAffaire('WS-E2E-1');
+	await expect(page.getByText('Affaire enregistrée.')).toBeVisible();
+	await newAffaire('WS-E2E-1');
+	await expect(page.getByText(/déjà celui d’une autre affaire/)).toBeVisible();
+	await page.getByRole('button', { name: 'Annuler', exact: true }).click();
+	await page.screenshot({ path: 'test-results/affaires.png' });
+
+	// Nouveau schéma rattaché : client et n° WhySoft viennent de l'affaire.
+	await page.getByRole('link', { name: /Projets/ }).click();
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: /Nouveau projet/ }).click();
+	await page.getByLabel('Nom du projet').fill('Armoire chaufferie');
+	await page
+		.getByRole('combobox', { name: /^Affaire/ })
+		.selectOption({ label: 'Collège Jean Moulin — WS-E2E-1 · Chaufferie (2026)' });
+	await expect(page.getByRole('textbox', { name: 'Client', exact: true })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	expect(await evalEditor<string>(page, 'editor.project.meta.client')).toBe('Collège Jean Moulin');
+	expect(await evalEditor<string>(page, 'editor.project.meta.whysoft')).toBe('WS-E2E-1');
+	await dossierMenu(page, 'Propriétés du dossier…');
+	await expect(page.getByRole('textbox', { name: 'N° WhySoft' })).toBeDisabled();
+	await expect(page.getByRole('textbox', { name: 'Client / site' })).toBeDisabled();
+	// Détacher : le client redevient modifiable.
+	await page.getByRole('combobox', { name: /^Affaire/ }).selectOption({ label: 'Non classé' });
+	await expect(page.getByRole('textbox', { name: 'Client / site' })).toBeEnabled();
+	await page.getByRole('button', { name: 'Annuler', exact: true }).click();
+	await page.goto('/');
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('tab', { name: 'Récents' }).click();
+	const row = page.locator('tr', { hasText: 'Armoire chaufferie' });
+	await expect(row.getByRole('link', { name: 'WS-E2E-1' })).toBeVisible();
+	await page.getByPlaceholder(/WhySoft/).fill('ws-e2e');
+	await expect(page.locator('table a.name')).toHaveCount(1);
+
+	// Affaire avec un schéma : suppression refusée ; fiche avec ses schémas.
+	await page.getByRole('navigation').getByRole('link', { name: 'Affaires' }).click();
+	await page.waitForLoadState('networkidle');
+	const affaireRow = page.locator('tr', { hasText: 'WS-E2E-1' });
+	await expect(affaireRow.getByRole('button', { name: 'Supprimer' })).toHaveCount(0);
+	await affaireRow.getByRole('button', { name: /Schémas de l’affaire/ }).click();
+	await expect(page.getByRole('link', { name: 'Armoire chaufferie' })).toBeVisible();
+});
+
+test('page Projets : arbre par affaire, filtres, création guidée, fiche affaire et PDF', async ({
+	page
+}) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.waitForLoadState('networkidle');
+
+	// Vue « Par affaire » (par défaut) : client › affaire › schémas.
+	await expect(page.getByRole('tab', { name: 'Par affaire' })).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
+	await expect(page.getByRole('button', { name: 'Collège Jean Moulin' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'WS-E2E-1 · Chaufferie' })).toBeVisible();
+	const total = await page.locator('table a.name').count();
+
+	// Filtres : non classé, client.
+	await page.getByRole('combobox', { name: 'Statut' }).selectOption('non_classe');
+	await expect(page.getByRole('button', { name: 'Non classé' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Collège Jean Moulin' })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Effacer les filtres' }).click();
+	await page
+		.getByRole('combobox', { name: 'Client' })
+		.selectOption({ label: 'Collège Jean Moulin' });
+	await expect(page.locator('table a.name')).toHaveCount(1);
+	await page.getByRole('button', { name: 'Effacer les filtres' }).click();
+	await expect(page.locator('table a.name')).toHaveCount(total);
+
+	// Création guidée : nouvelle affaire chez un nouveau client.
+	await page.getByRole('button', { name: /Nouveau projet/ }).click();
+	await page
+		.getByRole('combobox', { name: /^Affaire/ })
+		.selectOption({ label: '+ Nouvelle affaire…' });
+	await page
+		.getByRole('combobox', { name: 'Client de l’affaire' })
+		.selectOption({ label: '+ Nouveau client…' });
+	await page.getByLabel('Nom du nouveau client').fill('Hôpital de Laon');
+	await page.getByLabel('N° WhySoft').fill('WS-E2E-2');
+	await page.getByLabel('Désignation de l’affaire').fill('Sous-station');
+	await page.getByLabel('Nom du projet').fill('Armoire sous-station');
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	expect(await evalEditor<string>(page, 'editor.project.meta.client')).toBe('Hôpital de Laon');
+	expect(await evalEditor<string>(page, 'editor.project.meta.whysoft')).toBe('WS-E2E-2');
+	await expect(page.locator('.status.saved')).toBeVisible();
+
+	// Fiche affaire : schémas, PDF, nouveau schéma dans l'affaire, statut.
+	await page.goto('/');
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('link', { name: 'WS-E2E-2 · Sous-station' }).click();
+	await expect(page).toHaveURL(/\/affaires\/aff/);
+	await page.waitForLoadState('networkidle');
+	await expect(page.getByRole('heading', { name: 'WS-E2E-2 · Sous-station' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Armoire sous-station' })).toBeVisible();
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'PDF du dossier' }).click();
+	expect((await download).suggestedFilename()).toMatch(/\.pdf$/);
+	await page.screenshot({ path: 'test-results/fiche-affaire.png' });
+	await page
+		.getByRole('button', { name: /Nouveau schéma/ })
+		.first()
+		.click();
+	await expect(page.getByRole('combobox', { name: /^Affaire/ })).toHaveValue(/^aff/);
+	await page.getByLabel('Nom du projet').fill('Armoire sous-station 2');
+	await page.getByRole('button', { name: 'Créer et ouvrir' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	expect(await evalEditor<string>(page, 'editor.project.meta.whysoft')).toBe('WS-E2E-2');
+	await page.goBack();
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('table a.name')).toHaveCount(2);
+	await page.getByRole('combobox', { name: 'Statut de l’affaire' }).selectOption('terminee');
+	await expect(page.locator('.toolbar .status')).toHaveText('Terminée');
+	await page.goto('/');
+	await page.waitForLoadState('networkidle');
+	await page.screenshot({ path: 'test-results/projets-par-affaire.png' });
+});
+
+test('fils : départ dans le sens de la borne, borne visée, couleur', async ({ page }) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.getByRole('button', { name: 'Projet de démonstration' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+
+	// Folio vidé, une bobine : A2 sort vers le bas.
+	await evalEditor(
+		page,
+		`editor.transact('Vider', (p, f) => { f.symbols = []; f.wires = []; f.bars = []; f.texts = []; })`
+	);
+	await evalEditor(
+		page,
+		`editor.setTool({ kind: 'place', defId: 'bobine-contacteur', rotation: 0 })`
+	);
+	await clickAt(page, { x: 100, y: 80 });
+	await page.keyboard.press('Escape');
+	const a2 = await evalEditor<{ x: number; y: number; dir: string }>(
+		page,
+		`window.__schemelect.symbolTerminals(editor.folio.symbols[0]).find((t) => t.dir === 's')`
+	);
+
+	// Outil Fil : la borne visée affiche son nom.
+	await page.keyboard.press('w');
+	await clickAt(page, { x: a2.x + 0.3, y: a2.y });
+	await expect(page.locator('.snap-label')).toHaveText(/\d+ : A2$/);
+	// Cible au-dessus à gauche : le fil sort d'abord vers le bas.
+	await clickAt(page, { x: a2.x - 30, y: a2.y - 20 }, true);
+	const pts = await evalEditor<{ x: number; y: number }[]>(page, 'editor.folio.wires[0].points');
+	expect(pts[0]).toEqual({ x: a2.x, y: a2.y });
+	expect(pts[1].x).toBeCloseTo(a2.x, 5);
+	expect(pts[1].y).toBeGreaterThan(a2.y);
+	await page.keyboard.press('Escape');
+
+	// Couleur imposée dans l'inspecteur : tracé rouge.
+	await evalEditor(page, `editor.selection = [{ kind: 'wire', id: editor.folio.wires[0].id }]`);
+	await page.getByRole('combobox', { name: 'Couleur du fil' }).selectOption('Rouge');
+	expect(await evalEditor<string>(page, 'editor.folio.wires[0].color')).toBe('Rouge');
+	await expect(page.locator('.canvas path[stroke="#e0241b"]').first()).toBeVisible();
+	await page.screenshot({ path: 'test-results/fil-couleur.png' });
+	await expect(page.locator('.status.saved')).toBeVisible();
 });

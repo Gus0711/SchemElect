@@ -5,6 +5,7 @@
  * - sur un renvoi de fil (link) : position des autres renvois de même repère.
  */
 import { getSymbolDef } from '$lib/symbols';
+import { deviceContacts } from './catalog';
 import { folioRef } from './layout';
 import type { Id, Project, SymbolInstance } from './types';
 
@@ -15,7 +16,7 @@ export interface CrossRef {
 	table?: { no: string[]; nc: string[] };
 	/**
 	 * Master : contacts auxiliaires dessinés (hors pôles) et dépassement éventuel des
-	 * contacts disponibles déclarés sur l'appareil (`Device.contacts`).
+	 * contacts disponibles déclarés sur l'appareil (`Device.contacts`) ou sa fiche catalogue.
 	 */
 	usage?: { no: number; nc: number; overflowNo: boolean; overflowNc: boolean };
 }
@@ -66,7 +67,7 @@ export function computeCrossRefs(project: Project): Map<Id, CrossRef> {
 					if (kind === 'no') no++;
 				}
 			}
-			const avail = project.devices[master.s.deviceId]?.contacts;
+			const avail = deviceContacts(project, project.devices[master.s.deviceId]);
 			out.set(master.s.id, {
 				table,
 				usage: {
@@ -98,8 +99,9 @@ export function contactOverflows(
 		for (const s of f.symbols) {
 			const u = crossRefs.get(s.id)?.usage;
 			const d = project.devices[s.deviceId];
-			if (u && d?.contacts && (u.overflowNo || u.overflowNc))
-				out.push({ deviceId: d.id, tag: d.tag, no: u.no, nc: u.nc, avail: d.contacts });
+			const avail = deviceContacts(project, d);
+			if (u && d && avail && (u.overflowNo || u.overflowNc))
+				out.push({ deviceId: d.id, tag: d.tag, no: u.no, nc: u.nc, avail });
 		}
 	return out;
 }

@@ -100,13 +100,13 @@ describe('projet de démonstration', () => {
 
 	it('wiresCsv : numéros puis potentiels, bornes raccordées', () => {
 		const l = lines(wiresCsv(project, analysis));
-		expect(l[0]).toBe('N° fil / potentiel;Couleur;Folios;Bornes raccordées');
+		expect(l[0]).toBe('N° fil / potentiel;Couleur;Section (mm²);Folios;Bornes raccordées');
 		const first = l[1].split(';');
 		expect(first[0]).toBe('01');
-		expect(first[3]).toBe('H1:X1, KM1:14, P1');
+		expect(first[4]).toBe('H1:X1, KM1:14, P1');
 		// ordre de marche : présent sur les deux folios (renvoi)
-		expect(l.some((x) => /^\d+;;01, 02;/.test(x) && x.includes('KM1:A1'))).toBe(true);
-		expect(l.some((x) => x.startsWith('Neutre;Bleu;01'))).toBe(true);
+		expect(l.some((x) => /^\d+;;;01, 02;/.test(x) && x.includes('KM1:A1'))).toBe(true);
+		expect(l.some((x) => x.startsWith('Neutre;Bleu;;01'))).toBe(true);
 	});
 
 	it('plan du dossier et numérotation', () => {

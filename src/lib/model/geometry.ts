@@ -210,6 +210,65 @@ export function orthoPath(a: Point, b: Point, horizontalFirst: boolean): Point[]
 	return [a, corner, b];
 }
 
+/** Vecteur unitaire d'une direction de sortie de fil. */
+export const DIR_VEC: Record<Dir, Point> = {
+	n: { x: 0, y: -1 },
+	s: { x: 0, y: 1 },
+	w: { x: -1, y: 0 },
+	e: { x: 1, y: 0 }
+};
+
+/** Longueur minimale du fil dans le sens de sortie d'une borne avant le premier coude (mm). */
+export const WIRE_STUB = 5;
+
+/** Nombre de demi-tours (segment qui repart en arrière sur le précédent). */
+function backtracks(pts: Point[]): number {
+	const segs: Point[] = [];
+	for (let i = 1; i < pts.length; i++) {
+		const dx = pts[i].x - pts[i - 1].x,
+			dy = pts[i].y - pts[i - 1].y;
+		if (Math.abs(dx) < EPS && Math.abs(dy) < EPS) continue;
+		segs.push({ x: Math.sign(Math.round(dx * 100)), y: Math.sign(Math.round(dy * 100)) });
+	}
+	let n = 0;
+	for (let i = 1; i < segs.length; i++)
+		if (segs[i].x === -segs[i - 1].x && segs[i].y === -segs[i - 1].y) n++;
+	return n;
+}
+
+/**
+ * Tracé d'un tronçon de fil entre deux points, à angles droits. Depuis une borne
+ * (`fromDir`), le fil sort d'abord dans le sens de la borne ; vers une borne (`toDir`), il
+ * y arrive dans son sens (comme on le dessine à la main). Des deux coudes possibles, on
+ * garde celui qui ne revient pas en arrière et fait le moins de coudes ; `horizontalFirst`
+ * impose le choix (Espace).
+ */
+export function routeWire(
+	a: Point,
+	b: Point,
+	opts: { fromDir?: Dir; toDir?: Dir; horizontalFirst?: boolean | null; stub?: number } = {}
+): { points: Point[]; horizontalFirst: boolean } {
+	const stub = opts.stub ?? WIRE_STUB;
+	const out = (p: Point, d?: Dir) =>
+		d ? { x: p.x + DIR_VEC[d].x * stub, y: p.y + DIR_VEC[d].y * stub } : p;
+	const s = out(a, opts.fromDir);
+	const e = out(b, opts.toDir);
+	const build = (h: boolean) => [a, ...orthoPath(s, e, h), b];
+	const preferred = opts.fromDir
+		? opts.fromDir === 'e' || opts.fromDir === 'w'
+		: Math.abs(b.x - a.x) > Math.abs(b.y - a.y);
+	let h = preferred;
+	if (opts.horizontalFirst != null) h = opts.horizontalFirst;
+	else {
+		const score = (c: boolean) => {
+			const raw = build(c);
+			return backtracks(raw) * 100 + simplifyPolyline(raw).length;
+		};
+		if (score(!preferred) < score(preferred)) h = !preferred;
+	}
+	return { points: simplifyPolyline(build(h)), horizontalFirst: h };
+}
+
 /** Longueur et milieu du plus long segment d'une polyligne. */
 export function longestSegment(pts: Point[]): {
 	a: Point;

@@ -4,7 +4,17 @@
 import { acquireLock, ApiError, releaseLock, saveProject, type LockInfo } from '$lib/api/client';
 import type { Editor } from './editor.svelte';
 
-export type SaveStatus = 'connecting' | 'saved' | 'pending' | 'saving' | 'error' | 'readonly';
+export type SaveStatus =
+	| 'connecting'
+	| 'saved'
+	| 'pending'
+	| 'saving'
+	| 'error'
+	| 'readonly'
+	/** Consultation d'une version de l'historique (aucune sauvegarde). */
+	| 'archive'
+	/** Compte lecteur : lecture seule, sans verrou. */
+	| 'viewer';
 
 const SAVE_DELAY = 1200;
 const HEARTBEAT = 30_000;
@@ -18,6 +28,8 @@ export class EditSession {
 	private heartbeat: ReturnType<typeof setInterval> | null = null;
 	private savedRevision = 0;
 	private saving: Promise<void> | null = null;
+	/** Plus aucune sauvegarde (restauration en cours, consultation d'une version). */
+	private suspended = false;
 
 	constructor(
 		private projectId: string,
@@ -45,7 +57,7 @@ export class EditSession {
 
 	/** À appeler quand `editor.revision` change. */
 	schedule(revision: number) {
-		if (this.editor.readonly || revision === this.savedRevision) return;
+		if (this.suspended || this.editor.readonly || revision === this.savedRevision) return;
 		this.status = 'pending';
 		if (this.timer) clearTimeout(this.timer);
 		this.timer = setTimeout(() => this.flush(), SAVE_DELAY);
@@ -54,7 +66,7 @@ export class EditSession {
 	async flush() {
 		if (this.timer) clearTimeout(this.timer);
 		this.timer = null;
-		if (this.editor.readonly) return;
+		if (this.suspended || this.editor.readonly) return;
 		if (this.saving) await this.saving;
 		const revision = this.editor.revision;
 		if (revision === this.savedRevision) return;
@@ -82,12 +94,43 @@ export class EditSession {
 	}
 
 	get dirty() {
-		return this.editor.revision !== this.savedRevision;
+		return !this.suspended && this.editor.revision !== this.savedRevision;
+	}
+
+	/**
+	 * Arrête les sauvegardes (avant une restauration : le document du serveur va changer
+	 * et la page être rechargée). Le verrou reste tenu jusqu'à `stop()`.
+	 */
+	suspend() {
+		this.suspended = true;
+		if (this.timer) clearTimeout(this.timer);
+		this.timer = null;
+	}
+
+	/** Reprend les sauvegardes après `suspend()` (restauration refusée). */
+	resume() {
+		this.suspended = false;
+		this.schedule(this.editor.revision);
+	}
+
+	/** Compte lecteur : lecture seule, sans verrou ni sauvegarde. */
+	viewOnly() {
+		this.suspended = true;
+		this.status = 'viewer';
+		this.editor.readonly = true;
+	}
+
+	/** Consultation d'une version : lecture seule, sans verrou ni sauvegarde. */
+	archive() {
+		this.suspended = true;
+		this.status = 'archive';
+		this.editor.readonly = true;
 	}
 
 	stop() {
 		if (this.heartbeat) clearInterval(this.heartbeat);
 		if (this.timer) clearTimeout(this.timer);
-		if (!this.editor.readonly) releaseLock(this.projectId);
+		if (!this.editor.readonly && this.status !== 'archive' && this.status !== 'viewer')
+			releaseLock(this.projectId);
 	}
 }

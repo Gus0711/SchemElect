@@ -13,6 +13,7 @@
  */
 import { getSymbolDef } from '$lib/symbols';
 import { EPS, pointKey, pointOnPolyline, pointOnSegment, samePoint } from './geometry';
+import { columnAt, folioNumber } from './layout';
 import { symbolTerminals } from './symbolGeometry';
 import type { Folio, Id, Point, Project } from './types';
 
@@ -48,6 +49,14 @@ export interface Net {
 	/** Potentiels différents court-circuités sur ce réseau (erreur de schéma). */
 	shortedPotentials: Id[];
 	number?: string;
+	/** Section en mm² : imposée sur un fil, sinon celle du potentiel, sinon celle du dossier. */
+	section?: string;
+	/** La section est imposée sur un fil (pas reprise du potentiel ni du dossier). */
+	sectionImposed?: boolean;
+	/** Couleur du fil : imposée sur un fil, sinon celle du potentiel, sinon celle du dossier. */
+	color?: string;
+	/** La couleur est imposée sur un fil. */
+	colorImposed?: boolean;
 	wires: { folioId: Id; wireId: Id }[];
 	terminals: TerminalRef[];
 }
@@ -137,6 +146,8 @@ export function analyzeNets(project: Project): NetAnalysis {
 
 	const nets = [...byRoot.values()];
 	numberNets(project, nets);
+	sectionNets(project, nets);
+	colorNets(project, nets);
 	return { nets, netOfWire, netOfTerminal, junctions, openTerminals };
 }
 
@@ -252,6 +263,68 @@ export function folioJunctions(folio: Folio): Point[] {
 	return out;
 }
 
+/** Section de chaque équipotentielle : fil imposé > potentiel > défaut du dossier. */
+function sectionNets(project: Project, nets: Net[]) {
+	const imposed = new Map<Id, string>();
+	for (const f of project.folios)
+		for (const w of f.wires) if (w.section?.trim()) imposed.set(w.id, w.section.trim());
+	const potSection = new Map(project.potentials.map((p) => [p.id, p.section?.trim() || '']));
+	const def = project.settings.wireSection?.trim() || '';
+	for (const n of nets) {
+		if (!n.wires.length) continue;
+		const own = n.wires.map((w) => imposed.get(w.wireId)).find(Boolean);
+		const pot = n.potentialId ? potSection.get(n.potentialId) : '';
+		const section = own || pot || (n.potentialId ? '' : def);
+		if (!section) continue;
+		n.section = section;
+		n.sectionImposed = !!own;
+	}
+}
+
+/** Couleur de chaque équipotentielle : fil imposé > potentiel > défaut du dossier. */
+function colorNets(project: Project, nets: Net[]) {
+	const imposed = new Map<Id, string>();
+	for (const f of project.folios)
+		for (const w of f.wires) if (w.color?.trim()) imposed.set(w.id, w.color.trim());
+	const potColor = new Map(project.potentials.map((p) => [p.id, p.wireColor?.trim() || '']));
+	const def = project.settings.wireColor?.trim() || '';
+	for (const n of nets) {
+		if (!n.wires.length) continue;
+		const own = n.wires.map((w) => imposed.get(w.wireId)).find(Boolean);
+		const pot = n.potentialId ? potColor.get(n.potentialId) : '';
+		const color = own || pot || (n.potentialId ? '' : def);
+		if (!color) continue;
+		n.color = color;
+		n.colorImposed = !!own;
+	}
+}
+
+/** Couleurs de fil usuelles (normes armoire) ; le tracé de chacune est dans le thème. */
+export const WIRE_COLORS = [
+	'Noir',
+	'Marron',
+	'Rouge',
+	'Orange',
+	'Jaune',
+	'Vert',
+	'Bleu',
+	'Bleu clair',
+	'Violet',
+	'Gris',
+	'Blanc',
+	'Rose',
+	'Vert/Jaune'
+];
+
+/** Sections usuelles proposées à la saisie (mm²). */
+export const WIRE_SECTIONS = ['0,5', '0,75', '1', '1,5', '2,5', '4', '6', '10', '16', '25'];
+
+/** Texte d'une section sur le dessin : « 1,5 » → « 1,5² » (texte libre laissé tel quel). */
+export function sectionLabel(section: string): string {
+	const s = section.trim().replace('.', ',');
+	return /^\d+(,\d+)?$/.test(s) ? `${s}²` : s;
+}
+
 /**
  * Numérotation : séquentielle sur tout le dossier (comme l'exemple WinRelais),
  * dans l'ordre des folios puis de gauche à droite, de haut en bas.
@@ -287,16 +360,46 @@ function numberNets(project: Project, nets: Net[]) {
 
 	const used = new Set(candidates.map((c) => c.override).filter(Boolean) as string[]);
 	const { wireNumberDigits: digits, wireNumberStart: start } = project.settings;
-	let counter = start;
+	const template = project.settings.wireNumberTemplate?.trim() || '{N}';
+	const counters = new Map<string, number>();
 	for (const c of candidates) {
 		if (c.override) {
 			c.net.number = c.override;
 			continue;
 		}
+		const fields = { F: folioNumber(c.key.fi), C: columnAt(c.key.x) };
+		const scope = wireNumberScope(template, fields);
+		let counter = counters.get(scope) ?? start;
 		let label: string;
 		do {
-			label = String(counter++).padStart(digits, '0');
+			label = formatWireNumber(template, { ...fields, N: String(counter++).padStart(digits, '0') });
 		} while (used.has(label));
+		counters.set(scope, counter);
+		used.add(label);
 		c.net.number = label;
 	}
+}
+
+/** Modèles de numéro de fil proposés (Propriétés du dossier). */
+export const WIRE_NUMBER_TEMPLATES = [
+	{ value: '{N}', label: 'Séquentiel sur le dossier', example: '12' },
+	{ value: '{F}/{N}', label: 'Par folio : folio / n°', example: '03/12' },
+	{ value: 'F{F}/{N}', label: 'Par folio, façon WinRelais', example: 'F03/12' },
+	{ value: '{F}{N}', label: 'Par folio, accolé', example: '0312' },
+	{ value: '{F}{C}{N}', label: 'Par folio et colonne', example: '03D1' }
+];
+
+/** Remplit un modèle de numéro de fil ({N}, {F}, {C}). */
+export function formatWireNumber(
+	template: string,
+	fields: { N: string; F: string; C: string }
+): string {
+	return template.replace(/\{([NFC])\}/g, (_, k: 'N' | 'F' | 'C') => fields[k]);
+}
+
+/** Portée du compteur : tout le dossier, chaque folio ({F}), ou chaque colonne ({C}). */
+function wireNumberScope(template: string, fields: { F: string; C: string }): string {
+	const perFolio = template.includes('{F}');
+	const perColumn = template.includes('{C}');
+	return `${perFolio || perColumn ? fields.F : ''}|${perColumn ? fields.C : ''}`;
 }

@@ -1,9 +1,16 @@
 <script lang="ts">
 	/** Propriétés du dossier : cartouche, indices de révision, potentiels. */
 	import { deepClone, newId } from '$lib/model/ids';
+	import {
+		formatWireNumber,
+		WIRE_COLORS,
+		WIRE_NUMBER_TEMPLATES,
+		WIRE_SECTIONS
+	} from '$lib/model/nets';
 	import type { Potential, ProjectMeta, ProjectSettings, Revision } from '$lib/model/types';
 	import { Button, Field, Modal } from '$lib/ui';
-	import { listTemplates, saveTemplate } from '$lib/api/client';
+	import { listAffaires, listTemplates, saveTemplate, type AffaireListItem } from '$lib/api/client';
+	import { affaireTitle, applyAffaire, detachAffaire } from '$lib/model/affaires';
 	import {
 		DEFAULT_TEMPLATE_ID,
 		defaultTemplate,
@@ -12,6 +19,7 @@
 	} from '$lib/model/template';
 	import TemplateEditor from './TemplateEditor.svelte';
 	import { Plus, Trash } from '@lucide/svelte';
+	import { untrack } from 'svelte';
 	import type { Editor } from '../editor.svelte';
 
 	let { editor, open = $bindable(false) }: { editor: Editor; open?: boolean } = $props();
@@ -20,6 +28,19 @@
 	let revisions: Revision[] = $state([]);
 	let potentials: Potential[] = $state([]);
 	let settings: ProjectSettings = $state({ wireNumberDigits: 2, wireNumberStart: 1 });
+	/** Exemple du numéro de fil (folio 03, colonne D, 12e fil). */
+	const numberExample = $derived(
+		formatWireNumber(settings.wireNumberTemplate?.trim() || '{N}', {
+			N: String(Math.max(0, Number(settings.wireNumberStart) || 0) + 11).padStart(
+				Math.min(6, Math.max(1, Number(settings.wireNumberDigits) || 1)),
+				'0'
+			),
+			F: '03',
+			C: 'D'
+		})
+	);
+	const isPreset = (t: string | undefined) =>
+		WIRE_NUMBER_TEMPLATES.some((x) => x.value === (t?.trim() || '{N}'));
 	let tab: 'info' | 'template' | 'revisions' | 'potentials' | 'numbering' = $state('info');
 	/** Modèle de cartouche / page de garde du dossier (copie locale jusqu'à « Enregistrer »). */
 	let template: DocTemplate = $state(defaultTemplate());
@@ -27,20 +48,49 @@
 	let chosen = $state('');
 	let libraryMessage = $state('');
 
+	// À l'ouverture : copie locale du dossier. Les écritures sont hors suivi (`untrack`) :
+	// relire `meta` après l'avoir écrit relançait l'effet en boucle.
 	$effect(() => {
 		if (!open) return;
 		const p = $state.snapshot(editor.project);
-		meta = deepClone(p.meta);
-		revisions = deepClone(p.revisions);
-		potentials = deepClone(p.potentials);
-		settings = deepClone(p.settings);
-		meta.fields ??= {};
-		template = deepClone(projectTemplate(p));
-		libraryMessage = '';
+		untrack(() => {
+			meta = { ...deepClone(p.meta), fields: deepClone(p.meta.fields ?? {}) };
+			revisions = deepClone(p.revisions);
+			potentials = deepClone(p.potentials);
+			settings = { sectionDisplay: 'all', ...deepClone(p.settings) };
+			template = deepClone(projectTemplate(p));
+			libraryMessage = '';
+		});
 		listTemplates()
 			.then((l) => (library = l))
 			.catch(() => (library = []));
+		listAffaires()
+			.then((l) => (affaires = l))
+			.catch(() => (affaires = []));
 	});
+
+	/** Affaires de la société (rattachement : client et n° WhySoft viennent de l'affaire). */
+	let affaires: AffaireListItem[] = $state([]);
+	const attached = $derived(affaires.find((a) => a.id === meta.affaireId) ?? null);
+	/** Champs imposés par l'affaire de rattachement. */
+	const lockedKeys = $derived(
+		new Set<string>(
+			meta.affaireId ? ['client', 'whysoft', ...(attached?.number ? ['affaireNumber'] : [])] : []
+		)
+	);
+
+	function chooseAffaire(id: string) {
+		const a = affaires.find((x) => x.id === id);
+		if (!a) detachAffaire(meta);
+		else
+			applyAffaire(meta, a, {
+				id: a.clientId,
+				name: a.clientName,
+				code: '',
+				city: '',
+				source: 'manual'
+			});
+	}
 
 	/** Remplace le modèle du dossier par un modèle de la bibliothèque (ou le standard). */
 	function applyChosen() {
@@ -78,9 +128,10 @@
 		new Set(editor.project.folios.flatMap((f) => f.bars.map((b) => b.potentialId)))
 	);
 
-	const infoFields: [Exclude<keyof ProjectMeta, 'fields'>, string][] = [
+	const infoFields: [Exclude<keyof ProjectMeta, 'fields' | 'affaireId'>, string][] = [
 		['name', 'Nom du projet'],
 		['affaireNumber', 'N° d’affaire'],
+		['whysoft', 'N° WhySoft'],
 		['planNumber', 'N° de plan'],
 		['client', 'Client / site'],
 		['author', 'Dessinateur'],
@@ -103,7 +154,15 @@
 			p.potentials = pots;
 			p.settings = {
 				wireNumberStart: Math.max(0, Math.round(st.wireNumberStart) || 0),
-				wireNumberDigits: Math.min(6, Math.max(1, Math.round(st.wireNumberDigits) || 1))
+				wireNumberDigits: Math.min(6, Math.max(1, Math.round(st.wireNumberDigits) || 1)),
+				...(st.wireNumberTemplate?.trim() && st.wireNumberTemplate.trim() !== '{N}'
+					? { wireNumberTemplate: st.wireNumberTemplate.trim() }
+					: {}),
+				...(st.wireSection?.trim() ? { wireSection: st.wireSection.trim() } : {}),
+				...(st.wireColor?.trim() ? { wireColor: st.wireColor.trim() } : {}),
+				...(st.sectionDisplay && st.sectionDisplay !== 'all'
+					? { sectionDisplay: st.sectionDisplay }
+					: {})
 			};
 		});
 		open = false;
@@ -126,14 +185,43 @@
 			>Potentiels</button
 		>
 		<button class:active={tab === 'numbering'} onclick={() => (tab = 'numbering')}
-			>Numérotation</button
+			>Numérotation, sections, couleurs</button
 		>
 	</nav>
 
 	{#if tab === 'info'}
+		<Field
+			label="Affaire"
+			hint={meta.affaireId
+				? 'Client et n° WhySoft viennent de l’affaire (page Affaires).'
+				: 'Non classé : le schéma n’est rattaché à aucune affaire.'}
+		>
+			<select
+				class="control"
+				value={meta.affaireId ?? ''}
+				onchange={(e) => chooseAffaire((e.currentTarget as HTMLSelectElement).value)}
+			>
+				<option value="">Non classé</option>
+				{#if meta.affaireId && !attached}
+					<option value={meta.affaireId}>Affaire actuelle</option>
+				{/if}
+				{#each affaires as a (a.id)}
+					<option value={a.id} disabled={a.status === 'archivee' && a.id !== meta.affaireId}
+						>{a.clientName} — {affaireTitle(a)}{a.status === 'archivee'
+							? ' (archivée)'
+							: ''}</option
+					>
+				{/each}
+			</select>
+		</Field>
 		<div class="grid2">
 			{#each infoFields as [key, label] (key)}
-				<Field {label} bind:value={meta[key]} />
+				<Field
+					{label}
+					bind:value={meta[key]}
+					disabled={lockedKeys.has(key)}
+					title={lockedKeys.has(key) ? 'Imposé par l’affaire de rattachement' : undefined}
+				/>
 			{/each}
 		</div>
 		{#if template.fields.length}
@@ -216,10 +304,75 @@
 				hint="2 → 01, 02… ; 3 → 001, 002…"
 			/>
 		</div>
+		<div class="grid2">
+			<Field label="Format du numéro">
+				<select
+					class="control"
+					value={isPreset(settings.wireNumberTemplate)
+						? settings.wireNumberTemplate?.trim() || '{N}'
+						: 'custom'}
+					onchange={(e) => {
+						const v = (e.currentTarget as HTMLSelectElement).value;
+						// Personnalisé : point de départ modifiable dans le champ « Modèle ».
+						settings.wireNumberTemplate = v === 'custom' ? '{F}-{N}' : v;
+					}}
+				>
+					{#each WIRE_NUMBER_TEMPLATES as t (t.value)}
+						<option value={t.value}>{t.label} ({t.example})</option>
+					{/each}
+					<option value="custom">Personnalisé…</option>
+				</select>
+			</Field>
+			<Field
+				label="Modèle"
+				bind:value={settings.wireNumberTemplate}
+				placeholder={'{N}'}
+				hint={'{N} n°, {F} folio, {C} colonne — exemple : ' + numberExample}
+			/>
+		</div>
+		<p class="muted small">
+			Avec {'{F}'}, le compteur repart à chaque folio (insérer un folio ne renumérote pas les
+			autres) ; avec {'{C}'}, à chaque colonne.
+		</p>
+		<h4>Sections des fils (mm²)</h4>
+		<p class="muted">
+			Section d’un fil : celle imposée sur le fil (inspecteur), sinon celle de son potentiel (onglet
+			Potentiels), sinon la section par défaut ci-dessous. Affichée sur le fil (« 1,5² »), du côté
+			opposé au numéro.
+		</p>
+		<div class="grid2">
+			<Field
+				label="Section par défaut (fils hors potentiel)"
+				bind:value={settings.wireSection}
+				placeholder="0,75"
+				list="wire-sections"
+				hint="Vide = pas de section"
+			/>
+			<Field label="Afficher sur le dessin">
+				<select class="control" bind:value={settings.sectionDisplay}>
+					<option value="all">Toutes les sections</option>
+					<option value="imposed">Seulement les sections imposées sur un fil</option>
+					<option value="none">Aucune</option>
+				</select>
+			</Field>
+		</div>
+		<div class="grid2">
+			<Field
+				label="Couleur par défaut (fils hors potentiel)"
+				hint="Les fils de potentiel prennent la couleur du potentiel ; une couleur se force fil par fil dans l’inspecteur."
+			>
+				<select class="control" bind:value={settings.wireColor}>
+					<option value={undefined}>Aucune</option>
+					{#each WIRE_COLORS as c (c)}<option value={c}>{c}</option>{/each}
+				</select>
+			</Field>
+		</div>
 	{:else}
 		<table>
 			<thead
-				><tr><th>Nom</th><th>Couleur de fil</th><th>Tracé</th><th>Pointillé</th><th></th></tr
+				><tr
+					><th>Nom</th><th>Couleur de fil</th><th>Section (mm²)</th><th>Tracé</th><th>Pointillé</th
+					><th></th></tr
 				></thead
 			>
 			<tbody>
@@ -227,6 +380,14 @@
 					<tr>
 						<td><input class="cell" bind:value={pot.name} /></td>
 						<td><input class="cell" bind:value={pot.wireColor} /></td>
+						<td
+							><input
+								class="cell narrow"
+								bind:value={pot.section}
+								placeholder="—"
+								list="wire-sections"
+							/></td
+						>
 						<td><input class="swatch" type="color" bind:value={pot.stroke} /></td>
 						<td><input type="checkbox" bind:checked={pot.dashed} /></td>
 						<td>
@@ -256,6 +417,10 @@
 			</Button>
 		</div>
 	{/if}
+
+	<datalist id="wire-sections">
+		{#each WIRE_SECTIONS as s (s)}<option value={s}></option>{/each}
+	</datalist>
 
 	{#snippet actions()}
 		<Button onclick={() => (open = false)}>Annuler</Button>
@@ -320,6 +485,9 @@
 	}
 	td {
 		padding: 2px var(--sp-1);
+	}
+	.cell.narrow {
+		width: 70px;
 	}
 	.cell {
 		width: 100%;
