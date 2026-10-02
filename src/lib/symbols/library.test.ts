@@ -9,7 +9,7 @@ const TOL = 0.3;
 
 describe('bibliothèque de symboles', () => {
 	it('contient des symboles', () => {
-		expect(SYMBOLS.length).toBeGreaterThan(40);
+		expect(SYMBOLS.length).toBeGreaterThan(110);
 	});
 
 	it('ids uniques en kebab-case', () => {
