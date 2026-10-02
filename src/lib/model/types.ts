@@ -242,6 +242,12 @@ export type SectionDisplay = 'all' | 'imposed' | 'none';
 export interface ProjectSettings {
 	wireNumberDigits: number;
 	wireNumberStart: number;
+	/**
+	 * Modèle du numéro de fil (défaut « {N} », numérotation séquentielle sur tout le dossier) :
+	 * {N} compteur, {F} numéro du folio (2 chiffres), {C} colonne. Le compteur repart à chaque
+	 * folio si le modèle contient {F}, à chaque colonne s'il contient aussi {C}.
+	 */
+	wireNumberTemplate?: string;
 	/** Section par défaut des fils hors potentiel (commande), en mm² ; vide = non renseignée. */
 	wireSection?: string;
 	/** Affichage des sections sur le dessin (défaut : toutes). */

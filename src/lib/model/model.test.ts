@@ -13,7 +13,7 @@ import {
 } from './edit';
 import { duplicateFolio, extractFragment, insertFragment } from './fragments';
 import { folioRef } from './layout';
-import { createProject } from './project';
+import { createFolio, createProject } from './project';
 import { symbolTerminals } from './symbolGeometry';
 import { nextFreeTag, parseTag } from './tags';
 
@@ -312,5 +312,58 @@ describe('contrôles du dossier', () => {
 		const texts = projectIssues(project, analyzeProject(project)).map((i) => i.text);
 		expect(texts.some((t) => /borne\(s\) non raccordée/.test(t))).toBe(true);
 		expect(texts.some((t) => /sans correspondance/.test(t))).toBe(true);
+	});
+});
+
+describe('format des numéros de fils', () => {
+	/** Deux folios avec chacun deux fils libres (équipotentielles numérotées). */
+	function twoFolios() {
+		const project = createProject('Numéros');
+		const f1 = project.folios[0];
+		const f2 = createFolio('F2');
+		project.folios.push(f2);
+		const w = (f: typeof f1, x: number) =>
+			addWire(f, [
+				{ x, y: 50 },
+				{ x, y: 80 }
+			])!;
+		return {
+			project,
+			wires: [w(f1, 60), w(f1, 200), w(f2, 60), w(f2, 200)]
+		};
+	}
+	const numbers = (p: ReturnType<typeof twoFolios>) => {
+		const a = analyzeProject(p.project);
+		return p.wires.map((w) => a.nets.netOfWire.get(w.id)?.number);
+	};
+
+	it('séquentiel par défaut', () => {
+		expect(numbers(twoFolios())).toEqual(['01', '02', '03', '04']);
+	});
+
+	it('par folio : le compteur repart à chaque folio', () => {
+		const t = twoFolios();
+		t.project.settings.wireNumberTemplate = 'F{F}/{N}';
+		expect(numbers(t)).toEqual(['F01/01', 'F01/02', 'F02/01', 'F02/02']);
+		t.project.settings.wireNumberTemplate = '{F}{N}';
+		expect(numbers(t)).toEqual(['0101', '0102', '0201', '0202']);
+	});
+
+	it('par folio et colonne', () => {
+		const t = twoFolios();
+		t.project.settings.wireNumberTemplate = '{F}{C}{N}';
+		t.project.settings.wireNumberDigits = 1;
+		const [a, b, c] = numbers(t);
+		expect(a).toMatch(/^01[A-Q]1$/);
+		expect(b).toMatch(/^01[A-Q]1$/);
+		expect(a).not.toBe(b);
+		expect(c).toBe(a!.replace(/^01/, '02'));
+	});
+
+	it('un numéro imposé n’est jamais redonné', () => {
+		const t = twoFolios();
+		t.project.settings.wireNumberTemplate = '{F}/{N}';
+		t.wires[3].numberOverride = '01/01';
+		expect(numbers(t)).toEqual(['01/02', '01/03', '02/01', '01/01']);
 	});
 });

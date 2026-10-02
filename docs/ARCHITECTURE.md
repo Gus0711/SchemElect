@@ -53,6 +53,10 @@ Format versionné (`schemaVersion`) ; toute lecture passe par `migrateProject`.
   (`settings.sectionDisplay` : toutes / imposées / aucune) : `WireStyle.section`, dessinée par
   `WireView` du côté opposé au numéro (verticale à gauche d'un fil vertical, sous un fil
   horizontal). Colonne « Section » de la liste des fils CSV.
+- **Format des numéros de fils** (`settings.wireNumberTemplate`, défaut `{N}`) : modèle avec
+  `{N}` compteur, `{F}` folio, `{C}` colonne ; le compteur repart à chaque folio avec `{F}`,
+  à chaque colonne avec `{C}` (`formatWireNumber`, `WIRE_NUMBER_TEMPLATES`). Une
+  équipotentielle prend le folio / la colonne de son point d'origine (renvois compris).
 - **Numérotation des fils** : séquentielle sur tout le dossier, ordre folio → x → y ; les
   réseaux reliés à un potentiel ne sont pas numérotés ; `numberOverride` imposable.
 - **Repères** (`tags.ts`, `edit.ts`) : repère auto par préfixe à la pose. Taper le repère
@@ -234,12 +238,19 @@ clic droit glissé ou bouton du milieu : déplacer la vue ; pendant un fil : ter
 Navigation (`crossTargets` dans `crossrefs.ts`, `Editor.goToSymbol`) : double-clic sur un
 renvoi de fil → renvoi jumeau ; sur un contact → sa bobine ; menu clic droit « Aller à… ».
 
+**Symboles favoris** (`editor/favorites.ts`) : barre « Favoris » en haut du panneau
+Symboles (clic : poser, glisser : ranger, clic droit : retirer), étoile sur chaque symbole ;
+favoris par défaut tant que l'utilisateur n'a rien choisi ; mémorisés par utilisateur
+(`Editor.favorites`, préférence `favoriteSymbols`).
+
 ## 6. Serveur (`src/lib/server/`, `src/routes/api/`)
 
 SQLite (libSQL) + Drizzle, tables créées au démarrage. Auth maison (Argon2id, sessions
 hachées). Verrou d'édition par projet (expire après 2 min sans heartbeat). API JSON :
 projets (GET/PUT), verrou, macros, symboles maison, modèles, catalogue (`/api/catalog` : GET,
-POST d'une fiche ou `{ items }` pour un import — même référence = mise à jour). Client typé : `src/lib/api/client.ts`.
+POST d'une fiche ou `{ items }` pour un import — même référence = mise à jour),
+préférences de l'utilisateur (`/api/prefs/[key]`, table `user_prefs`, clés autorisées dans
+`server/prefs.ts`). Client typé : `src/lib/api/client.ts`.
 
 Sauvegarde automatique (`backup.ts`, démarrée par le hook `init` de `hooks.server.ts`) :
 copie cohérente `VACUUM INTO` dans `backups/` à côté de la base (ou `BACKUP_DIR`), toutes les

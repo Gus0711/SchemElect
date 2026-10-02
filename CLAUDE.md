@@ -53,7 +53,8 @@ points « à faire valider par V.R » sont désormais à valider par l'utilisate
    calculé, câbles, lignes libres ; CSV + PDF ; pas de prix) et **section des fils** : faits
    le 2026-10-01. À tester par l'utilisateur.
 6 bis. ✅ **Disposition** (2026-10-02) : folios en onglets en bas, colonne d'icônes à gauche
-   (Symboles, Macros, Appareils, Contrôles, repliable), menu « Dossier ».
+   (Symboles, Macros, Appareils, Contrôles, repliable), menu « Dossier ». **Symboles
+   favoris** (par utilisateur) et **format des numéros de fils** (par folio / colonne).
 7. 🟡 Plus tard : récupération locale en cas de coupure réseau, import `.xrs` WinRelais.
 
 À valider par l'utilisateur (règles métier en attente) : couleurs SYT1 au-delà de 3 paires,

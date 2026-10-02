@@ -1123,3 +1123,52 @@ test('disposition : onglets de folios, barre latérale repliable, menu Dossier',
 	await page.keyboard.press('Escape');
 	await expect(page.locator('.status.saved')).toBeVisible();
 });
+
+test('symboles favoris (mémorisés) et format des numéros de fils', async ({ page }) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.getByRole('button', { name: 'Projet de démonstration' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+
+	// Barre de favoris par défaut, ajout d'un symbole par l'étoile.
+	const favs = page.locator('.favorites .item');
+	await expect(favs.first()).toBeVisible();
+	const before = await favs.count();
+	await page
+		.locator('.cell:has(button.item[title^="Fusible ("])')
+		.getByRole('button', { name: 'Favori' })
+		.click();
+	await expect(favs).toHaveCount(before + 1);
+	await expect(favs.last()).toContainText('Fusible');
+	await page.screenshot({ path: 'test-results/favoris.png' });
+
+	// Mémorisé côté serveur : toujours là après rechargement.
+	await page.reload();
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.favorites .item').last()).toContainText('Fusible');
+
+	// Clic sur un favori : outil de pose de ce symbole.
+	await page.locator('.favorites .item', { hasText: 'Fusible' }).click();
+	expect(await evalEditor<string>(page, 'editor.tool.defId')).toBe('fusible');
+	await page.keyboard.press('Escape');
+
+	// Format des numéros de fils : par folio, façon WinRelais.
+	await dossierMenu(page, 'Propriétés du dossier…');
+	await page.getByRole('button', { name: 'Numérotation et sections' }).click();
+	await page
+		.getByRole('combobox', { name: 'Format du numéro' })
+		.selectOption({ label: 'Par folio, façon WinRelais (F03/12)' });
+	await expect(page.getByText(/exemple : F03\/12/)).toBeVisible();
+	await page.getByRole('button', { name: 'Enregistrer' }).click();
+	await expect(page.locator('.canvas svg text', { hasText: /^F01\/01$/ }).first()).toBeVisible();
+	await page.keyboard.press('PageDown');
+	await expect(page.locator('.canvas svg text', { hasText: /^F02\/01$/ }).first()).toBeVisible();
+	await page.screenshot({ path: 'test-results/numeros-par-folio.png' });
+	await expect(page.locator('.status.saved')).toBeVisible();
+});

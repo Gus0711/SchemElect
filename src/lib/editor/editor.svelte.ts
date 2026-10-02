@@ -34,10 +34,19 @@ import { deepClone } from '$lib/model/ids';
 import type { Folio, Id, ItemRef, Point, Project, Rotation } from '$lib/model/types';
 import {
 	deleteCustomSymbol,
+	getPref,
 	listCatalog,
 	listCustomSymbols,
-	saveCustomSymbol
+	saveCustomSymbol,
+	setPref
 } from '$lib/api/client';
+import {
+	DEFAULT_FAVORITES,
+	FAVORITES_PREF,
+	moveFavorite,
+	normalizeFavorites,
+	toggleFavorite
+} from './favorites';
 import { registerCustomSymbols } from '$lib/symbols';
 import type { CustomSymbolSpec } from '$lib/symbols/custom';
 import type { SymbolDef } from '$lib/symbols/types';
@@ -91,6 +100,8 @@ export class Editor {
 	barPotential = $state('L1');
 	/** Recherche dans le dossier ouverte (Ctrl+F). */
 	searchOpen = $state(false);
+	/** Symboles favoris de l'utilisateur (barre d'accès rapide du panneau Symboles). */
+	favorites: string[] = $state([...DEFAULT_FAVORITES]);
 	/** Fenêtre Nomenclature / liste de commande ouverte. */
 	nomenclatureOpen = $state(false);
 	/** Catalogue matériel partagé (chargé depuis le serveur). */
@@ -481,6 +492,32 @@ export class Editor {
 	async deleteCustomSymbol(id: string) {
 		await deleteCustomSymbol(id);
 		this.customLibrary = this.customLibrary.filter((d) => d.id !== id);
+	}
+
+	// ------------------------------------------------------------ symboles favoris
+
+	async loadFavorites() {
+		try {
+			const saved = normalizeFavorites(await getPref<string[]>(FAVORITES_PREF));
+			if (saved) this.favorites = saved;
+		} catch {
+			/* préférences indisponibles : favoris par défaut */
+		}
+	}
+
+	private saveFavorites(list: string[]) {
+		this.favorites = list;
+		setPref(FAVORITES_PREF, list).catch(() => {
+			/* réessayé au prochain changement */
+		});
+	}
+
+	toggleFavorite(defId: string) {
+		this.saveFavorites(toggleFavorite(this.favorites, defId));
+	}
+
+	moveFavorite(defId: string, to: number) {
+		this.saveFavorites(moveFavorite(this.favorites, defId, to));
 	}
 
 	// ------------------------------------------------------------ catalogue matériel

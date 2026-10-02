@@ -1,7 +1,7 @@
 <script lang="ts">
 	/** Propriétés du dossier : cartouche, indices de révision, potentiels. */
 	import { deepClone, newId } from '$lib/model/ids';
-	import { WIRE_SECTIONS } from '$lib/model/nets';
+	import { formatWireNumber, WIRE_NUMBER_TEMPLATES, WIRE_SECTIONS } from '$lib/model/nets';
 	import type { Potential, ProjectMeta, ProjectSettings, Revision } from '$lib/model/types';
 	import { Button, Field, Modal } from '$lib/ui';
 	import { listTemplates, saveTemplate } from '$lib/api/client';
@@ -22,6 +22,19 @@
 	let revisions: Revision[] = $state([]);
 	let potentials: Potential[] = $state([]);
 	let settings: ProjectSettings = $state({ wireNumberDigits: 2, wireNumberStart: 1 });
+	/** Exemple du numéro de fil (folio 03, colonne D, 12e fil). */
+	const numberExample = $derived(
+		formatWireNumber(settings.wireNumberTemplate?.trim() || '{N}', {
+			N: String(Math.max(0, Number(settings.wireNumberStart) || 0) + 11).padStart(
+				Math.min(6, Math.max(1, Number(settings.wireNumberDigits) || 1)),
+				'0'
+			),
+			F: '03',
+			C: 'D'
+		})
+	);
+	const isPreset = (t: string | undefined) =>
+		WIRE_NUMBER_TEMPLATES.some((x) => x.value === (t?.trim() || '{N}'));
 	let tab: 'info' | 'template' | 'revisions' | 'potentials' | 'numbering' = $state('info');
 	/** Modèle de cartouche / page de garde du dossier (copie locale jusqu'à « Enregistrer »). */
 	let template: DocTemplate = $state(defaultTemplate());
@@ -109,6 +122,9 @@
 			p.settings = {
 				wireNumberStart: Math.max(0, Math.round(st.wireNumberStart) || 0),
 				wireNumberDigits: Math.min(6, Math.max(1, Math.round(st.wireNumberDigits) || 1)),
+				...(st.wireNumberTemplate?.trim() && st.wireNumberTemplate.trim() !== '{N}'
+					? { wireNumberTemplate: st.wireNumberTemplate.trim() }
+					: {}),
 				...(st.wireSection?.trim() ? { wireSection: st.wireSection.trim() } : {}),
 				...(st.sectionDisplay && st.sectionDisplay !== 'all'
 					? { sectionDisplay: st.sectionDisplay }
@@ -225,6 +241,36 @@
 				hint="2 → 01, 02… ; 3 → 001, 002…"
 			/>
 		</div>
+		<div class="grid2">
+			<Field label="Format du numéro">
+				<select
+					class="control"
+					value={isPreset(settings.wireNumberTemplate)
+						? settings.wireNumberTemplate?.trim() || '{N}'
+						: 'custom'}
+					onchange={(e) => {
+						const v = (e.currentTarget as HTMLSelectElement).value;
+						// Personnalisé : point de départ modifiable dans le champ « Modèle ».
+						settings.wireNumberTemplate = v === 'custom' ? '{F}-{N}' : v;
+					}}
+				>
+					{#each WIRE_NUMBER_TEMPLATES as t (t.value)}
+						<option value={t.value}>{t.label} ({t.example})</option>
+					{/each}
+					<option value="custom">Personnalisé…</option>
+				</select>
+			</Field>
+			<Field
+				label="Modèle"
+				bind:value={settings.wireNumberTemplate}
+				placeholder={'{N}'}
+				hint={'{N} n°, {F} folio, {C} colonne — exemple : ' + numberExample}
+			/>
+		</div>
+		<p class="muted small">
+			Avec {'{F}'}, le compteur repart à chaque folio (insérer un folio ne renumérote pas les
+			autres) ; avec {'{C}'}, à chaque colonne.
+		</p>
 		<h4>Sections des fils (mm²)</h4>
 		<p class="muted">
 			Section d’un fil : celle imposée sur le fil (inspecteur), sinon celle de son potentiel (onglet

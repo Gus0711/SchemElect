@@ -70,6 +70,14 @@ CREATE TABLE IF NOT EXISTS project_versions (
 );
 CREATE INDEX IF NOT EXISTS project_versions_project_idx ON project_versions(project_id, created_at);
 
+CREATE TABLE IF NOT EXISTS user_prefs (
+	user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	key TEXT NOT NULL,
+	value TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	PRIMARY KEY (user_id, key)
+);
+
 CREATE TABLE IF NOT EXISTS catalog (
 	id TEXT PRIMARY KEY NOT NULL,
 	ref_key TEXT NOT NULL UNIQUE,

@@ -13,6 +13,7 @@
  */
 import { getSymbolDef } from '$lib/symbols';
 import { EPS, pointKey, pointOnPolyline, pointOnSegment, samePoint } from './geometry';
+import { columnAt, folioNumber } from './layout';
 import { symbolTerminals } from './symbolGeometry';
 import type { Folio, Id, Point, Project } from './types';
 
@@ -319,16 +320,46 @@ function numberNets(project: Project, nets: Net[]) {
 
 	const used = new Set(candidates.map((c) => c.override).filter(Boolean) as string[]);
 	const { wireNumberDigits: digits, wireNumberStart: start } = project.settings;
-	let counter = start;
+	const template = project.settings.wireNumberTemplate?.trim() || '{N}';
+	const counters = new Map<string, number>();
 	for (const c of candidates) {
 		if (c.override) {
 			c.net.number = c.override;
 			continue;
 		}
+		const fields = { F: folioNumber(c.key.fi), C: columnAt(c.key.x) };
+		const scope = wireNumberScope(template, fields);
+		let counter = counters.get(scope) ?? start;
 		let label: string;
 		do {
-			label = String(counter++).padStart(digits, '0');
+			label = formatWireNumber(template, { ...fields, N: String(counter++).padStart(digits, '0') });
 		} while (used.has(label));
+		counters.set(scope, counter);
+		used.add(label);
 		c.net.number = label;
 	}
+}
+
+/** Modèles de numéro de fil proposés (Propriétés du dossier). */
+export const WIRE_NUMBER_TEMPLATES = [
+	{ value: '{N}', label: 'Séquentiel sur le dossier', example: '12' },
+	{ value: '{F}/{N}', label: 'Par folio : folio / n°', example: '03/12' },
+	{ value: 'F{F}/{N}', label: 'Par folio, façon WinRelais', example: 'F03/12' },
+	{ value: '{F}{N}', label: 'Par folio, accolé', example: '0312' },
+	{ value: '{F}{C}{N}', label: 'Par folio et colonne', example: '03D1' }
+];
+
+/** Remplit un modèle de numéro de fil ({N}, {F}, {C}). */
+export function formatWireNumber(
+	template: string,
+	fields: { N: string; F: string; C: string }
+): string {
+	return template.replace(/\{([NFC])\}/g, (_, k: 'N' | 'F' | 'C') => fields[k]);
+}
+
+/** Portée du compteur : tout le dossier, chaque folio ({F}), ou chaque colonne ({C}). */
+function wireNumberScope(template: string, fields: { F: string; C: string }): string {
+	const perFolio = template.includes('{F}');
+	const perColumn = template.includes('{C}');
+	return `${perFolio || perColumn ? fields.F : ''}|${perColumn ? fields.C : ''}`;
 }

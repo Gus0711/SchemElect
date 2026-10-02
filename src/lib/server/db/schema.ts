@@ -3,7 +3,7 @@
  * Toute modification doit être répercutée dans `migrate.ts` (SQL embarqué, idempotent).
  * Dates : chaînes ISO 8601 (UTC), sauf `sessions.expires_at` (ms epoch).
  */
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
 	id: text('id').primaryKey(),
@@ -102,6 +102,20 @@ export const projectVersions = sqliteTable('project_versions', {
 	/** Document `Project` en JSON, compressé gzip puis encodé en base64. */
 	data: text('data').notNull()
 });
+
+/** Préférences par utilisateur (symboles favoris…) : valeur JSON par clé. */
+export const userPrefs = sqliteTable(
+	'user_prefs',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		key: text('key').notNull(),
+		value: text('value').notNull(),
+		updatedAt: text('updated_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.key] })]
+);
 
 export type CustomSymbolRow = typeof customSymbols.$inferSelect;
 

@@ -1,10 +1,10 @@
 <script lang="ts">
 	import SymbolThumb from '$lib/render/SymbolThumb.svelte';
-	import { CATEGORIES, SYMBOLS } from '$lib/symbols';
+	import { CATEGORIES, getSymbolDef, hasSymbolDef, SYMBOLS } from '$lib/symbols';
 	import { specOf } from '$lib/symbols/custom';
 	import type { SymbolDef } from '$lib/symbols/types';
 	import { Button, ContextMenu } from '$lib/ui';
-	import { Plus, Search } from '@lucide/svelte';
+	import { Plus, Search, Star } from '@lucide/svelte';
 	import type { Editor } from '../editor.svelte';
 
 	let { editor }: { editor: Editor } = $props();
@@ -46,6 +46,14 @@
 	});
 
 	let menu: { x: number; y: number; def: SymbolDef } | null = $state(null);
+
+	/** Favoris existants (un symbole maison supprimé disparaît de la barre). */
+	const favorites = $derived(
+		editor.favorites.filter((id) => hasSymbolDef(id)).map((id) => getSymbolDef(id))
+	);
+	const isFavorite = (id: string) => editor.favorites.includes(id);
+	/** Glisser un favori pour le ranger. */
+	let draggedFav: string | null = $state(null);
 
 	function edit(def: SymbolDef) {
 		editor.symbolEditor = { spec: specOf(def) };
@@ -93,24 +101,69 @@
 		>
 	</div>
 	<div class="list">
+		{#if !query.trim()}
+			<h4 class="fav-title"><Star size={11} /> Favoris</h4>
+			{#if favorites.length}
+				<div class="grid favorites">
+					{#each favorites as s, i (s.id)}
+						<button
+							class="item fav"
+							class:active={activeDef === s.id}
+							class:dragging={draggedFav === s.id}
+							title="{s.name} ({s.prefix}) — clic droit : retirer · glisser : ranger"
+							draggable="true"
+							onclick={() => pick(s.id)}
+							oncontextmenu={(e) => {
+								e.preventDefault();
+								menu = { x: e.clientX, y: e.clientY, def: s };
+							}}
+							ondragstart={() => (draggedFav = s.id)}
+							ondragend={() => (draggedFav = null)}
+							ondragover={(e) => draggedFav && e.preventDefault()}
+							ondrop={(e) => {
+								e.preventDefault();
+								if (draggedFav && draggedFav !== s.id) editor.moveFavorite(draggedFav, i);
+								draggedFav = null;
+							}}
+						>
+							<SymbolThumb defId={s.id} size={34} />
+							<span>{s.name}</span>
+						</button>
+					{/each}
+				</div>
+			{:else}
+				<p class="muted hint">
+					Aucun favori : survolez un symbole et cliquez sur l’étoile pour l’ajouter ici.
+				</p>
+			{/if}
+		{/if}
 		{#each groups as g (g.category)}
 			<h4>{g.category}</h4>
 			<div class="grid">
 				{#each g.items as s (s.id)}
-					<button
-						class="item"
-						class:active={activeDef === s.id}
-						title="{s.name} ({s.prefix})"
-						onclick={() => pick(s.id)}
-						oncontextmenu={(e) => {
-							if (!s.custom) return;
-							e.preventDefault();
-							menu = { x: e.clientX, y: e.clientY, def: s };
-						}}
-					>
-						<SymbolThumb defId={s.id} size={34} />
-						<span>{s.name}</span>
-					</button>
+					<div class="cell">
+						<button
+							class="item"
+							class:active={activeDef === s.id}
+							title="{s.name} ({s.prefix})"
+							onclick={() => pick(s.id)}
+							oncontextmenu={(e) => {
+								e.preventDefault();
+								menu = { x: e.clientX, y: e.clientY, def: s };
+							}}
+						>
+							<SymbolThumb defId={s.id} size={34} />
+							<span>{s.name}</span>
+						</button>
+						<button
+							class="star"
+							class:on={isFavorite(s.id)}
+							aria-label="Favori"
+							aria-pressed={isFavorite(s.id)}
+							title={isFavorite(s.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+							onclick={() => editor.toggleFavorite(s.id)}><Star size={12} /></button
+						>
+					</div>
 				{/each}
 			</div>
 		{:else}
@@ -127,14 +180,22 @@
 		onclose={() => (menu = null)}
 		items={[
 			{ label: 'Poser', action: () => pick(def.id) },
-			{ label: 'Modifier le symbole…', disabled: !def.source, action: () => edit(def) },
-			{ separator: true },
 			{
-				label: 'Supprimer de la bibliothèque',
-				danger: true,
-				disabled: !editor.customLibrary.some((d) => d.id === def.id),
-				action: () => remove(def)
-			}
+				label: isFavorite(def.id) ? 'Retirer des favoris' : 'Ajouter aux favoris',
+				action: () => editor.toggleFavorite(def.id)
+			},
+			...(def.custom
+				? [
+						{ separator: true as const },
+						{ label: 'Modifier le symbole…', disabled: !def.source, action: () => edit(def) },
+						{
+							label: 'Supprimer de la bibliothèque',
+							danger: true,
+							disabled: !editor.customLibrary.some((d) => d.id === def.id),
+							action: () => remove(def)
+						}
+					]
+				: [])
 		]}
 	/>
 {/if}
@@ -188,6 +249,54 @@
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
 		gap: var(--sp-1);
+	}
+	.fav-title {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		color: var(--c-accent);
+	}
+	.favorites .item {
+		border-color: var(--c-border);
+	}
+	.item.dragging {
+		opacity: 0.4;
+	}
+	.hint {
+		margin: 0;
+		font-size: var(--fs-xs);
+	}
+	.cell {
+		position: relative;
+		display: flex;
+		min-width: 0;
+	}
+	.cell .item {
+		flex: 1;
+	}
+	.star {
+		position: absolute;
+		top: 1px;
+		right: 1px;
+		display: flex;
+		padding: 2px;
+		border: none;
+		border-radius: var(--radius-sm);
+		background: transparent;
+		color: var(--c-text-muted);
+		cursor: pointer;
+		opacity: 0;
+	}
+	.cell:hover .star,
+	.star:focus-visible,
+	.star.on {
+		opacity: 1;
+	}
+	.star.on {
+		color: var(--c-accent);
+	}
+	.star.on :global(svg) {
+		fill: currentColor;
 	}
 	.item {
 		display: flex;

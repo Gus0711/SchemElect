@@ -178,3 +178,14 @@ export async function duplicateProject(
 ): Promise<{ id: string }> {
 	return request('POST', `${projectUrl(projectId)}/duplicate`, req);
 }
+
+// --- Préférences de l'utilisateur ------------------------------------------------------
+
+export async function getPref<T>(key: string): Promise<T | null> {
+	return (await request<{ value: T | null }>('GET', `/api/prefs/${encodeURIComponent(key)}`)).value;
+}
+
+export async function setPref<T>(key: string, value: T): Promise<T> {
+	return (await request<{ value: T }>('PUT', `/api/prefs/${encodeURIComponent(key)}`, { value }))
+		.value;
+}

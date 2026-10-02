@@ -65,6 +65,7 @@
 		else session.start();
 		editor.loadCustomLibrary();
 		editor.loadCatalog();
+		editor.loadFavorites();
 		// Accès pour les tests de bout en bout (mode développement uniquement).
 		if (import.meta.env.DEV)
 			(window as unknown as Record<string, unknown>).__schemelect = { editor, session };

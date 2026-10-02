@@ -11,6 +11,21 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-02 (suite) — Symboles favoris, format des numéros de fils
+
+**Fait** (retenus après comparaison avec WinRelais / Schemaplic ; mis de côté :
+surlignage d'équipotentielle, caractéristiques techniques par famille, vignettes) :
+- **Symboles favoris** : barre en haut du panneau Symboles (12 symboles par défaut : contacts,
+  bobines, voyant, BP, disjoncteur 2P, bornes, renvois, terre), étoile au survol de chaque
+  symbole, clic droit, glisser pour ranger ; mémorisés **par utilisateur** sur le serveur
+  (table `user_prefs`, API `/api/prefs/favoriteSymbols`).
+- **Format des numéros de fils** (Propriétés › Numérotation et sections) : séquentiel,
+  `{F}/{N}`, `F{F}/{N}` (WinRelais), `{F}{N}`, `{F}{C}{N}` ou modèle personnalisé, avec
+  aperçu. Par folio : insérer un folio ne renumérote plus les autres.
+- Tests : 448 unitaires + 16 parcours e2e.
+
+---
+
 ## 2026-10-02 — Nouvelle disposition de l'éditeur
 
 **Décisions de l'utilisateur** : folios en onglets en bas ; Symboles et Macros restent
