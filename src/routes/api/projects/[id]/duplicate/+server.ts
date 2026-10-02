@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { requireUser } from '$lib/server/guards';
+import { requireProject } from '$lib/server/access';
 import { duplicateProject } from '$lib/server/projects';
 import type { RequestHandler } from './$types';
 
@@ -8,7 +8,7 @@ import type { RequestHandler } from './$types';
  * Corps : `{ name, affaireNumber?, planNumber?, client?, resetRevisions?, versionId? }`.
  */
 export const POST: RequestHandler = async ({ params, locals, request }) => {
-	const user = requireUser(locals);
+	const user = await requireProject(locals, params.id, 'write');
 	let body: Record<string, unknown> = {};
 	try {
 		body = (await request.json()) as Record<string, unknown>;
@@ -19,6 +19,7 @@ export const POST: RequestHandler = async ({ params, locals, request }) => {
 	const id = await duplicateProject(
 		params.id,
 		user.id,
+		user.organizationId,
 		{
 			name: s('name') ?? '',
 			affaireNumber: s('affaireNumber'),

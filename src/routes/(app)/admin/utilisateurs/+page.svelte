@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { KeyRound, ShieldCheck, Trash2, UserPlus } from '@lucide/svelte';
+	import { canManageUser, ROLE_HINT, ROLE_LABEL, type Role } from '$lib/model/access';
 	import { Alert, Button, Card, Field, Modal } from '$lib/ui';
 	import type { PageProps } from './$types';
 
@@ -15,6 +16,7 @@
 	let target = $state<UserRow | null>(null);
 	let pending = $state(false);
 	let notice = $state('');
+	let newRole: Role = $state('user');
 
 	const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short' });
 
@@ -35,9 +37,11 @@
 				notice =
 					kind === 'create'
 						? 'Utilisateur créé.'
-						: kind === 'reset'
-							? `Mot de passe de ${target?.name} réinitialisé (ses sessions ont été fermées).`
-							: `Utilisateur ${target?.name} supprimé.`;
+						: kind === 'role'
+							? 'Rôle modifié (la personne doit se reconnecter).'
+							: kind === 'reset'
+								? `Mot de passe de ${target?.name} réinitialisé (ses sessions ont été fermées).`
+								: `Utilisateur ${target?.name} supprimé.`;
 				createOpen = resetOpen = deleteOpen = false;
 			}
 		};
@@ -50,13 +54,14 @@
 <svelte:head><title>Utilisateurs — SchemElect</title></svelte:head>
 
 <div class="toolbar">
-	<h1>Utilisateurs</h1>
+	<h1>Utilisateurs <span class="muted org">— {data.organizationName}</span></h1>
 	<Button variant="primary" onclick={() => ((createOpen = true), (notice = ''))}>
 		<UserPlus size={16} /> Nouvel utilisateur
 	</Button>
 </div>
 
 {#if notice}<Alert variant="success">{notice}</Alert>{/if}
+{#if errorFor('role')}<Alert>{errorFor('role')}</Alert>{/if}
 
 <Card>
 	<table>
@@ -77,10 +82,23 @@
 					>
 					<td>{u.login}</td>
 					<td>
-						{#if u.role === 'admin'}
-							<span class="role admin"><ShieldCheck size={14} /> Administrateur</span>
+						{#if u.id !== data.user.id && canManageUser(data.user.role, u.role)}
+							<form method="POST" action="?/role" use:enhance={submit}>
+								<input type="hidden" name="id" value={u.id} />
+								<select
+									name="role"
+									aria-label="Rôle de {u.name}"
+									value={u.role}
+									onchange={(e) => e.currentTarget.form?.requestSubmit()}
+								>
+									{#each data.roles as r (r)}<option value={r}>{ROLE_LABEL[r]}</option>{/each}
+								</select>
+							</form>
 						{:else}
-							<span class="role">Utilisateur</span>
+							<span class="role" class:admin={u.role === 'admin' || u.role === 'superadmin'}
+								>{#if u.role === 'admin' || u.role === 'superadmin'}<ShieldCheck size={14} />{/if}
+								{ROLE_LABEL[u.role as Role]}</span
+							>
 						{/if}
 					</td>
 					<td>{dateFmt.format(new Date(u.createdAt))}</td>
@@ -126,12 +144,12 @@
 				required
 			/>
 			<Field label="Rôle">
-				<select name="role">
-					<option value="user">Utilisateur</option>
-					<option value="admin">Administrateur</option>
+				<select name="role" bind:value={newRole}>
+					{#each data.roles as r (r)}<option value={r}>{ROLE_LABEL[r]}</option>{/each}
 				</select>
 			</Field>
 		</div>
+		<p class="muted small">{ROLE_HINT[newRole]}</p>
 		{#if errorFor('create')}<Alert>{errorFor('create')}</Alert>{/if}
 	</form>
 	{#snippet actions()}
@@ -181,6 +199,23 @@
 </Modal>
 
 <style>
+	.org {
+		font-weight: var(--fw-medium);
+	}
+	.small {
+		margin: var(--sp-2) 0 0;
+		font-size: var(--fs-sm);
+	}
+	td select {
+		height: 28px;
+		padding: 0 var(--sp-2);
+		border: 1px solid var(--c-border);
+		border-radius: var(--radius-sm);
+		background: var(--c-surface);
+	}
+	td form {
+		margin: 0;
+	}
 	.toolbar {
 		display: flex;
 		align-items: center;

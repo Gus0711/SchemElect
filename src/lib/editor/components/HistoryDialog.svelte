@@ -15,7 +15,8 @@
 		projectId,
 		editor,
 		session,
-		onduplicate
+		onduplicate,
+		allowDuplicate = true
 	}: {
 		open?: boolean;
 		projectId: string;
@@ -23,6 +24,8 @@
 		session: EditSession;
 		/** Dupliquer une version (ou l'état actuel si absente). */
 		onduplicate: (version?: VersionInfo) => void;
+		/** Faux pour un lecteur (pas de création de dossier). */
+		allowDuplicate?: boolean;
 	} = $props();
 
 	let versions: VersionInfo[] = $state([]);
@@ -161,12 +164,14 @@
 						title="Ouvrir en lecture seule (consultation, export PDF)"
 						><Eye size={14} /> Voir</Button
 					>
-					<Button
-						size="sm"
-						variant="ghost"
-						title="Nouveau dossier à partir de cette version"
-						onclick={() => onduplicate(v)}><Copy size={14} /></Button
-					>
+					{#if allowDuplicate}
+						<Button
+							size="sm"
+							variant="ghost"
+							title="Nouveau dossier à partir de cette version"
+							onclick={() => onduplicate(v)}><Copy size={14} /></Button
+						>
+					{/if}
 					{#if allowed && !editor.readonly}
 						<Button
 							size="sm"
@@ -184,7 +189,9 @@
 	</div>
 
 	{#snippet actions()}
-		<Button onclick={() => onduplicate()}><Copy size={14} /> Dupliquer le dossier…</Button>
+		{#if allowDuplicate}
+			<Button onclick={() => onduplicate()}><Copy size={14} /> Dupliquer le dossier…</Button>
+		{/if}
 		<Button variant="ghost" onclick={() => (open = false)}>Fermer</Button>
 	{/snippet}
 </Modal>

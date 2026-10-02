@@ -1,10 +1,10 @@
 import { fail } from '@sveltejs/kit';
-import { requireAdmin } from '$lib/server/guards';
+import { requireSuperAdmin } from '$lib/server/guards';
 import { currentBackupConfig, listBackups, runBackup } from '$lib/server/backup';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	requireAdmin(locals);
+	requireSuperAdmin(locals);
 	const config = currentBackupConfig();
 	return {
 		config: config
@@ -20,7 +20,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
 	backup: async ({ locals }) => {
-		requireAdmin(locals);
+		requireSuperAdmin(locals);
 		try {
 			const b = await runBackup();
 			return { ok: true, name: b.name };

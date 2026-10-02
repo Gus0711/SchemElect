@@ -68,7 +68,8 @@
 			saving: 'Enregistrement…',
 			error: session.error || 'Erreur',
 			readonly: `Lecture seule — ouvert par ${session.lock?.userName ?? 'un autre utilisateur'}`,
-			archive: 'Version archivée — lecture seule'
+			archive: 'Version archivée — lecture seule',
+			viewer: 'Lecture seule (compte lecteur)'
 		}[session.status]
 	);
 </script>
@@ -86,7 +87,9 @@
 				class="spin"
 			/>
 		{:else if session.status === 'error'}<TriangleAlert size={14} />
-		{:else if session.status === 'readonly' || session.status === 'archive'}<Lock size={14} />
+		{:else if session.status === 'readonly' || session.status === 'archive' || session.status === 'viewer'}<Lock
+				size={14}
+			/>
 		{:else}<Check size={14} />{/if}
 		<span class="label">{statusText}</span>
 	</span>
@@ -294,7 +297,8 @@
 		color: var(--c-danger);
 	}
 	.status.readonly,
-	.status.archive {
+	.status.archive,
+	.status.viewer {
 		color: var(--c-warning);
 	}
 	.status :global(.spin) {

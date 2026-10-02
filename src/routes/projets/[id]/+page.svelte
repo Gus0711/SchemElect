@@ -9,5 +9,9 @@
 </svelte:head>
 
 {#key data.project.id}
-	<EditorApp projectId={data.project.id} project={data.project.data} />
+	<EditorApp
+		projectId={data.project.id}
+		project={data.project.data}
+		viewer={data.user.role === 'viewer'}
+	/>
 {/key}

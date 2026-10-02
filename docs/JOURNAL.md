@@ -11,6 +11,35 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-02 (suite 2) — Organisation des dossiers, étape 1 : sociétés et rôles
+
+**Décisions** (voir `ROADMAP.md` § Organisation des dossiers) : Société → Client → Affaire
+(= 1 n° WhySoft) → Schémas ; rôles super-admin / admin / utilisateur / lecteur ; clients et
+affaires de Dumortier issus plus tard de l'API de l'ERP ; multi-société préparé maintenant.
+
+**Fait** :
+- Table `organizations`, `organization_id` sur toutes les données ; migration testée (base
+  existante → « Dumortier », 1er administrateur → super-administrateur) ; `/setup` crée la
+  1re société.
+- Cloisonnement : toutes les routes filtrent par société (dossiers, versions, macros,
+  symboles maison, modèles, catalogue) ; un dossier d'une autre société répond 404.
+- **Lecteur** : lecture seule partout (éditeur sans verrou ni sauvegarde, « Lecture seule
+  (compte lecteur) », actions de création / modification masquées, serveur en 403).
+- Page **Utilisateurs** : 4 rôles avec explication, rôle modifiable dans la liste, dernier
+  administrateur protégé. Page **Sociétés** (super-admin) : créer une société et son
+  administrateur, renommer, entrer ; sélecteur de société dans l'en-tête. **Sauvegardes**
+  réservées au super-administrateur (la base contient toutes les sociétés).
+- Tests : 453 unitaires + 17 parcours e2e (nouveau : rôles et sociétés).
+
+**Reste / suite** : étape 2 (clients et affaires), étape 3 (page Projets), étape 4
+(connecteur ERP, attend la documentation de l'API).
+
+**Pièges / à savoir** : identifiants de connexion uniques sur toute la plateforme. Toute
+nouvelle table de données doit avoir `organization_id` (ajout dans `ORG_TABLES` de
+`migrate.ts`) et être filtrée par société.
+
+---
+
 ## 2026-10-02 (suite) — Symboles favoris, format des numéros de fils
 
 **Fait** (retenus après comparaison avec WinRelais / Schemaplic ; mis de côté :

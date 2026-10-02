@@ -245,6 +245,20 @@ favoris par défaut tant que l'utilisateur n'a rien choisi ; mémorisés par uti
 
 ## 6. Serveur (`src/lib/server/`, `src/routes/api/`)
 
+**Sociétés et rôles** (2026-10-02) : table `organizations` ; colonne `organization_id` sur
+`users`, `projects`, `macros`, `custom_symbols`, `templates`, `catalog` (clé catalogue
+`société|référence`). Rôles (`model/access.ts`, testé) : `superadmin` (plateforme : page
+`/admin/societes`, sauvegardes, bascule de société par le cookie `org` →
+`/api/session/organization`), `admin` (utilisateurs de sa société), `user`, `viewer`
+(lecture seule). `locals.user.organizationId` = société active (résolue dans
+`hooks.server.ts`) ; **toute** lecture / écriture est filtrée par société. Gardes
+(`server/guards.ts`) : `requireUser`, `requireEditor` (refuse le lecteur), `requireAdmin`,
+`requireSuperAdmin` ; `server/access.ts` `requireProject(locals, id, 'read' | 'write')` :
+404 si le dossier est d'une autre société, 403 en écriture pour un lecteur. Le lecteur ne
+prend jamais de verrou (`EditSession.viewOnly()`). Migration (`db/migrate.ts`, testée) :
+base existante → société « Dumortier » (`org_main`), plus ancien administrateur promu
+super-administrateur ; premier lancement (`/setup`) → première société + super-admin.
+
 SQLite (libSQL) + Drizzle, tables créées au démarrage. Auth maison (Argon2id, sessions
 hachées). Verrou d'édition par projet (expire après 2 min sans heartbeat). API JSON :
 projets (GET/PUT), verrou, macros, symboles maison, modèles, catalogue (`/api/catalog` : GET,

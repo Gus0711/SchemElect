@@ -12,7 +12,9 @@ export type SaveStatus =
 	| 'error'
 	| 'readonly'
 	/** Consultation d'une version de l'historique (aucune sauvegarde). */
-	| 'archive';
+	| 'archive'
+	/** Compte lecteur : lecture seule, sans verrou. */
+	| 'viewer';
 
 const SAVE_DELAY = 1200;
 const HEARTBEAT = 30_000;
@@ -111,6 +113,13 @@ export class EditSession {
 		this.schedule(this.editor.revision);
 	}
 
+	/** Compte lecteur : lecture seule, sans verrou ni sauvegarde. */
+	viewOnly() {
+		this.suspended = true;
+		this.status = 'viewer';
+		this.editor.readonly = true;
+	}
+
 	/** Consultation d'une version : lecture seule, sans verrou ni sauvegarde. */
 	archive() {
 		this.suspended = true;
@@ -121,6 +130,7 @@ export class EditSession {
 	stop() {
 		if (this.heartbeat) clearInterval(this.heartbeat);
 		if (this.timer) clearTimeout(this.timer);
-		if (!this.editor.readonly && this.status !== 'archive') releaseLock(this.projectId);
+		if (!this.editor.readonly && this.status !== 'archive' && this.status !== 'viewer')
+			releaseLock(this.projectId);
 	}
 }

@@ -3,12 +3,16 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { Copy, FilePlus2, FolderOpen, Lock, Pencil, Search, Trash2 } from '@lucide/svelte';
 	import { fetchProject } from '$lib/api/client';
+	import { canEdit } from '$lib/model/access';
 	import DuplicateDialog from '$lib/editor/components/DuplicateDialog.svelte';
 	import type { ProjectMeta } from '$lib/model/types';
 	import { Alert, Button, Card, Field, Modal } from '$lib/ui';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	/** Lecteur : consultation seulement (ni création, ni renommage, ni suppression). */
+	const editable = $derived(canEdit(data.user.role));
 
 	type Summary = (typeof data.projects)[number];
 
@@ -90,21 +94,23 @@
 			aria-label="Rechercher"
 		/>
 	</div>
-	<form method="POST" action="?/demo">
-		<Button type="submit" title="Créer un dossier d'exemple pour découvrir l'outil"
-			>Projet de démonstration</Button
+	{#if editable}
+		<form method="POST" action="?/demo">
+			<Button type="submit" title="Créer un dossier d'exemple pour découvrir l'outil"
+				>Projet de démonstration</Button
+			>
+		</form>
+		<form method="POST" action="?/demoArmoire">
+			<Button
+				type="submit"
+				title="Dossier d'exemple complet : distribution, chaudière, pompe, implantation et façade"
+				>Exemple armoire complète</Button
+			>
+		</form>
+		<Button variant="primary" onclick={() => (createOpen = true)}
+			><FilePlus2 size={16} /> Nouveau projet</Button
 		>
-	</form>
-	<form method="POST" action="?/demoArmoire">
-		<Button
-			type="submit"
-			title="Dossier d'exemple complet : distribution, chaudière, pompe, implantation et façade"
-			>Exemple armoire complète</Button
-		>
-	</form>
-	<Button variant="primary" onclick={() => (createOpen = true)}
-		><FilePlus2 size={16} /> Nouveau projet</Button
-	>
+	{/if}
 </div>
 
 {#if duplicateError}<Alert>{duplicateError}</Alert>{/if}
@@ -116,9 +122,11 @@
 		<div class="empty">
 			<FolderOpen size={32} />
 			<p>Aucun projet pour l'instant.</p>
-			<Button variant="primary" onclick={() => (createOpen = true)}
-				><FilePlus2 size={16} /> Créer le premier projet</Button
-			>
+			{#if editable}
+				<Button variant="primary" onclick={() => (createOpen = true)}
+					><FilePlus2 size={16} /> Créer le premier projet</Button
+				>
+			{/if}
 		</div>
 	{:else if filtered.length === 0}
 		<p class="muted empty">Aucun projet ne correspond à « {query} ».</p>
@@ -156,21 +164,23 @@
 						</td>
 						<td class="actions-col"
 							><div class="row-actions">
-								<Button
-									variant="ghost"
-									size="sm"
-									title="Dupliquer (nouvelle affaire)"
-									disabled={pending}
-									onclick={() => openDuplicate(p)}
-								>
-									<Copy size={15} />
-								</Button>
-								<Button variant="ghost" size="sm" title="Renommer" onclick={() => openRename(p)}>
-									<Pencil size={15} />
-								</Button>
-								<Button variant="ghost" size="sm" title="Supprimer" onclick={() => openDelete(p)}>
-									<Trash2 size={15} />
-								</Button>
+								{#if editable}
+									<Button
+										variant="ghost"
+										size="sm"
+										title="Dupliquer (nouvelle affaire)"
+										disabled={pending}
+										onclick={() => openDuplicate(p)}
+									>
+										<Copy size={15} />
+									</Button>
+									<Button variant="ghost" size="sm" title="Renommer" onclick={() => openRename(p)}>
+										<Pencil size={15} />
+									</Button>
+									<Button variant="ghost" size="sm" title="Supprimer" onclick={() => openDelete(p)}>
+										<Trash2 size={15} />
+									</Button>
+								{/if}
 							</div></td
 						>
 					</tr>

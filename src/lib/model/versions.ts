@@ -9,6 +9,7 @@
  * - Conservation des automatiques : tout sur 48 h, puis la dernière de chaque jour pendant
  *   30 jours, au-delà rien.
  */
+import { canEdit, isAdmin, type Role } from './access';
 import { listDevices } from './inventory';
 import type { Project } from './types';
 
@@ -97,12 +98,13 @@ export function versionsToPrune(
 	return out;
 }
 
-/** Restauration : administrateur, ou utilisateur intervenu sur le dossier. */
+/** Restauration : administrateur, ou utilisateur intervenu sur le dossier (jamais un lecteur). */
 export function canRestore(
-	user: { id: string; role: 'admin' | 'user' },
+	user: { id: string; role: Role },
 	contributors: Iterable<string>
 ): boolean {
-	if (user.role === 'admin') return true;
+	if (canEdit(user.role) === false) return false;
+	if (isAdmin(user.role)) return true;
 	for (const id of contributors) if (id === user.id) return true;
 	return false;
 }

@@ -1,5 +1,5 @@
 /** Catalogue matériel partagé : une fiche par référence (unicité sur `referenceKey`). */
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { normalizeCatalogItem, referenceKey, type CatalogItem } from '$lib/model/catalog';
 import { newId } from '$lib/model/ids';
 import { getDb } from './db';
@@ -38,9 +38,17 @@ function fromRow(row: { id: string; data: string; updatedAt: string }): CatalogI
 	}
 }
 
-export async function listCatalog(): Promise<CatalogItem[]> {
+/** Clé d'unicité en base : une fiche par référence et par société. */
+export const catalogKey = (organizationId: string, reference: string) =>
+	`${organizationId}|${referenceKey(reference)}`;
+
+export async function listCatalog(organizationId: string): Promise<CatalogItem[]> {
 	const db = await getDb();
-	const rows = await db.select().from(catalog).orderBy(asc(catalog.reference));
+	const rows = await db
+		.select()
+		.from(catalog)
+		.where(eq(catalog.organizationId, organizationId))
+		.orderBy(asc(catalog.reference));
 	return rows.map(fromRow).filter((t): t is CatalogItem => !!t);
 }
 
@@ -48,15 +56,25 @@ export type UpsertResult =
 	{ status: 'created' | 'updated'; item: CatalogItem } | { status: 'conflict' };
 
 /** Crée ou met à jour une fiche (même référence = même fiche). */
-export async function upsertCatalogItem(item: CatalogItem, userId: string): Promise<UpsertResult> {
+export async function upsertCatalogItem(
+	item: CatalogItem,
+	userId: string,
+	organizationId: string
+): Promise<UpsertResult> {
 	const db = await getDb();
-	const key = referenceKey(item.reference);
-	const [byId] = item.id ? await db.select().from(catalog).where(eq(catalog.id, item.id)) : [];
+	const key = catalogKey(organizationId, item.reference);
+	const [byId] = item.id
+		? await db
+				.select()
+				.from(catalog)
+				.where(and(eq(catalog.id, item.id), eq(catalog.organizationId, organizationId)))
+		: [];
 	const [byKey] = await db.select().from(catalog).where(eq(catalog.refKey, key));
 	const plan = resolveUpsert(item.id, byId, byKey);
 	if (plan.action === 'conflict') return { status: 'conflict' };
 	const now = new Date().toISOString();
-	const id = plan.action === 'update' ? plan.id : item.id || newId('cat');
+	// Nouvel identifiant à chaque création : les identifiants sont uniques sur toute la base.
+	const id = plan.action === 'update' ? plan.id : newId('cat');
 	const saved: CatalogItem = { ...item, id, updatedAt: now };
 	const data = JSON.stringify({ ...saved, updatedAt: undefined });
 	const values = { refKey: key, reference: item.reference, manufacturer: item.manufacturer, data };
@@ -67,30 +85,38 @@ export async function upsertCatalogItem(item: CatalogItem, userId: string): Prom
 			.where(eq(catalog.id, id));
 		return { status: 'updated', item: saved };
 	}
-	await db
-		.insert(catalog)
-		.values({ id, ...values, createdBy: userId, createdAt: now, updatedAt: now });
+	await db.insert(catalog).values({
+		id,
+		organizationId,
+		...values,
+		createdBy: userId,
+		createdAt: now,
+		updatedAt: now
+	});
 	return { status: 'created', item: saved };
 }
 
 /** Import en masse : chaque fiche est créée, ou met à jour la fiche de même référence. */
 export async function importCatalog(
 	items: CatalogItem[],
-	userId: string
+	userId: string,
+	organizationId: string
 ): Promise<{ created: number; updated: number }> {
 	let created = 0;
 	let updated = 0;
 	for (const raw of items) {
 		// Import : l'id du fichier ne compte pas, seule la référence identifie la fiche.
-		const res = await upsertCatalogItem({ ...raw, id: '' }, userId);
+		const res = await upsertCatalogItem({ ...raw, id: '' }, userId, organizationId);
 		if (res.status === 'created') created++;
 		else if (res.status === 'updated') updated++;
 	}
 	return { created, updated };
 }
 
-export async function deleteCatalogItem(id: string): Promise<boolean> {
+export async function deleteCatalogItem(id: string, organizationId: string): Promise<boolean> {
 	const db = await getDb();
-	const res = await db.delete(catalog).where(eq(catalog.id, id));
+	const res = await db
+		.delete(catalog)
+		.where(and(eq(catalog.id, id), eq(catalog.organizationId, organizationId)));
 	return res.rowsAffected > 0;
 }

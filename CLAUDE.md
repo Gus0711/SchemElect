@@ -55,7 +55,12 @@ points « à faire valider par V.R » sont désormais à valider par l'utilisate
 6 bis. ✅ **Disposition** (2026-10-02) : folios en onglets en bas, colonne d'icônes à gauche
    (Symboles, Macros, Appareils, Contrôles, repliable), menu « Dossier ». **Symboles
    favoris** (par utilisateur) et **format des numéros de fils** (par folio / colonne).
-7. 🟡 Plus tard : récupération locale en cas de coupure réseau, import `.xrs` WinRelais.
+7. 🔴 **Organisation des dossiers** : ✅ sociétés + rôles (super-admin, admin, utilisateur,
+   lecteur) → clients / affaires (n° WhySoft) → page Projets → connecteur ERP Dumortier.
+   **Toute donnée appartient à une société** : filtrer par `locals.user.organizationId`,
+   gardes `requireEditor` / `requireProject` (voir ARCHITECTURE § 6).
+   Détail et état : `docs/ROADMAP.md` § Organisation des dossiers.
+8. 🟡 Plus tard : récupération locale en cas de coupure réseau, import `.xrs` WinRelais.
 
 À valider par l'utilisateur (règles métier en attente) : couleurs SYT1 au-delà de 3 paires,
 encombrements par défaut de l'implantation, fiches du catalogue de départ.

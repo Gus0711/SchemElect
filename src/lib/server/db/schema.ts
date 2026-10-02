@@ -5,14 +5,23 @@
  */
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
+/** Sociétés : chaque donnée (comptes, dossiers, bibliothèques) appartient à une société. */
+export const organizations = sqliteTable('organizations', {
+	id: text('id').primaryKey(),
+	name: text('name').notNull(),
+	createdAt: text('created_at').notNull()
+});
+
 export const users = sqliteTable('users', {
 	id: text('id').primaryKey(),
 	login: text('login').notNull().unique(),
 	name: text('name').notNull(),
 	passwordHash: text('password_hash').notNull(),
-	role: text('role', { enum: ['admin', 'user'] })
+	role: text('role', { enum: ['superadmin', 'admin', 'user', 'viewer'] })
 		.notNull()
 		.default('user'),
+	/** Société du compte (le super-administrateur peut basculer sur une autre). */
+	organizationId: text('organization_id').notNull().default(''),
 	createdAt: text('created_at').notNull()
 });
 
@@ -27,6 +36,8 @@ export const sessions = sqliteTable('sessions', {
 
 export const projects = sqliteTable('projects', {
 	id: text('id').primaryKey(),
+	/** Société propriétaire. */
+	organizationId: text('organization_id').notNull().default(''),
 	name: text('name').notNull(),
 	affaireNumber: text('affaire_number').notNull().default(''),
 	/** Document `Project` sérialisé en JSON. */
@@ -40,6 +51,8 @@ export const projects = sqliteTable('projects', {
 
 export const macros = sqliteTable('macros', {
 	id: text('id').primaryKey(),
+	/** Société propriétaire. */
+	organizationId: text('organization_id').notNull().default(''),
 	name: text('name').notNull(),
 	category: text('category').notNull().default(''),
 	/** `Fragment` sérialisé en JSON. */
@@ -51,6 +64,8 @@ export const macros = sqliteTable('macros', {
 /** Symboles maison (image + bornes, blocs) : bibliothèque partagée. */
 export const customSymbols = sqliteTable('custom_symbols', {
 	id: text('id').primaryKey(),
+	/** Société propriétaire. */
+	organizationId: text('organization_id').notNull().default(''),
 	name: text('name').notNull(),
 	category: text('category').notNull().default(''),
 	/** `SymbolDef` sérialisé en JSON. */
@@ -63,6 +78,8 @@ export const customSymbols = sqliteTable('custom_symbols', {
 /** Modèles de cartouche et de page de garde : bibliothèque partagée. */
 export const templates = sqliteTable('templates', {
 	id: text('id').primaryKey(),
+	/** Société propriétaire. */
+	organizationId: text('organization_id').notNull().default(''),
 	name: text('name').notNull(),
 	/** `DocTemplate` sérialisé en JSON. */
 	data: text('data').notNull(),
@@ -74,6 +91,8 @@ export const templates = sqliteTable('templates', {
 /** Catalogue matériel : une fiche par référence constructeur (bibliothèque partagée). */
 export const catalog = sqliteTable('catalog', {
 	id: text('id').primaryKey(),
+	/** Société propriétaire. */
+	organizationId: text('organization_id').notNull().default(''),
 	/** `referenceKey(reference)` : unicité indépendante des espaces / de la casse. */
 	refKey: text('ref_key').notNull().unique(),
 	reference: text('reference').notNull(),

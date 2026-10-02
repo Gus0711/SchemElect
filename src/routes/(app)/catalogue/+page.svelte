@@ -15,12 +15,16 @@
 		type CatalogItem
 	} from '$lib/model/catalog';
 	import { STARTER_CATALOG } from '$lib/model/catalogStarter';
+	import { canEdit } from '$lib/model/access';
 	import { normalizeSearch } from '$lib/model/inventory';
 	import { Alert, Button, Card } from '$lib/ui';
 	import { Download, FilePlus2, PackagePlus, Pencil, Search, Trash, Upload } from '@lucide/svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
+
+	/** Lecteur : consultation et export seulement. */
+	const editable = $derived(canEdit(data.user.role));
 
 	let query = $state('');
 	let category = $state('');
@@ -161,17 +165,21 @@
 <div class="toolbar">
 	<h1>Catalogue matériel</h1>
 	<div class="buttons">
-		<Button
-			onclick={() => fileInput?.click()}
-			disabled={pending}
-			title="Fichier CSV (Excel : Enregistrer sous › CSV point-virgule)"
-			><Upload size={16} /> Importer CSV</Button
-		>
+		{#if editable}
+			<Button
+				onclick={() => fileInput?.click()}
+				disabled={pending}
+				title="Fichier CSV (Excel : Enregistrer sous › CSV point-virgule)"
+				><Upload size={16} /> Importer CSV</Button
+			>
+		{/if}
 		<Button onclick={exportCsv} disabled={!items.length}><Download size={16} /> Exporter CSV</Button
 		>
-		<Button variant="primary" onclick={() => open(null)}
-			><FilePlus2 size={16} /> Nouvelle fiche</Button
-		>
+		{#if editable}
+			<Button variant="primary" onclick={() => open(null)}
+				><FilePlus2 size={16} /> Nouvelle fiche</Button
+			>
+		{/if}
 	</div>
 	<input
 		bind:this={fileInput}
@@ -197,7 +205,7 @@
 {#if error}<Alert>{error}</Alert>{/if}
 {#if info}<Alert variant="success">{info}</Alert>{/if}
 
-{#if starterMissing.length}
+{#if starterMissing.length && editable}
 	<Card>
 		<div class="starter">
 			<div>
@@ -246,7 +254,7 @@
 			</thead>
 			<tbody>
 				{#each visible as i (i.id)}
-					<tr ondblclick={() => open(i)}>
+					<tr ondblclick={() => editable && open(i)}>
 						<td class="ref">{i.reference}</td>
 						<td>{i.manufacturer}</td>
 						<td
@@ -260,16 +268,18 @@
 						<td>{i.mounting ? MOUNT[i.mounting] : ''}</td>
 						<td class="notes muted">{i.notes ?? ''}</td>
 						<td class="actions">
-							<Button size="sm" variant="ghost" title="Modifier" onclick={() => open(i)}
-								><Pencil size={14} /></Button
-							>
-							<Button
-								size="sm"
-								variant="ghost"
-								title="Supprimer"
-								disabled={pending}
-								onclick={() => remove(i)}><Trash size={14} /></Button
-							>
+							{#if editable}
+								<Button size="sm" variant="ghost" title="Modifier" onclick={() => open(i)}
+									><Pencil size={14} /></Button
+								>
+								<Button
+									size="sm"
+									variant="ghost"
+									title="Supprimer"
+									disabled={pending}
+									onclick={() => remove(i)}><Trash size={14} /></Button
+								>
+							{/if}
 						</td>
 					</tr>
 				{:else}

@@ -6,7 +6,7 @@
 </script>
 
 <div class="app">
-	<AppHeader user={data.user} />
+	<AppHeader user={data.user} organizations={data.organizations} />
 	<main>{@render children()}</main>
 </div>
 

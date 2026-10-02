@@ -3,15 +3,19 @@ import { buildSampleProject } from '$lib/export/sample';
 import { buildSampleArmoire } from '$lib/export/sampleArmoire';
 import { createProject } from '$lib/model/project';
 import { applyTemplate } from '$lib/model/template';
-import { requireUser } from '$lib/server/guards';
+import { requireProject } from '$lib/server/access';
+import { requireEditor, requireUser } from '$lib/server/guards';
 import { getTemplate, listTemplates } from '$lib/server/templates';
 import { getLock } from '$lib/server/locks';
 import { deleteProject, insertProject, listProjects, renameProject } from '$lib/server/projects';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	requireUser(locals);
-	const [projects, templates] = await Promise.all([listProjects(), listTemplates()]);
+	const user = requireUser(locals);
+	const [projects, templates] = await Promise.all([
+		listProjects(user.organizationId),
+		listTemplates(user.organizationId)
+	]);
 	return { projects, templates: templates.map((t) => ({ id: t.id, name: t.name })) };
 };
 
@@ -25,7 +29,7 @@ async function lockedByOther(id: string, userId: string): Promise<string | null>
 
 export const actions: Actions = {
 	create: async ({ request, locals }) => {
-		const user = requireUser(locals);
+		const user = requireEditor(locals);
 		const form = await request.formData();
 		const name = str(form, 'name');
 		if (!name) return fail(400, { action: 'create', error: 'Le nom du projet est requis' });
@@ -35,30 +39,30 @@ export const actions: Actions = {
 		project.meta.client = str(form, 'client');
 		// Modèle de cartouche / page de garde choisi (copie dans le projet).
 		const templateId = str(form, 'template');
-		const template = templateId ? await getTemplate(templateId) : null;
+		const template = templateId ? await getTemplate(templateId, user.organizationId) : null;
 		if (template) applyTemplate(project, template);
-		const id = await insertProject(project, user.id);
+		const id = await insertProject(project, user.id, user.organizationId);
 		redirect(303, `/projets/${id}`);
 	},
 
 	/** Projet de démonstration (dossier chaufferie inspiré de l'exemple WinRelais). */
 	demo: async ({ locals }) => {
-		const user = requireUser(locals);
-		const id = await insertProject(buildSampleProject(), user.id);
+		const user = requireEditor(locals);
+		const id = await insertProject(buildSampleProject(), user.id, user.organizationId);
 		redirect(303, `/projets/${id}`);
 	},
 
 	/** Exemple complet : distribution, chaudière, pompe, implantation et façade. */
 	demoArmoire: async ({ locals }) => {
-		const user = requireUser(locals);
-		const id = await insertProject(buildSampleArmoire(), user.id);
+		const user = requireEditor(locals);
+		const id = await insertProject(buildSampleArmoire(), user.id, user.organizationId);
 		redirect(303, `/projets/${id}`);
 	},
 
 	rename: async ({ request, locals }) => {
-		const user = requireUser(locals);
 		const form = await request.formData();
 		const id = str(form, 'id');
+		const user = await requireProject(locals, id, 'write');
 		const name = str(form, 'name');
 		if (!name) return fail(400, { action: 'rename', error: 'Le nom est requis' });
 		const other = await lockedByOther(id, user.id);
@@ -70,8 +74,8 @@ export const actions: Actions = {
 	},
 
 	delete: async ({ request, locals }) => {
-		const user = requireUser(locals);
 		const id = str(await request.formData(), 'id');
+		const user = await requireProject(locals, id, 'write');
 		const other = await lockedByOther(id, user.id);
 		if (other)
 			return fail(409, { action: 'delete', error: `Projet en cours d'édition par ${other}` });

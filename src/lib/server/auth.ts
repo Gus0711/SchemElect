@@ -80,7 +80,8 @@ export async function validateSessionToken(
 			id: users.id,
 			login: users.login,
 			name: users.name,
-			role: users.role
+			role: users.role,
+			organizationId: users.organizationId
 		})
 		.from(sessions)
 		.innerJoin(users, eq(sessions.userId, users.id))
@@ -99,7 +100,16 @@ export async function validateSessionToken(
 		await db.update(sessions).set({ expiresAt }).where(eq(sessions.id, id));
 	}
 	return {
-		user: { id: row.id, login: row.login, name: row.name, role: row.role },
+		user: {
+			id: row.id,
+			login: row.login,
+			name: row.name,
+			role: row.role,
+			// Société active résolue par le hook (bascule du super-administrateur).
+			organizationId: row.organizationId,
+			organizationName: '',
+			homeOrganizationId: row.organizationId
+		},
 		expiresAt: new Date(expiresAt),
 		renewed
 	};
@@ -178,5 +188,13 @@ export async function authenticate(login: string, password: string): Promise<Ses
 		return null;
 	}
 	if (!(await verifyPassword(u.passwordHash, password))) return null;
-	return { id: u.id, login: u.login, name: u.name, role: u.role };
+	return {
+		id: u.id,
+		login: u.login,
+		name: u.name,
+		role: u.role,
+		organizationId: u.organizationId,
+		organizationName: '',
+		homeOrganizationId: u.organizationId
+	};
 }

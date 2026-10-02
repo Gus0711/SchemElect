@@ -10,5 +10,10 @@
 </svelte:head>
 
 {#key data.version.id}
-	<EditorApp projectId={data.projectId} project={data.data} version={data.version} />
+	<EditorApp
+		projectId={data.projectId}
+		project={data.data}
+		version={data.version}
+		viewer={data.viewer}
+	/>
 {/key}

@@ -1,5 +1,5 @@
 /** Accès aux projets et macros stockés en base. */
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { newId } from '$lib/model/ids';
 import { migrateProject } from '$lib/model/project';
@@ -22,7 +22,7 @@ export interface ProjectSummary {
 	lock: LockInfo | null;
 }
 
-export async function listProjects(): Promise<ProjectSummary[]> {
+export async function listProjects(organizationId: string): Promise<ProjectSummary[]> {
 	const db = await getDb();
 	const editor = alias(users, 'editor');
 	const locker = alias(users, 'locker');
@@ -41,6 +41,7 @@ export async function listProjects(): Promise<ProjectSummary[]> {
 		.from(projects)
 		.leftJoin(editor, eq(editor.id, projects.updatedBy))
 		.leftJoin(locker, eq(locker.id, projects.lockedBy))
+		.where(eq(projects.organizationId, organizationId))
 		.orderBy(desc(projects.updatedAt));
 	const now = Date.now();
 	return rows.map((r) => ({
@@ -66,10 +67,21 @@ export async function getProject(
 	return { id: row.id, data: migrateProject(JSON.parse(row.data)), updatedAt: row.updatedAt };
 }
 
-/** Insère un nouveau projet (avec sa 1re version) ; renvoie son id. */
+/** Société propriétaire d'un dossier (null s'il n'existe pas). */
+export async function projectOrganization(id: string): Promise<string | null> {
+	const db = await getDb();
+	const [row] = await db
+		.select({ org: projects.organizationId })
+		.from(projects)
+		.where(eq(projects.id, id));
+	return row?.org ?? null;
+}
+
+/** Insère un nouveau projet (avec sa 1re version) dans la société ; renvoie son id. */
 export async function insertProject(
 	data: Project,
 	userId: string,
+	organizationId: string,
 	versionLabel = 'Création'
 ): Promise<string> {
 	const db = await getDb();
@@ -78,6 +90,7 @@ export async function insertProject(
 	const doc = migrateProject(data);
 	await db.insert(projects).values({
 		id,
+		organizationId,
 		name: doc.meta.name,
 		affaireNumber: doc.meta.affaireNumber,
 		data: JSON.stringify(doc),
@@ -232,6 +245,7 @@ export async function renameProject(id: string, name: string, userId: string): P
 export async function duplicateProject(
 	id: string,
 	userId: string,
+	organizationId: string,
 	opts: Partial<DuplicateOptions> = {},
 	versionId?: string
 ): Promise<string | null> {
@@ -241,7 +255,7 @@ export async function duplicateProject(
 	if (!source) return null;
 	const doc = duplicateDocument(source, { name: '', ...opts });
 	const from = version ? ` (version du ${versionDate(version.info.createdAt)})` : '';
-	return insertProject(doc, userId, `Copie de « ${source.meta.name} »${from}`);
+	return insertProject(doc, userId, organizationId, `Copie de « ${source.meta.name} »${from}`);
 }
 
 export async function deleteProject(id: string): Promise<void> {
@@ -263,19 +277,25 @@ function toMacro(r: MacroRow): Macro {
 	};
 }
 
-export async function listMacros(): Promise<Macro[]> {
+export async function listMacros(organizationId: string): Promise<Macro[]> {
 	const db = await getDb();
-	const rows = await db.select().from(macros).orderBy(macros.category, macros.name);
+	const rows = await db
+		.select()
+		.from(macros)
+		.where(eq(macros.organizationId, organizationId))
+		.orderBy(macros.category, macros.name);
 	return rows.map(toMacro);
 }
 
 export async function insertMacro(
 	input: { name: string; category: string; data: Fragment },
-	userId: string
+	userId: string,
+	organizationId: string
 ): Promise<Macro> {
 	const db = await getDb();
 	const row: MacroRow = {
 		id: newId('m'),
+		organizationId,
 		name: input.name,
 		category: input.category,
 		data: JSON.stringify(input.data),
@@ -286,8 +306,10 @@ export async function insertMacro(
 	return toMacro(row);
 }
 
-export async function deleteMacro(id: string): Promise<boolean> {
+export async function deleteMacro(id: string, organizationId: string): Promise<boolean> {
 	const db = await getDb();
-	const res = await db.delete(macros).where(eq(macros.id, id));
+	const res = await db
+		.delete(macros)
+		.where(and(eq(macros.id, id), eq(macros.organizationId, organizationId)));
 	return res.rowsAffected > 0;
 }

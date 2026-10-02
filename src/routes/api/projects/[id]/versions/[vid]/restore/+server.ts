@@ -1,13 +1,13 @@
 import { json } from '@sveltejs/kit';
 import { canRestore } from '$lib/model/versions';
-import { requireUser } from '$lib/server/guards';
+import { requireProject } from '$lib/server/access';
 import { restoreVersion } from '$lib/server/projects';
 import { projectContributors } from '$lib/server/versions';
 import type { RequestHandler } from './$types';
 
 /** Restaure une version (administrateur ou intervenant ; verrou d'édition requis). */
 export const POST: RequestHandler = async ({ params, locals }) => {
-	const user = requireUser(locals);
+	const user = await requireProject(locals, params.id, 'write');
 	if (!canRestore(user, await projectContributors(params.id)))
 		return json(
 			{ error: 'Restauration réservée à l’administrateur et aux intervenants du dossier' },

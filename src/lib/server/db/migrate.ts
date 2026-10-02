@@ -5,6 +5,11 @@
 import type { Client } from '@libsql/client';
 
 export const SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS organizations (
+	id TEXT PRIMARY KEY NOT NULL,
+	name TEXT NOT NULL,
+	created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS users (
 	id TEXT PRIMARY KEY NOT NULL,
 	login TEXT NOT NULL UNIQUE,
@@ -90,6 +95,49 @@ CREATE TABLE IF NOT EXISTS catalog (
 );
 `;
 
+/** Société créée pour les données d'avant le multi-société (et par le premier lancement). */
+export const FIRST_ORG_ID = 'org_main';
+
+/** Tables dont chaque ligne appartient à une société (colonne `organization_id`). */
+const ORG_TABLES = ['users', 'projects', 'macros', 'custom_symbols', 'templates', 'catalog'];
+
+async function hasColumn(client: Client, table: string, column: string): Promise<boolean> {
+	const res = await client.execute(`PRAGMA table_info(${table})`);
+	return res.rows.some((r) => r.name === column);
+}
+
 export async function runMigrations(client: Client): Promise<void> {
 	await client.executeMultiple(SCHEMA_SQL);
+
+	// Multi-société (2026-10) : colonne organization_id ajoutée aux tables existantes.
+	for (const table of ORG_TABLES)
+		if (!(await hasColumn(client, table, 'organization_id')))
+			await client.execute(
+				`ALTER TABLE ${table} ADD COLUMN organization_id TEXT NOT NULL DEFAULT ''`
+			);
+
+	// Base existante sans société : tout est rattaché à la société « Dumortier », et le plus
+	// ancien administrateur devient super-administrateur.
+	const users = await client.execute('SELECT COUNT(*) AS n FROM users');
+	const orgs = await client.execute('SELECT COUNT(*) AS n FROM organizations');
+	if (Number(users.rows[0].n) > 0 && Number(orgs.rows[0].n) === 0)
+		await client.execute({
+			sql: 'INSERT INTO organizations (id, name, created_at) VALUES (?, ?, ?)',
+			args: [FIRST_ORG_ID, 'Dumortier', new Date().toISOString()]
+		});
+	for (const table of ORG_TABLES)
+		await client.execute({
+			sql: `UPDATE ${table} SET organization_id = ? WHERE organization_id = ''`,
+			args: [FIRST_ORG_ID]
+		});
+	const supers = await client.execute("SELECT COUNT(*) AS n FROM users WHERE role = 'superadmin'");
+	if (Number(supers.rows[0].n) === 0)
+		await client.execute(
+			"UPDATE users SET role = 'superadmin' WHERE id = (SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1)"
+		);
+
+	// Catalogue : une fiche par référence ET par société (clé « société|référence »).
+	await client.execute(
+		"UPDATE catalog SET ref_key = organization_id || '|' || ref_key WHERE instr(ref_key, '|') = 0"
+	);
 }

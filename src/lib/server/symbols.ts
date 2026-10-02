@@ -1,5 +1,5 @@
 /** Bibliothèque partagée des symboles maison. */
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { SymbolDef } from '$lib/symbols/types';
 import { getDb } from './db';
 import { customSymbols } from './db/schema';
@@ -15,21 +15,33 @@ export function validateSymbolDef(def: unknown): SymbolDef | null {
 	return { ...d, custom: true };
 }
 
-export async function listCustomSymbols(): Promise<SymbolDef[]> {
+export async function listCustomSymbols(organizationId: string): Promise<SymbolDef[]> {
 	const db = await getDb();
 	const rows = await db
 		.select()
 		.from(customSymbols)
+		.where(eq(customSymbols.organizationId, organizationId))
 		.orderBy(customSymbols.category, customSymbols.name);
 	return rows.map((r) => JSON.parse(r.def) as SymbolDef);
 }
 
 /** Crée ou remplace un symbole (l'id est choisi par le client : `custom-…`). */
-export async function upsertCustomSymbol(def: SymbolDef, userId: string): Promise<SymbolDef> {
+export async function upsertCustomSymbol(
+	def: SymbolDef,
+	userId: string,
+	organizationId: string
+): Promise<SymbolDef | null> {
 	const db = await getDb();
+	// Un identifiant déjà pris par une autre société n'est pas écrasé.
+	const [other] = await db
+		.select({ org: customSymbols.organizationId })
+		.from(customSymbols)
+		.where(eq(customSymbols.id, def.id));
+	if (other && other.org !== organizationId) return null;
 	const now = new Date().toISOString();
 	const values = {
 		id: def.id,
+		organizationId,
 		name: def.name,
 		category: def.category ?? '',
 		def: JSON.stringify(def),
@@ -47,8 +59,10 @@ export async function upsertCustomSymbol(def: SymbolDef, userId: string): Promis
 	return def;
 }
 
-export async function deleteCustomSymbol(id: string): Promise<boolean> {
+export async function deleteCustomSymbol(id: string, organizationId: string): Promise<boolean> {
 	const db = await getDb();
-	const res = await db.delete(customSymbols).where(eq(customSymbols.id, id));
+	const res = await db
+		.delete(customSymbols)
+		.where(and(eq(customSymbols.id, id), eq(customSymbols.organizationId, organizationId)));
 	return res.rowsAffected > 0;
 }

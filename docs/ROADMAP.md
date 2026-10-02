@@ -17,11 +17,36 @@ dans la société : ce qui était « à valider par V.R » est à valider par l'
 | 4 | ✅ | Catalogue matériel + nomenclature CSV / PDF (phase 12) | Fait le 2026-10-01 — catalogue de départ à vérifier |
 | 5 | ✅ | Historique des versions + duplication | Fait le 2026-10-01 — reste : comparaison de deux versions (écarts) |
 | 6 | ✅ | Liste de commande + section des fils | Fait le 2026-10-01 — à tester |
+| 8 | 🔴 | **Organisation des dossiers** (voir § ci-dessous) : sociétés et rôles → clients / affaires → page Projets → connecteur ERP | Décidé le 2026-10-02 |
 | 7 | 🟡 | Récupération locale (coupure réseau), import `.xrs` | Confort / reprise de l'existant |
 | — | ✅ | Faits le 2026-09-29 : câbles (phase 9), implantation / façade (phase 13), cartouche / page de garde personnalisables, folio borniers automatique, grille, raccourcis + aide (?), exemple « armoire complète » | — |
 
 **À valider par l'utilisateur** : couleurs SYT1 au-delà de 3 paires ; encombrements par
 défaut de l'implantation ; fiches du catalogue de départ (`model/catalogStarter.ts`).
+
+## Organisation des dossiers (décidée le 2026-10-02)
+
+Hiérarchie : **Société → Client → Affaire (= 1 n° WhySoft) → Schémas** (une ou plusieurs
+armoires par affaire). Tout le monde lit tous les schémas de sa société ; une société ne voit
+jamais les données d'une autre.
+
+Rôles : **super-administrateur** (toute la plateforme : crée les sociétés et leurs
+administrateurs, peut entrer dans une société), **administrateur** (sa société),
+**utilisateur** (dessinateur : crée / modifie), **lecteur** (viewer : lecture seule,
+recherche, export PDF, ne prend pas de verrou).
+
+Clients / affaires : pour **Dumortier**, synchronisés depuis l'**API de l'ERP** (lecture seule
+dans SchemElect, synchro nocturne + bouton ; module isolé, configuré par variables
+d'environnement ; l'outil reste autonome si l'API est indisponible). Autres sociétés : saisie
+manuelle. En attendant l'API : saisie manuelle aussi pour Dumortier, rapprochement par
+n° WhySoft ensuite. Statuts d'affaire : en cours / terminée / archivée (ou ceux de l'ERP).
+
+| Étape | Contenu | État |
+|---|---|---|
+| 1 | **Sociétés et rôles** : table sociétés, rattachement de toutes les données, 4 rôles, mode lecteur dans l'éditeur, écran super-admin « Sociétés », bascule de société | ✅ 2026-10-02 |
+| 2 | **Clients et affaires** : tables, saisie manuelle, schéma rattaché à une affaire, cartouche alimenté (`{whysoft}`), reprise de l'existant (« Non classé ») | ⬜ |
+| 3 | **Page Projets** : filtres année / client / statut / récents, recherche n° WhySoft, liste Client › Affaire › Schémas, création guidée, fiche affaire (PDF de l'affaire), duplication vers une autre affaire | ⬜ |
+| 4 | **Connecteur ERP** (Dumortier) : synchro clients / affaires — attend la documentation de l'API (format, authentification) | ⬜ |
 
 **Rituel de session** :
 1. Lire `CLAUDE.md`, la phase en cours ci-dessous et la dernière entrée de `docs/JOURNAL.md`.

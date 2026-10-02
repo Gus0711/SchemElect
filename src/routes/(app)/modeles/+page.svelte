@@ -6,6 +6,7 @@
 	import { buildSampleArmoire } from '$lib/export/sampleArmoire';
 	import { deepClone, newId } from '$lib/model/ids';
 	import { newTemplate, type DocTemplate } from '$lib/model/template';
+	import { canEdit } from '$lib/model/access';
 	import type { Project } from '$lib/model/types';
 	import CoverPage from '$lib/render/CoverPage.svelte';
 	import FolioFrame from '$lib/render/FolioFrame.svelte';
@@ -15,6 +16,9 @@
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
+
+	/** Lecteur : consultation seulement. */
+	const editable = $derived(canEdit(data.user.role));
 
 	/** Dossier d'exemple servant à l'aperçu des modèles. */
 	const sample = buildSampleArmoire();
@@ -80,7 +84,9 @@
 
 <div class="toolbar">
 	<h1>Modèles de cartouche et de page de garde</h1>
-	<Button variant="primary" onclick={create}><FilePlus2 size={16} /> Nouveau modèle</Button>
+	{#if editable}
+		<Button variant="primary" onclick={create}><FilePlus2 size={16} /> Nouveau modèle</Button>
+	{/if}
 </div>
 
 <p class="muted">
@@ -101,7 +107,11 @@
 	<div class="grid">
 		{#each data.templates as t (t.id)}
 			<Card>
-				<button class="thumb" title="Modifier" onclick={() => edit(t)}>
+				<button
+					class="thumb"
+					title={editable ? 'Modifier' : t.name}
+					onclick={() => editable && edit(t)}
+				>
 					<CoverPage project={withTemplate(t)} width="100%" height="auto" />
 				</button>
 				<svg
@@ -122,25 +132,27 @@
 							<div class="muted small">Champs : {t.fields.map((f) => f.label).join(', ')}</div>
 						{/if}
 					</div>
-					<div class="actions">
-						<Button size="sm" variant="ghost" title="Modifier" onclick={() => edit(t)}
-							><Pencil size={14} /></Button
-						>
-						<Button
-							size="sm"
-							variant="ghost"
-							title="Dupliquer"
-							disabled={pending}
-							onclick={() => duplicate(t)}><Copy size={14} /></Button
-						>
-						<Button
-							size="sm"
-							variant="ghost"
-							title="Supprimer"
-							disabled={pending}
-							onclick={() => remove(t)}><Trash size={14} /></Button
-						>
-					</div>
+					{#if editable}
+						<div class="actions">
+							<Button size="sm" variant="ghost" title="Modifier" onclick={() => edit(t)}
+								><Pencil size={14} /></Button
+							>
+							<Button
+								size="sm"
+								variant="ghost"
+								title="Dupliquer"
+								disabled={pending}
+								onclick={() => duplicate(t)}><Copy size={14} /></Button
+							>
+							<Button
+								size="sm"
+								variant="ghost"
+								title="Supprimer"
+								disabled={pending}
+								onclick={() => remove(t)}><Trash size={14} /></Button
+							>
+						</div>
+					{/if}
 				</div>
 			</Card>
 		{/each}

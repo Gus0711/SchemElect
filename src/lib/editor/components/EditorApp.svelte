@@ -27,12 +27,15 @@
 	let {
 		projectId,
 		project,
-		version
+		version,
+		viewer = false
 	}: {
 		projectId: string;
 		project: Project;
 		/** Consultation d'une version de l'historique (lecture seule, sans verrou). */
 		version?: VersionInfo;
+		/** Compte lecteur : tout en lecture seule (consultation, recherche, export). */
+		viewer?: boolean;
 	} = $props();
 
 	// L'éditeur est créé une fois pour la page (le projet initial vient du serveur).
@@ -62,6 +65,7 @@
 
 	onMount(() => {
 		if (version) session.archive();
+		else if (viewer) session.viewOnly();
 		else session.start();
 		editor.loadCustomLibrary();
 		editor.loadCatalog();
@@ -146,9 +150,11 @@
 			<Button size="sm" onclick={() => (exportOpen = true)}
 				><FileDown size={14} /> PDF de cette version</Button
 			>
-			<Button size="sm" onclick={() => openDuplicate(version)}
-				><Copy size={14} /> Nouveau dossier à partir de cette version</Button
-			>
+			{#if !viewer}
+				<Button size="sm" onclick={() => openDuplicate(version)}
+					><Copy size={14} /> Nouveau dossier à partir de cette version</Button
+				>
+			{/if}
 		</div>
 	{/if}
 	<Toolbar
@@ -159,7 +165,7 @@
 		onexport={() => (exportOpen = true)}
 		onhistory={version ? undefined : () => (historyOpen = true)}
 		onnomenclature={() => (editor.nomenclatureOpen = true)}
-		onduplicate={version ? undefined : () => openDuplicate()}
+		onduplicate={version || viewer ? undefined : () => openDuplicate()}
 	/>
 	<div class="main">
 		<Sidebar {editor} />
@@ -190,6 +196,7 @@
 		{editor}
 		{session}
 		onduplicate={openDuplicate}
+		allowDuplicate={!viewer}
 	/>
 {/if}
 <DuplicateDialog

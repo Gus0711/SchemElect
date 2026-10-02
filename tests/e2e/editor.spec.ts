@@ -1172,3 +1172,87 @@ test('symboles favoris (mémorisés) et format des numéros de fils', async ({ p
 	await page.screenshot({ path: 'test-results/numeros-par-folio.png' });
 	await expect(page.locator('.status.saved')).toBeVisible();
 });
+
+test('sociétés et rôles : lecteur en lecture seule, sociétés cloisonnées', async ({ page }) => {
+	const login = async (id: string, password: string) => {
+		await page.goto('/login');
+		await page.waitForLoadState('networkidle');
+		await page.getByLabel('Identifiant').fill(id);
+		await page.getByLabel('Mot de passe').fill(password);
+		await page.locator('form button[type=submit]').click();
+		await expect(page).toHaveURL(/\/$/);
+		await page.waitForLoadState('networkidle');
+	};
+	const logout = async () => {
+		await page.getByRole('button', { name: /Déconnexion/ }).click();
+		await expect(page).toHaveURL(/\/login/);
+	};
+
+	// Le premier compte est super-administrateur : menus Sociétés et Sauvegardes.
+	await login('admin', 'motdepasse-e2e');
+	await expect(page.getByRole('link', { name: /Sociétés/ })).toBeVisible();
+	const projectCount = await page.locator('table a.name').count();
+	expect(projectCount).toBeGreaterThan(0);
+
+	// Un lecteur dans la société.
+	await page.getByRole('link', { name: /Utilisateurs/ }).click();
+	await page.getByRole('button', { name: /Nouvel utilisateur/ }).click();
+	await page.getByLabel('Identifiant').fill('lecteur');
+	await page.getByLabel('Nom affiché').fill('Léa Lecture');
+	await page.getByLabel('Mot de passe').fill('lecteur-e2e');
+	await page.getByLabel('Rôle').selectOption('viewer');
+	await expect(page.getByText(/Lecture seule : consulter/)).toBeVisible();
+	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await expect(page.getByText('Utilisateur créé.')).toBeVisible();
+
+	// Une autre société avec son administrateur.
+	await page.getByRole('link', { name: /Sociétés/ }).click();
+	await page.getByRole('button', { name: /Nouvelle société/ }).click();
+	await page.getByLabel('Nom de la société').fill('Autre Société');
+	await page.getByLabel('Identifiant').fill('autre-admin');
+	await page.getByLabel('Nom affiché').fill('Admin Autre');
+	await page.getByLabel('Mot de passe').fill('autre-e2e');
+	await page.getByRole('button', { name: 'Créer', exact: true }).click();
+	await expect(page.getByText('Société créée avec son administrateur.')).toBeVisible();
+	await expect(page.getByRole('cell', { name: /Autre Société/ })).toBeVisible();
+	await page.screenshot({ path: 'test-results/societes.png' });
+	await logout();
+
+	// Lecteur : voit les dossiers, ne peut rien créer ni modifier.
+	await login('lecteur', 'lecteur-e2e');
+	await expect(page.locator('table a.name')).toHaveCount(projectCount);
+	await expect(page.getByRole('button', { name: /Nouveau projet/ })).toHaveCount(0);
+	await expect(page.getByRole('link', { name: /Utilisateurs/ })).toHaveCount(0);
+	await page.locator('table a.name').first().click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await expect(page.getByText('Lecture seule (compte lecteur)')).toBeVisible();
+	expect(await evalEditor<boolean>(page, 'editor.readonly')).toBe(true);
+	// Le serveur refuse aussi l'écriture.
+	const status = await page.evaluate(async () => {
+		const id = location.pathname.split('/').pop();
+		const res = await fetch(`/api/projects/${id}`, {
+			method: 'PUT',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ data: {} })
+		});
+		return res.status;
+	});
+	expect(status).toBe(403);
+	await page.screenshot({ path: 'test-results/lecteur.png' });
+	await page.goto('/');
+	await logout();
+
+	// Administrateur de l'autre société : aucun dossier de Dumortier.
+	await login('autre-admin', 'autre-e2e');
+	await expect(page.locator('table a.name')).toHaveCount(0);
+	await expect(page.getByText('Autre Société')).toBeVisible();
+	await expect(page.getByRole('link', { name: /Sociétés/ })).toHaveCount(0);
+	await logout();
+
+	// Super-administrateur : entre dans l'autre société, puis revient.
+	await login('admin', 'motdepasse-e2e');
+	await page.getByRole('combobox', { name: 'Société' }).selectOption({ label: 'Autre Société' });
+	await expect(page.locator('table a.name')).toHaveCount(0);
+	await page.getByRole('combobox', { name: 'Société' }).selectOption({ label: 'Ma société' });
+	await expect(page.locator('table a.name')).not.toHaveCount(0);
+});

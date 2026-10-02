@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
-import { requireUser } from '$lib/server/guards';
+import { canEdit } from '$lib/model/access';
+import { requireProject } from '$lib/server/access';
 import { acquireLock, getLock, releaseLock } from '$lib/server/locks';
 import { versionOnClose } from '$lib/server/projects';
 import type { RequestHandler } from './$types';
@@ -13,18 +14,20 @@ async function close(projectId: string, userId: string) {
 
 /** Acquiert / rafraîchit le verrou ; `?release=1` le libère (navigator.sendBeacon). */
 export const POST: RequestHandler = async ({ params, locals, url }) => {
-	const user = requireUser(locals);
+	const user = await requireProject(locals, params.id, 'read');
 	if (url.searchParams.has('release')) {
 		await close(params.id, user.id);
 		return new Response(null, { status: 204 });
 	}
+	// Lecteur : jamais de verrou (lecture seule), on indique seulement qui édite.
+	if (!canEdit(user.role)) return json({ owned: false, lock: (await getLock(params.id)) ?? null });
 	const result = await acquireLock(params.id, user.id);
 	if (!result) return json({ error: 'Projet introuvable' }, { status: 404 });
 	return json(result);
 };
 
 export const DELETE: RequestHandler = async ({ params, locals }) => {
-	const user = requireUser(locals);
+	const user = await requireProject(locals, params.id, 'read');
 	await close(params.id, user.id);
 	return new Response(null, { status: 204 });
 };
