@@ -120,9 +120,9 @@
 	<circle
 		cx={p.x}
 		cy={p.y}
-		r={1.1}
+		r={0.7}
 		fill="none"
 		stroke={schematic.color.openTerminal}
-		stroke-width={0.3}
+		stroke-width={0.25}
 	/>
 {/each}

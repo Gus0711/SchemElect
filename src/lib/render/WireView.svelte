@@ -14,12 +14,17 @@
 	// Section en plus petit, de l'autre côté du fil que le numéro (pas de chevauchement avec
 	// le numéro du fil voisin) : à gauche et le long d'un fil vertical, sous un fil horizontal.
 	const sectionSize = size * 0.8;
+	const stroke = $derived(
+		(style?.color && schematic.color.wireColors[style.color]) ||
+			style?.stroke ||
+			schematic.color.ink
+	);
 </script>
 
 <path
 	{d}
 	fill="none"
-	stroke={style?.stroke ?? schematic.color.ink}
+	{stroke}
 	stroke-width={schematic.stroke.wire}
 	stroke-dasharray={style?.dashed ? schematic.stroke.dash : undefined}
 	stroke-linejoin="round"

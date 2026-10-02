@@ -68,6 +68,8 @@ export interface Wire {
 	numberOverride?: string;
 	/** Section imposée à l'équipotentielle, en mm² (« 1,5 ») ; sinon potentiel / défaut. */
 	section?: string;
+	/** Couleur imposée à l'équipotentielle (« Rouge », voir `WIRE_COLORS`) ; sinon potentiel / défaut. */
+	color?: string;
 }
 
 /** Barre de potentiel horizontale. */
@@ -257,6 +259,8 @@ export interface ProjectSettings {
 	wireNumberTemplate?: string;
 	/** Section par défaut des fils hors potentiel (commande), en mm² ; vide = non renseignée. */
 	wireSection?: string;
+	/** Couleur par défaut des fils hors potentiel (commande) ; vide = non renseignée. */
+	wireColor?: string;
 	/** Affichage des sections sur le dessin (défaut : toutes). */
 	sectionDisplay?: SectionDisplay;
 }

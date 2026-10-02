@@ -71,7 +71,8 @@
 		h: 40,
 		title: '',
 		terminals: [],
-		snapToGrid: false
+		// Bornes sur la grille par défaut : les fils arrivent droits, sans petits décalages.
+		snapToGrid: true
 	});
 
 	let spec: CustomSymbolSpec = $state(blank());

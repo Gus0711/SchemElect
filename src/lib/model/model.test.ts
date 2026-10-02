@@ -302,6 +302,41 @@ describe('sections des fils', () => {
 	});
 });
 
+describe('couleurs des fils', () => {
+	it('fil imposé > potentiel > défaut du dossier ; tracé de la couleur', () => {
+		const project = createProject('Couleurs');
+		const folio = project.folios[0];
+		addBar(folio, 'L1', 30);
+		const h = addSymbol(project, folio, 'voyant', { x: 100, y: 60 });
+		const [x1, x2] = symbolTerminals(h);
+		const pw = addWire(folio, [{ x: 100, y: 30 }, x1])!;
+		const cw = addWire(folio, [x2, { x: 100, y: 100 }])!;
+		const cw2 = addWire(folio, [
+			{ x: 100, y: 100 },
+			{ x: 140, y: 100 }
+		])!;
+
+		let a = analyzeProject(project);
+		// Potentiel : sa couleur de fil, tracé du potentiel.
+		expect(a.nets.netOfWire.get(pw.id)?.color).toBe('Marron');
+		expect(a.wireStyle.get(pw.id)?.color).toBeUndefined();
+		expect(a.nets.netOfWire.get(cw.id)?.color).toBeUndefined();
+
+		project.settings.wireColor = 'Rouge';
+		a = analyzeProject(project);
+		expect(a.wireStyle.get(cw.id)?.color).toBe('Rouge');
+		expect(a.wireStyle.get(cw2.id)?.color).toBe('Rouge');
+
+		// Imposée sur un fil : toute l'équipotentielle, même un fil de potentiel.
+		cw2.color = 'Bleu clair';
+		pw.color = 'Noir';
+		a = analyzeProject(project);
+		expect(a.wireStyle.get(cw.id)?.color).toBe('Bleu clair');
+		expect(a.nets.netOfWire.get(cw.id)?.colorImposed).toBe(true);
+		expect(a.wireStyle.get(pw.id)?.color).toBe('Noir');
+	});
+});
+
 describe('contrôles du dossier', () => {
 	it('signale les bornes non raccordées et les renvois orphelins', () => {
 		const project = createProject('Contrôles');

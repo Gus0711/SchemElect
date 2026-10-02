@@ -1,7 +1,12 @@
 <script lang="ts">
 	/** Propriétés du dossier : cartouche, indices de révision, potentiels. */
 	import { deepClone, newId } from '$lib/model/ids';
-	import { formatWireNumber, WIRE_NUMBER_TEMPLATES, WIRE_SECTIONS } from '$lib/model/nets';
+	import {
+		formatWireNumber,
+		WIRE_COLORS,
+		WIRE_NUMBER_TEMPLATES,
+		WIRE_SECTIONS
+	} from '$lib/model/nets';
 	import type { Potential, ProjectMeta, ProjectSettings, Revision } from '$lib/model/types';
 	import { Button, Field, Modal } from '$lib/ui';
 	import { listAffaires, listTemplates, saveTemplate, type AffaireListItem } from '$lib/api/client';
@@ -154,6 +159,7 @@
 					? { wireNumberTemplate: st.wireNumberTemplate.trim() }
 					: {}),
 				...(st.wireSection?.trim() ? { wireSection: st.wireSection.trim() } : {}),
+				...(st.wireColor?.trim() ? { wireColor: st.wireColor.trim() } : {}),
 				...(st.sectionDisplay && st.sectionDisplay !== 'all'
 					? { sectionDisplay: st.sectionDisplay }
 					: {})
@@ -179,7 +185,7 @@
 			>Potentiels</button
 		>
 		<button class:active={tab === 'numbering'} onclick={() => (tab = 'numbering')}
-			>Numérotation et sections</button
+			>Numérotation, sections, couleurs</button
 		>
 	</nav>
 
@@ -347,6 +353,17 @@
 					<option value="all">Toutes les sections</option>
 					<option value="imposed">Seulement les sections imposées sur un fil</option>
 					<option value="none">Aucune</option>
+				</select>
+			</Field>
+		</div>
+		<div class="grid2">
+			<Field
+				label="Couleur par défaut (fils hors potentiel)"
+				hint="Les fils de potentiel prennent la couleur du potentiel ; une couleur se force fil par fil dans l’inspecteur."
+			>
+				<select class="control" bind:value={settings.wireColor}>
+					<option value={undefined}>Aucune</option>
+					{#each WIRE_COLORS as c (c)}<option value={c}>{c}</option>{/each}
 				</select>
 			</Field>
 		</div>

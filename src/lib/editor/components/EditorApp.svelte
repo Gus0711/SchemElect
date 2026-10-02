@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { symbolTerminals } from '$lib/model/symbolGeometry';
 	/** Application d'édition complète : barre d'outils, panneaux, canvas, dialogues. */
 	import ExportDialog from '$lib/export/ExportDialog.svelte';
 	import type { Project } from '$lib/model/types';
@@ -72,7 +73,11 @@
 		editor.loadFavorites();
 		// Accès pour les tests de bout en bout (mode développement uniquement).
 		if (import.meta.env.DEV)
-			(window as unknown as Record<string, unknown>).__schemelect = { editor, session };
+			(window as unknown as Record<string, unknown>).__schemelect = {
+				editor,
+				session,
+				symbolTerminals
+			};
 	});
 	onDestroy(() => session.stop());
 

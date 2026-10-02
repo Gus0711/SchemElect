@@ -148,6 +148,17 @@ peut être perdue). Écrire `p.x ??= {}; p.x[k] = v`.
   duplication) ; `DuplicateDialog` (éditeur, historique, liste des projets). Restauration :
   `session.flush()` → `session.suspend()` → API → rechargement de la page.
 
+## 3 quater. Fils : tracé et couleur
+
+- Tracé (`geometry.ts` `routeWire`, testé) : départ et arrivée dans le sens des bornes
+  (`DIR_VEC`, `WIRE_STUB` = 5 mm), choix du coude sans demi-tour ; utilisé par l'outil Fil
+  (`interaction.svelte.ts`, Espace = autre coude). Accroche des bornes ≤ `TERMINAL_SNAP_MAX`
+  (1,5 mm, `snap.ts`). Nom de la borne visée affiché (`Canvas.svelte`).
+- Couleur (`nets.ts` `colorNets`, testé) : `Wire.color` imposée > `Potential.wireColor` >
+  `settings.wireColor` (fils hors potentiel) → `Net.color` / `colorImposed` ;
+  `WireStyle.color` (imposée ou défaut) tracée via `schematic.color.wireColors`, sinon le
+  tracé du potentiel. Liste des fils CSV : colonne Couleur.
+
 ## 4. Bibliothèque de symboles (`src/lib/symbols/`)
 
 Définitions déclaratives (`SymbolDef`) : primitives graphiques, bornes, rôle

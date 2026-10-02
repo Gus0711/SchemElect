@@ -8,10 +8,11 @@ import { stripFolioPage, stripTerminalAt } from '$lib/model/stripDrawing';
 import * as edit from '$lib/model/edit';
 import { getSymbolDef } from '$lib/symbols';
 import {
-	orthoPath,
 	rectFromPoints,
+	routeWire,
 	samePoint,
 	simplifyPolyline,
+	type Dir,
 	type Rect
 } from '$lib/model/geometry';
 import {
@@ -79,6 +80,8 @@ export class Interaction {
 
 	private drag: Drag = { kind: 'none' };
 	private horizontalFirst: boolean | null = null;
+	/** Sens de sortie de la borne de départ du fil (premier tronçon seulement). */
+	private startDir: Dir | undefined = undefined;
 
 	constructor(private editor: Editor) {}
 
@@ -97,16 +100,20 @@ export class Interaction {
 		const pts = this.wirePoints;
 		const target = this.snapResult?.point;
 		if (!pts.length || !target) return [];
-		const last = pts[pts.length - 1];
-		return [
-			...pts.slice(0, -1),
-			...orthoPath(last, target, this.pickHorizontalFirst(last, target))
-		];
+		const toDir = this.snapResult?.terminal?.dir;
+		return [...pts.slice(0, -1), ...this.route(pts[pts.length - 1], target, toDir).points];
 	}
 
-	private pickHorizontalFirst(from: Point, to: Point): boolean {
-		if (this.horizontalFirst !== null) return this.horizontalFirst;
-		return Math.abs(to.x - from.x) > Math.abs(to.y - from.y);
+	/**
+	 * Tronçon du dernier point au curseur : sort dans le sens de la borne de départ (premier
+	 * tronçon) et arrive dans le sens de la borne visée.
+	 */
+	private route(from: Point, to: Point, toDir?: Dir) {
+		return routeWire(from, to, {
+			fromDir: this.wirePoints.length === 1 ? this.startDir : undefined,
+			toDir,
+			horizontalFirst: this.horizontalFirst
+		});
 	}
 
 	// ------------------------------------------------------------ souris
@@ -474,8 +481,8 @@ export class Interaction {
 		const p = target.point;
 		if (!this.wirePoints.length) {
 			this.wirePoints = [p];
-			const dir = target.terminal?.dir;
-			this.horizontalFirst = dir ? dir === 'e' || dir === 'w' : null;
+			this.startDir = target.terminal?.dir;
+			this.horizontalFirst = null;
 			return;
 		}
 		const last = this.wirePoints[this.wirePoints.length - 1];
@@ -483,7 +490,7 @@ export class Interaction {
 			this.finishWire();
 			return;
 		}
-		const path = orthoPath(last, p, this.pickHorizontalFirst(last, p));
+		const path = this.route(last, p, target.terminal?.dir).points;
 		this.wirePoints = [...this.wirePoints, ...path.slice(1)];
 		this.horizontalFirst = null;
 		// Arrivée sur une borne / un fil / une barre : le fil est terminé.
@@ -511,7 +518,8 @@ export class Interaction {
 		const pts = this.wirePoints;
 		const target = this.snapResult?.point;
 		if (!pts.length || !target) return;
-		this.horizontalFirst = !this.pickHorizontalFirst(pts[pts.length - 1], target);
+		const toDir = this.snapResult?.terminal?.dir;
+		this.horizontalFirst = !this.route(pts[pts.length - 1], target, toDir).horizontalFirst;
 	}
 
 	// ------------------------------------------------------------ clavier

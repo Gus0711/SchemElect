@@ -7,6 +7,8 @@ import type { Id, Project } from './types';
 
 export interface WireStyle {
 	stroke?: string;
+	/** Couleur du fil (« Rouge ») à tracer à la place du tracé du potentiel. */
+	color?: string;
 	dashed?: boolean;
 	number?: string;
 	/** Section à afficher (« 1,5² »), selon le réglage d'affichage du dossier. */
@@ -31,6 +33,8 @@ export function analyzeProject(project: Project): ProjectAnalysis {
 			!!net.section && (display === 'all' || (display === 'imposed' && !!net.sectionImposed));
 		wireStyle.set(wireId, {
 			stroke: pot?.stroke,
+			// Couleur imposée sur un fil ou par défaut du dossier : prime sur le tracé du potentiel.
+			color: net.color && (net.colorImposed || !pot) ? net.color : undefined,
 			dashed: pot?.dashed,
 			number: net.number,
 			section: showSection ? sectionLabel(net.section!) : undefined

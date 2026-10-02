@@ -11,6 +11,27 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-02 (suite 6) — Traçage des fils et couleur des fils
+
+**Fait** (retours de Gus : traçage peu naturel, accroche trop large) :
+- `routeWire` (`model/geometry.ts`, testé) : le fil **sort dans le sens de la borne** de
+  départ (au moins 5 mm avant le premier coude) et **arrive dans le sens de la borne** visée ;
+  des deux coudes possibles, celui qui ne revient pas en arrière et a le moins de coudes ;
+  Espace impose l'autre. Sans borne : comportement d'avant.
+- **Accroche des bornes limitée à 1,5 mm** (`TERMINAL_SNAP_MAX`), quel que soit le zoom :
+  entre deux bornes serrées d'un automate, on peut poser un point sur la grille sans
+  accrocher la voisine. Repères des bornes libres plus petits.
+- Outil Fil : le nom de la borne visée s'affiche près du curseur (« KM1 : A2 »).
+- Symboles maison : bornes sur la grille par défaut (fils droits).
+- **Couleur des fils** : `Wire.color` (imposée → toute l'équipotentielle, une seule par
+  équipotentielle), sinon couleur du potentiel, sinon couleur par défaut du dossier
+  (`settings.wireColor`, onglet « Numérotation, sections, couleurs ») ; palette `WIRE_COLORS`,
+  tracé dans `theme/schematic.ts` (`wireColors`) ; écran et PDF ; colonne Couleur de la
+  liste des fils (CSV). Choix dans l'inspecteur du fil (pastille + liste).
+
+**Reste / idées** : tirer un fil depuis une borne sans changer d'outil, tracé en nappe
+(plusieurs fils parallèles), contournement automatique des symboles.
+
 ## 2026-10-02 (suite 5) — Fenêtre « Nouveau symbole » repensée
 
 **Fait** (retour de Gus : fenêtre trop petite, fonctions peu simples) :

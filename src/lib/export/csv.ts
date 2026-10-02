@@ -192,7 +192,7 @@ export function wiresCsv(project: Project, analysis: ProjectAnalysis): string {
 		);
 		return [
 			label,
-			pot?.wireColor ?? '',
+			n.color ?? pot?.wireColor ?? '',
 			n.section ?? '',
 			list(folios.map(folioNumber)),
 			list(terms)

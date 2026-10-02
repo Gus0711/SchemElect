@@ -53,6 +53,10 @@ export interface Net {
 	section?: string;
 	/** La section est imposée sur un fil (pas reprise du potentiel ni du dossier). */
 	sectionImposed?: boolean;
+	/** Couleur du fil : imposée sur un fil, sinon celle du potentiel, sinon celle du dossier. */
+	color?: string;
+	/** La couleur est imposée sur un fil. */
+	colorImposed?: boolean;
 	wires: { folioId: Id; wireId: Id }[];
 	terminals: TerminalRef[];
 }
@@ -143,6 +147,7 @@ export function analyzeNets(project: Project): NetAnalysis {
 	const nets = [...byRoot.values()];
 	numberNets(project, nets);
 	sectionNets(project, nets);
+	colorNets(project, nets);
 	return { nets, netOfWire, netOfTerminal, junctions, openTerminals };
 }
 
@@ -275,6 +280,41 @@ function sectionNets(project: Project, nets: Net[]) {
 		n.sectionImposed = !!own;
 	}
 }
+
+/** Couleur de chaque équipotentielle : fil imposé > potentiel > défaut du dossier. */
+function colorNets(project: Project, nets: Net[]) {
+	const imposed = new Map<Id, string>();
+	for (const f of project.folios)
+		for (const w of f.wires) if (w.color?.trim()) imposed.set(w.id, w.color.trim());
+	const potColor = new Map(project.potentials.map((p) => [p.id, p.wireColor?.trim() || '']));
+	const def = project.settings.wireColor?.trim() || '';
+	for (const n of nets) {
+		if (!n.wires.length) continue;
+		const own = n.wires.map((w) => imposed.get(w.wireId)).find(Boolean);
+		const pot = n.potentialId ? potColor.get(n.potentialId) : '';
+		const color = own || pot || (n.potentialId ? '' : def);
+		if (!color) continue;
+		n.color = color;
+		n.colorImposed = !!own;
+	}
+}
+
+/** Couleurs de fil usuelles (normes armoire) ; le tracé de chacune est dans le thème. */
+export const WIRE_COLORS = [
+	'Noir',
+	'Marron',
+	'Rouge',
+	'Orange',
+	'Jaune',
+	'Vert',
+	'Bleu',
+	'Bleu clair',
+	'Violet',
+	'Gris',
+	'Blanc',
+	'Rose',
+	'Vert/Jaune'
+];
 
 /** Sections usuelles proposées à la saisie (mm²). */
 export const WIRE_SECTIONS = ['0,5', '0,75', '1', '1,5', '2,5', '4', '6', '10', '16', '25'];

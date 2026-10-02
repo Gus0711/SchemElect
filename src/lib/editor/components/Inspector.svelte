@@ -10,7 +10,8 @@
 	} from '$lib/model/cables';
 	import { detachSymbol, scaleSymbol, setSymbolTag, symbolsOfDevice } from '$lib/model/edit';
 	import { folioRef } from '$lib/model/layout';
-	import { WIRE_SECTIONS } from '$lib/model/nets';
+	import { WIRE_COLORS, WIRE_SECTIONS } from '$lib/model/nets';
+	import { schematic } from '$lib/theme/schematic';
 	import { isPanelKind } from '$lib/model/panel';
 	import { deviceCatalogItem, linkReference, type CatalogItem } from '$lib/model/catalog';
 	import { deviceFootprint } from '$lib/model/footprints';
@@ -61,6 +62,9 @@
 	const isSignal = $derived(!!def?.graphics.some((p) => 'tone' in p && p.tone === 'signal'));
 	const siblings = $derived(device ? symbolsOfDevice(editor.project, device.id) : []);
 	const wireStyle = $derived(wire ? editor.analysis.wireStyle.get(wire.id) : undefined);
+	/** Le fil appartient-il à la même équipotentielle que le fil sélectionné ? */
+	const sameNet = (id: string) =>
+		!!wireNet && editor.analysis.nets.netOfWire.get(id)?.id === wireNet.id;
 	const wireNet = $derived(wire ? editor.analysis.nets.netOfWire.get(wire.id) : undefined);
 	const ro = $derived(editor.readonly);
 
@@ -415,6 +419,45 @@
 				<datalist id="inspector-wire-sections">
 					{#each WIRE_SECTIONS as s (s)}<option value={s}></option>{/each}
 				</datalist>
+			</Field>
+			<Field
+				label="Couleur du fil"
+				hint={wire.color
+					? 'Imposée sur ce fil : s’applique à toute l’équipotentielle.'
+					: wireNet?.color
+						? `Automatique = ${wireNet.color} (${wireNet.potentialId ? 'couleur du potentiel' : 'couleur par défaut du dossier'}).`
+						: 'Automatique = pas de couleur (réglage : Propriétés du dossier).'}
+			>
+				<div class="color-row">
+					<span
+						class="swatch"
+						style:background={schematic.color.wireColors[wire.color ?? wireNet?.color ?? ''] ??
+							'transparent'}
+					></span>
+					<select
+						class="control"
+						aria-label="Couleur du fil"
+						value={wire.color ?? ''}
+						disabled={ro}
+						onchange={(e) => {
+							const v = (e.currentTarget as HTMLSelectElement).value;
+							const id = wire.id;
+							editor.transact('Couleur de fil', (p) => {
+								// Une seule couleur imposée par équipotentielle : celle de ce fil.
+								for (const fo of p.folios)
+									for (const w of fo.wires) {
+										if (w.id === id) w.color = v || undefined;
+										else if (w.color && sameNet(w.id)) delete w.color;
+									}
+							});
+						}}
+					>
+						<option value=""
+							>Automatique{wireNet?.color && !wire.color ? ` (${wireNet.color})` : ''}</option
+						>
+						{#each WIRE_COLORS as c (c)}<option value={c}>{c}</option>{/each}
+					</select>
+				</div>
 			</Field>
 			{#if !wireNet?.potentialId}
 				<Field
@@ -817,5 +860,19 @@
 	.siblings button.current {
 		background: var(--c-primary-soft);
 		color: var(--c-primary);
+	}
+	.color-row {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+	}
+	.color-row select {
+		flex: 1;
+	}
+	.swatch {
+		flex: 0 0 18px;
+		height: 18px;
+		border: 1px solid var(--c-border-strong);
+		border-radius: var(--radius-sm);
 	}
 </style>

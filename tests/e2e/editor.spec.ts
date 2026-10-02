@@ -951,7 +951,7 @@ test('catalogue matériel, panneau Appareils, recherche Ctrl+F et nomenclature',
 
 	// Section par défaut des fils : affichée à côté du numéro.
 	await dossierMenu(page, 'Propriétés du dossier…');
-	await page.getByRole('button', { name: 'Numérotation et sections' }).click();
+	await page.getByRole('button', { name: 'Numérotation, sections, couleurs' }).click();
 	await page.getByRole('combobox', { name: /Section par défaut/ }).fill('0,75');
 	await page.getByRole('button', { name: 'Enregistrer' }).click();
 	await expect(page.locator('.canvas svg text', { hasText: '0,75²' }).first()).toBeVisible();
@@ -1176,7 +1176,7 @@ test('symboles favoris (mémorisés) et format des numéros de fils', async ({ p
 
 	// Format des numéros de fils : par folio, façon WinRelais.
 	await dossierMenu(page, 'Propriétés du dossier…');
-	await page.getByRole('button', { name: 'Numérotation et sections' }).click();
+	await page.getByRole('button', { name: 'Numérotation, sections, couleurs' }).click();
 	await page
 		.getByRole('combobox', { name: 'Format du numéro' })
 		.selectOption({ label: 'Par folio, façon WinRelais (F03/12)' });
@@ -1437,4 +1437,53 @@ test('page Projets : arbre par affaire, filtres, création guidée, fiche affair
 	await page.goto('/');
 	await page.waitForLoadState('networkidle');
 	await page.screenshot({ path: 'test-results/projets-par-affaire.png' });
+});
+
+test('fils : départ dans le sens de la borne, borne visée, couleur', async ({ page }) => {
+	await page.goto('/login');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Identifiant').fill('admin');
+	await page.getByLabel('Mot de passe').fill('motdepasse-e2e');
+	await page.locator('form button[type=submit]').click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.getByRole('button', { name: 'Projet de démonstration' }).click();
+	await expect(page).toHaveURL(/\/projets\//);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.status.saved')).toBeVisible();
+
+	// Folio vidé, une bobine : A2 sort vers le bas.
+	await evalEditor(
+		page,
+		`editor.transact('Vider', (p, f) => { f.symbols = []; f.wires = []; f.bars = []; f.texts = []; })`
+	);
+	await evalEditor(
+		page,
+		`editor.setTool({ kind: 'place', defId: 'bobine-contacteur', rotation: 0 })`
+	);
+	await clickAt(page, { x: 100, y: 80 });
+	await page.keyboard.press('Escape');
+	const a2 = await evalEditor<{ x: number; y: number; dir: string }>(
+		page,
+		`window.__schemelect.symbolTerminals(editor.folio.symbols[0]).find((t) => t.dir === 's')`
+	);
+
+	// Outil Fil : la borne visée affiche son nom.
+	await page.keyboard.press('w');
+	await clickAt(page, { x: a2.x + 0.3, y: a2.y });
+	await expect(page.locator('.snap-label')).toHaveText(/\d+ : A2$/);
+	// Cible au-dessus à gauche : le fil sort d'abord vers le bas.
+	await clickAt(page, { x: a2.x - 30, y: a2.y - 20 }, true);
+	const pts = await evalEditor<{ x: number; y: number }[]>(page, 'editor.folio.wires[0].points');
+	expect(pts[0]).toEqual({ x: a2.x, y: a2.y });
+	expect(pts[1].x).toBeCloseTo(a2.x, 5);
+	expect(pts[1].y).toBeGreaterThan(a2.y);
+	await page.keyboard.press('Escape');
+
+	// Couleur imposée dans l'inspecteur : tracé rouge.
+	await evalEditor(page, `editor.selection = [{ kind: 'wire', id: editor.folio.wires[0].id }]`);
+	await page.getByRole('combobox', { name: 'Couleur du fil' }).selectOption('Rouge');
+	expect(await evalEditor<string>(page, 'editor.folio.wires[0].color')).toBe('Rouge');
+	await expect(page.locator('.canvas path[stroke="#e0241b"]').first()).toBeVisible();
+	await page.screenshot({ path: 'test-results/fil-couleur.png' });
+	await expect(page.locator('.status.saved')).toBeVisible();
 });
