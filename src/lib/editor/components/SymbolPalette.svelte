@@ -4,7 +4,7 @@
 	import { specOf } from '$lib/symbols/custom';
 	import type { SymbolDef } from '$lib/symbols/types';
 	import { Button, ContextMenu } from '$lib/ui';
-	import { Plus, Search, Star } from '@lucide/svelte';
+	import { Pencil, Plus, Search, Star, Trash2 } from '@lucide/svelte';
 	import type { Editor } from '../editor.svelte';
 
 	let { editor }: { editor: Editor } = $props();
@@ -54,6 +54,11 @@
 	const isFavorite = (id: string) => editor.favorites.includes(id);
 	/** Glisser un favori pour le ranger. */
 	let draggedFav: string | null = $state(null);
+
+	/** Symbole maison modifiable / supprimable de la bibliothèque partagée. */
+	const canEdit = (def: SymbolDef) => !!def.custom && !!def.source && !editor.readonly;
+	const canRemove = (def: SymbolDef) =>
+		!!def.custom && !editor.readonly && editor.customLibrary.some((d) => d.id === def.id);
 
 	function edit(def: SymbolDef) {
 		editor.symbolEditor = { spec: specOf(def) };
@@ -145,7 +150,9 @@
 						<button
 							class="item"
 							class:active={activeDef === s.id}
-							title="{s.name} ({s.prefix})"
+							title={s.custom
+								? `${s.name} (${s.prefix}) — clic droit : modifier, supprimer`
+								: `${s.name} (${s.prefix})`}
 							onclick={() => pick(s.id)}
 							oncontextmenu={(e) => {
 								e.preventDefault();
@@ -163,6 +170,25 @@
 							title={isFavorite(s.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
 							onclick={() => editor.toggleFavorite(s.id)}><Star size={12} /></button
 						>
+						{#if canEdit(s) || canRemove(s)}
+							<div class="tools">
+								{#if canEdit(s)}
+									<button
+										aria-label="Modifier le symbole"
+										title="Modifier le symbole"
+										onclick={() => edit(s)}><Pencil size={12} /></button
+									>
+								{/if}
+								{#if canRemove(s)}
+									<button
+										class="danger"
+										aria-label="Supprimer le symbole"
+										title="Supprimer de la bibliothèque"
+										onclick={() => remove(s)}><Trash2 size={12} /></button
+									>
+								{/if}
+							</div>
+						{/if}
 					</div>
 				{/each}
 			</div>
@@ -187,11 +213,11 @@
 			...(def.custom
 				? [
 						{ separator: true as const },
-						{ label: 'Modifier le symbole…', disabled: !def.source, action: () => edit(def) },
+						{ label: 'Modifier le symbole…', disabled: !canEdit(def), action: () => edit(def) },
 						{
 							label: 'Supprimer de la bibliothèque',
 							danger: true,
-							disabled: !editor.customLibrary.some((d) => d.id === def.id),
+							disabled: !canRemove(def),
 							action: () => remove(def)
 						}
 					]
@@ -294,6 +320,35 @@
 	}
 	.star.on {
 		color: var(--c-accent);
+	}
+	/* Symbole maison : modifier / supprimer (en haut à gauche, au survol). */
+	.tools {
+		position: absolute;
+		top: 1px;
+		left: 1px;
+		display: flex;
+		gap: 1px;
+		opacity: 0;
+	}
+	.cell:hover .tools,
+	.tools:focus-within {
+		opacity: 1;
+	}
+	.tools button {
+		display: flex;
+		padding: 2px;
+		border: none;
+		border-radius: var(--radius-sm);
+		background: var(--c-surface);
+		color: var(--c-text-muted);
+		cursor: pointer;
+	}
+	.tools button:hover {
+		color: var(--c-text);
+		background: var(--c-surface-2);
+	}
+	.tools button.danger:hover {
+		color: var(--c-danger);
 	}
 	.star.on :global(svg) {
 		fill: currentColor;

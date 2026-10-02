@@ -430,6 +430,36 @@ test('symbole maison depuis une image de documentation', async ({ page }) => {
 	const download = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Exporter le PDF' }).click();
 	await (await download).saveAs('test-results/export-custom.pdf');
+
+	// Palette : modifier puis supprimer le symbole maison (boutons visibles au survol)
+	await page.keyboard.press('Escape');
+	await expect(page.locator('.backdrop')).toHaveCount(0);
+	const cellOf = (name: RegExp) =>
+		page.locator('.palette .cell', { has: page.getByRole('button', { name }) });
+	await cellOf(/Automate ECY-253/).hover();
+	await cellOf(/Automate ECY-253/)
+		.getByRole('button', { name: 'Modifier le symbole' })
+		.click();
+	await expect(page.getByRole('dialog', { name: 'Modifier le symbole' })).toBeVisible();
+	await page.getByLabel('Nom', { exact: true }).fill('Automate ECY-253 bis');
+	await page.getByRole('button', { name: 'Enregistrer dans la bibliothèque' }).click();
+	await expect(page.getByRole('dialog', { name: 'Modifier le symbole' })).toBeHidden();
+	await expect
+		.poll(() => evalEditor<string>(page, "editor.customLibrary.map((d) => d.name).join(',')"))
+		.toBe('Automate ECY-253 bis');
+	// Le symbole posé suit la modification (copie embarquée dans le projet).
+	expect(
+		await evalEditor<string>(
+			page,
+			'Object.values(editor.project.customSymbols).map((d) => d.name).join()'
+		)
+	).toBe('Automate ECY-253 bis');
+	page.once('dialog', (d) => d.accept());
+	await cellOf(/ECY-253 bis/).hover();
+	await cellOf(/ECY-253 bis/)
+		.getByRole('button', { name: 'Supprimer le symbole' })
+		.click();
+	await expect.poll(() => evalEditor<number>(page, 'editor.customLibrary.length')).toBe(0);
 });
 
 test('câble multi-conducteurs tracé en travers des fils', async ({ page }) => {

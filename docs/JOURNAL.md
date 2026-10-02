@@ -11,6 +11,17 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-02 (suite 8) — Symboles maison : modifier / supprimer visibles
+
+**Fait** : retour de Gus (« je ne sais ni modifier ni supprimer mes symboles ») : ces actions
+n'existaient qu'au clic droit dans la palette. Au survol d'un symbole maison, boutons
+**crayon** (modifier) et **corbeille** (supprimer de la bibliothèque) en haut à gauche de la
+case ; l'infobulle rappelle le clic droit. Masqués en lecture seule. Parcours e2e complété.
+**Pièges / à savoir** : sous Chromium (session cloud), les glisser de l'éditeur de symbole
+(rogner, poignée) donnent parfois 59,3 au lieu de 60 / 80 mm : instable, déjà présent avant.
+
+---
+
 ## 2026-10-02 (suite 7) — Bibliothèque de symboles CEI 60617 étendue
 
 **Fait** : recherche des symboles normalisés (CEI 60617 / NF EN 60617) et ajout de 45
