@@ -171,8 +171,9 @@ documentation (déposée, choisie ou collée Ctrl+V, réduite et ré-encodée en
 cadre titré, plus des bornes posées **exactement au clic** (sur les vis de l'image),
 déplaçables à la souris et aux flèches (0,1 mm), zoom molette et boutons ; noms des
 bornes automatiques (`expandNames` : « IP1..IP8 » ; `nextTerminalName` : précédente + 1),
-le même champ sert à répartir une rangée sur un côté ; magnétisme grille optionnel
-(désactivé par défaut). Fenêtre presque plein écran, non fermée par Échap
+le même champ sert à répartir une rangée sur un côté ; calage sur les bornes voisines
+(`alignToTerminals`, guides ; Alt : sans), Maj + glisser = précision ×5 ; magnétisme grille
+optionnel (désactivé par défaut). Fenêtre presque plein écran, non fermée par Échap
 (`Modal dismissible={false}`), vue calée sur les proportions de la zone de dessin ;
 Annuler / Ctrl+Z pour toute modification (bornes, taille, image). Retouches d'image dans
 l'éditeur (`editor/image.ts`, canvas) : rogner, gommer une zone, pivoter d'un quart de tour

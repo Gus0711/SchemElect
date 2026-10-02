@@ -8,6 +8,7 @@
 	import type { Dir } from '$lib/model/geometry';
 	import Prim from '$lib/render/Prim.svelte';
 	import {
+		alignToTerminals,
 		buildCustomSymbol,
 		expandNames,
 		nearestSide,
@@ -75,8 +76,8 @@
 		h: 40,
 		title: '',
 		terminals: [],
-		// Bornes sur la grille par défaut : les fils arrivent droits, sans petits décalages.
-		snapToGrid: true
+		// Placement libre au 0,1 mm (sur les vis de l'image) ; grille en option.
+		snapToGrid: false
 	});
 
 	let spec: CustomSymbolSpec = $state(blank());
@@ -159,6 +160,16 @@
 	});
 
 	const round1 = (v: number) => Math.round(v * 10) / 10;
+
+	/** Guides d'alignement affichés pendant le déplacement d'une borne. */
+	let guides: { x?: number; y?: number } = $state({});
+
+	/** Calage sur les autres bornes (à 4 pixels écran près). */
+	function align(p: { x: number; y: number }, except?: number) {
+		const others = spec.terminals.filter((_, i) => i !== except);
+		const r = alignToTerminals(p, others, 4 * mmPerPx);
+		return { ...r, x: round1(r.x), y: round1(r.y) };
+	}
 
 	function toMm(e: MouseEvent) {
 		const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg!.getScreenCTM()!.inverse());
@@ -333,7 +344,16 @@
 
 	type Drag =
 		| { kind: 'none' }
-		| { kind: 'move'; index: number; moved: boolean }
+		| {
+				kind: 'move';
+				index: number;
+				moved: boolean;
+				/** Position de départ (souris et borne) : Maj = déplacement de précision. */
+				sx: number;
+				sy: number;
+				tx: number;
+				ty: number;
+		  }
 		| { kind: 'pan'; sx: number; sy: number; vx: number; vy: number }
 		| { kind: 'pending'; sx: number; sy: number }
 		| { kind: 'region'; start: { x: number; y: number } }
@@ -361,7 +381,8 @@
 		if (target) {
 			const index = Number(target.getAttribute('data-terminal'));
 			selected = index;
-			drag = { kind: 'move', index, moved: false };
+			const t = spec.terminals[index];
+			drag = { kind: 'move', index, moved: false, sx: e.clientX, sy: e.clientY, tx: t.x, ty: t.y };
 			return;
 		}
 		drag = { kind: 'pending', sx: e.clientX, sy: e.clientY };
@@ -369,11 +390,21 @@
 
 	function onpointermove(e: PointerEvent) {
 		if (drag.kind === 'move') {
-			const p = toMm(e);
 			if (!drag.moved) remember();
+			// Maj : la borne avance 5 fois moins vite que la souris (réglage fin).
+			const k = e.shiftKey ? 0.2 : 1;
+			const raw = {
+				x: drag.tx + (e.clientX - drag.sx) * mmPerPx * k,
+				y: drag.ty + (e.clientY - drag.sy) * mmPerPx * k
+			};
+			const p =
+				e.altKey || e.shiftKey
+					? { ...raw, guideX: undefined, guideY: undefined }
+					: align(raw, drag.index);
 			const t = spec.terminals[drag.index];
-			t.x = p.x;
-			t.y = p.y;
+			t.x = round1(p.x);
+			t.y = round1(p.y);
+			guides = { x: p.guideX, y: p.guideY };
 			drag.moved = true;
 		} else if (drag.kind === 'region') {
 			region = clampRegion(drag.start, toMm(e));
@@ -389,6 +420,7 @@
 	async function onpointerup(e: PointerEvent) {
 		const d = drag;
 		drag = { kind: 'none' };
+		guides = {};
 		if (d.kind === 'resize') {
 			fit();
 			return;
@@ -403,9 +435,11 @@
 			return;
 		}
 		if (d.kind !== 'pending' || Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 4) return;
-		// Clic dans le vide : nouvelle borne à l'endroit exact, nommée d'après la liste
-		// saisie (ou la précédente + 1).
-		const p = toMm(e);
+		// Clic dans le vide : nouvelle borne à l'endroit exact (calée sur la rangée voisine si
+		// on clique tout près ; Alt : sans calage), nommée d'après la liste saisie (ou la
+		// précédente + 1).
+		const at = toMm(e);
+		const p = e.altKey ? at : align(at);
 		remember();
 		const queue = expandNames(quickNames);
 		const id = queue.shift() ?? nextTerminalName(spec.terminals.map((t) => t.id));
@@ -675,6 +709,28 @@
 							>
 						</g>
 					{/each}
+					{#if guides.x !== undefined}
+						<line
+							class="guide"
+							x1={guides.x}
+							x2={guides.x}
+							y1={view.y}
+							y2={view.y + view.h}
+							stroke-width={1 * mmPerPx}
+							stroke-dasharray="{4 * mmPerPx} {3 * mmPerPx}"
+						/>
+					{/if}
+					{#if guides.y !== undefined}
+						<line
+							class="guide"
+							x1={view.x}
+							x2={view.x + view.w}
+							y1={guides.y}
+							y2={guides.y}
+							stroke-width={1 * mmPerPx}
+							stroke-dasharray="{4 * mmPerPx} {3 * mmPerPx}"
+						/>
+					{/if}
 					{#if region}
 						<rect
 							class="region {tool}"
@@ -727,8 +783,9 @@
 					Échap : revenir aux bornes.
 				{:else}
 					<strong>Clic</strong> : poser la borne <strong class="next">{nextName}</strong> ·
-					<strong>glisser</strong> une borne : la déplacer · <strong>flèches</strong> : ajuster (Maj
-					: 1 mm) · <strong>Suppr</strong> : supprimer · <strong>molette</strong> : zoom ·
+					<strong>glisser</strong> une borne : la déplacer (<strong>Maj</strong> : précision, Alt :
+					sans calage) · <strong>flèches</strong> : ajuster (Maj : 1 mm) · <strong>Suppr</strong> :
+					supprimer · <strong>molette</strong> : zoom ·
 					<strong>clic droit glissé</strong> : déplacer la vue · <strong>Ctrl+Z</strong> : annuler
 				{/if}
 			</p>
@@ -961,6 +1018,10 @@
 	}
 	.small {
 		font-size: var(--fs-xs);
+	}
+	.guide {
+		stroke: var(--c-selection);
+		pointer-events: none;
 	}
 	.region-tool svg {
 		cursor: cell;

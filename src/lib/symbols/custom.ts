@@ -230,3 +230,28 @@ export function rotateTerminals(
 			: { ...t, x: r(t.y), y: r(w - t.x), dir: CCW[t.dir] }
 	);
 }
+
+/**
+ * Aligne un point sur les bornes déjà posées : même hauteur (rangée de vis) ou même
+ * aplomb, si l'écart est inférieur à `tol` mm. Renvoie le point et les guides à afficher.
+ */
+export function alignToTerminals(
+	p: { x: number; y: number },
+	others: { x: number; y: number }[],
+	tol: number
+): { x: number; y: number; guideX?: number; guideY?: number } {
+	let bx: { d: number; v: number } | null = null;
+	let by: { d: number; v: number } | null = null;
+	for (const o of others) {
+		const dx = Math.abs(o.x - p.x),
+			dy = Math.abs(o.y - p.y);
+		if (dx <= tol && (!bx || dx < bx.d)) bx = { d: dx, v: o.x };
+		if (dy <= tol && (!by || dy < by.d)) by = { d: dy, v: o.y };
+	}
+	return {
+		x: bx ? bx.v : p.x,
+		y: by ? by.v : p.y,
+		...(bx ? { guideX: bx.v } : {}),
+		...(by ? { guideY: by.v } : {})
+	};
+}

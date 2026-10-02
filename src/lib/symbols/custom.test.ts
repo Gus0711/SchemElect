@@ -5,6 +5,7 @@ import { extractFragment, insertFragment } from '$lib/model/fragments';
 import { createProject } from '$lib/model/project';
 import { symbolTerminals } from '$lib/model/symbolGeometry';
 import {
+	alignToTerminals,
 	buildCustomSymbol,
 	expandNames,
 	nearestSide,
@@ -80,6 +81,16 @@ describe('symboles maison', () => {
 			[w, h] = [h, w];
 		}
 		expect(r).toEqual(t);
+	});
+
+	it('aligne une borne sur la rangée voisine', () => {
+		const row = [
+			{ x: 10, y: 5 },
+			{ x: 14, y: 5 }
+		];
+		expect(alignToTerminals({ x: 18.2, y: 5.3 }, row, 0.5)).toEqual({ x: 18.2, y: 5, guideY: 5 });
+		expect(alignToTerminals({ x: 14.2, y: 20 }, row, 0.5)).toEqual({ x: 14, y: 20, guideX: 14 });
+		expect(alignToTerminals({ x: 30, y: 30 }, row, 0.5)).toEqual({ x: 30, y: 30 });
 	});
 
 	it('déduit la sortie du fil du bord le plus proche', () => {

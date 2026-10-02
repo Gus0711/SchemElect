@@ -22,7 +22,6 @@ Une entrée par session, la plus récente en haut. Gabarit :
   entre deux bornes serrées d'un automate, on peut poser un point sur la grille sans
   accrocher la voisine. Repères des bornes libres plus petits.
 - Outil Fil : le nom de la borne visée s'affiche près du curseur (« KM1 : A2 »).
-- Symboles maison : bornes sur la grille par défaut (fils droits).
 - **Couleur des fils** : `Wire.color` (imposée → toute l'équipotentielle, une seule par
   équipotentielle), sinon couleur du potentiel, sinon couleur par défaut du dossier
   (`settings.wireColor`, onglet « Numérotation, sections, couleurs ») ; palette `WIRE_COLORS`,
@@ -31,6 +30,12 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 - Symboles maison : boutons **Pivoter à gauche / à droite** (quart de tour de l'image,
   `rotateImage` ; bornes déjà posées qui tournent avec, `rotateTerminals` testé ; annulable).
+
+- Symboles maison, **finesse du placement des bornes** : retour au placement libre au 0,1 mm
+  par défaut (la grille par défaut faisait sauter les bornes de 2,5 mm) ; calage sur les
+  bornes déjà posées (même hauteur / même aplomb à 4 px près, guide pointillé ;
+  `alignToTerminals` testé ; Alt : sans calage) ; **Maj + glisser** = déplacement 5 fois
+  plus fin ; une borne glissée ne saute plus sous le curseur (déplacement relatif).
 
 **Reste / idées** : tirer un fil depuis une borne sans changer d'outil, tracé en nappe
 (plusieurs fils parallèles), contournement automatique des symboles.

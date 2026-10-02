@@ -358,6 +358,19 @@ test('symbole maison depuis une image de documentation', async ({ page }) => {
 	await page.mouse.move(to.x, to.y, { steps: 5 });
 	await page.mouse.up();
 	expect(Number(await last.locator('input[type=number]').nth(0).inputValue())).toBeCloseTo(45.5, 0);
+	// Maj + glisser : 5 mm de souris = 1 mm de borne (réglage fin).
+	const far = await page.evaluate(() => {
+		const svg = document.querySelector('.stage > svg') as SVGSVGElement;
+		const p = new DOMPoint(50.5, 20).matrixTransform(svg.getScreenCTM()!);
+		return { x: p.x, y: p.y };
+	});
+	await page.mouse.move(to.x, to.y);
+	await page.keyboard.down('Shift');
+	await page.mouse.down();
+	await page.mouse.move(far.x, far.y, { steps: 5 });
+	await page.mouse.up();
+	await page.keyboard.up('Shift');
+	expect(Number(await last.locator('input[type=number]').nth(0).inputValue())).toBeCloseTo(46.5, 1);
 	await page.getByRole('button', { name: 'Enregistrer dans la bibliothèque' }).click();
 	// Enregistrement côté serveur : attendre la fermeture de la fenêtre et l'outil de pose.
 	await expect(page.getByRole('button', { name: 'Enregistrer dans la bibliothèque' })).toBeHidden();
