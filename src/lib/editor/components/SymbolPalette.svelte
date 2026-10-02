@@ -1,6 +1,7 @@
 <script lang="ts">
 	import SymbolThumb from '$lib/render/SymbolThumb.svelte';
 	import { CATEGORIES, getSymbolDef, hasSymbolDef, SYMBOLS } from '$lib/symbols';
+	import { usedCustomSymbolIds } from '$lib/model/edit';
 	import { specOf } from '$lib/symbols/custom';
 	import type { SymbolDef } from '$lib/symbols/types';
 	import { Button, ContextMenu } from '$lib/ui';
@@ -24,12 +25,19 @@
 
 	const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-	/** Symboles maison : bibliothèque partagée + copies du projet (même supprimées de la bibliothèque). */
+	/** Symboles maison posés dans ce dossier. */
+	const usedCustom = $derived(usedCustomSymbolIds(editor.project));
+	const inLibrary = (id: string) => editor.customLibrary.some((d) => d.id === id);
+
+	/**
+	 * Symboles maison : bibliothèque partagée + copies du projet encore posées sur un folio
+	 * (un symbole supprimé de la bibliothèque disparaît dès qu'il n'est plus posé).
+	 */
 	const customDefs = $derived.by(() => {
 		const byId = new Map<string, SymbolDef>();
 		for (const d of editor.customLibrary) byId.set(d.id, d);
 		for (const d of Object.values(editor.project.customSymbols))
-			if (!byId.has(d.id)) byId.set(d.id, d);
+			if (!byId.has(d.id) && usedCustom.has(d.id)) byId.set(d.id, d);
 		return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 	});
 
@@ -57,17 +65,17 @@
 
 	/** Symbole maison modifiable / supprimable de la bibliothèque partagée. */
 	const canEdit = (def: SymbolDef) => !!def.custom && !!def.source && !editor.readonly;
-	const canRemove = (def: SymbolDef) =>
-		!!def.custom && !editor.readonly && editor.customLibrary.some((d) => d.id === def.id);
+	const canRemove = (def: SymbolDef) => !!def.custom && !editor.readonly && inLibrary(def.id);
 
 	function edit(def: SymbolDef) {
 		editor.symbolEditor = { spec: specOf(def) };
 	}
 
 	async function remove(def: SymbolDef) {
-		const used = !!editor.project.customSymbols[def.id];
+		const used = usedCustom.has(def.id);
 		const msg = used
-			? `Supprimer « ${def.name} » de la bibliothèque ? Il reste utilisable dans ce projet.`
+			? `Supprimer « ${def.name} » de la bibliothèque ? Il est posé dans ce dossier : il y reste ` +
+				'visible jusqu’à ce que vous supprimiez ses exemplaires des folios.'
 			: `Supprimer « ${def.name} » de la bibliothèque partagée ?`;
 		if (confirm(msg)) await editor.deleteCustomSymbol(def.id);
 	}
@@ -214,12 +222,18 @@
 				? [
 						{ separator: true as const },
 						{ label: 'Modifier le symbole…', disabled: !canEdit(def), action: () => edit(def) },
-						{
-							label: 'Supprimer de la bibliothèque',
-							danger: true,
-							disabled: !canRemove(def),
-							action: () => remove(def)
-						}
+						inLibrary(def.id)
+							? {
+									label: 'Supprimer de la bibliothèque',
+									danger: true,
+									disabled: !canRemove(def),
+									action: () => remove(def)
+								}
+							: {
+									label: 'Déjà supprimé de la bibliothèque (encore posé dans ce dossier)',
+									disabled: true,
+									action: () => {}
+								}
 					]
 				: [])
 		]}

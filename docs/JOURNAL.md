@@ -17,6 +17,11 @@ Une entrée par session, la plus récente en haut. Gabarit :
 n'existaient qu'au clic droit dans la palette. Au survol d'un symbole maison, boutons
 **crayon** (modifier) et **corbeille** (supprimer de la bibliothèque) en haut à gauche de la
 case ; l'infobulle rappelle le clic droit. Masqués en lecture seule. Parcours e2e complété.
+Correctif (retour : « supprimé mais il apparaît toujours ») : la copie embarquée dans le
+projet (`project.customSymbols`) n'était jamais retirée. Elle l'est désormais quand le dernier
+exemplaire posé est supprimé (`pruneCustomSymbols`, appelé par `removeOrphanDevices`) ou à la
+suppression de la bibliothèque s'il n'est plus posé ; la palette ne montre une copie hors
+bibliothèque que si elle est encore posée (menu : « Déjà supprimé de la bibliothèque »).
 **Pièges / à savoir** : sous Chromium (session cloud), les glisser de l'éditeur de symbole
 (rogner, poignée) donnent parfois 59,3 au lieu de 60 / 80 mm : instable, déjà présent avant.
 

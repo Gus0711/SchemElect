@@ -47,7 +47,7 @@ import {
 	normalizeFavorites,
 	toggleFavorite
 } from './favorites';
-import { registerCustomSymbols } from '$lib/symbols';
+import { registerCustomSymbols, unregisterCustomSymbol } from '$lib/symbols';
 import type { CustomSymbolSpec } from '$lib/symbols/custom';
 import type { SymbolDef } from '$lib/symbols/types';
 import { bumpCustomSymbols } from '$lib/symbols/version.svelte';
@@ -492,6 +492,13 @@ export class Editor {
 	async deleteCustomSymbol(id: string) {
 		await deleteCustomSymbol(id);
 		this.customLibrary = this.customLibrary.filter((d) => d.id !== id);
+		// Plus posé dans le dossier : la copie embarquée et l'enregistrement disparaissent aussi.
+		if (!edit.usedCustomSymbolIds(this.project).has(id)) {
+			if (this.project.customSymbols[id] && !this.readonly)
+				this.transact('Supprimer le symbole', (p) => edit.pruneCustomSymbols(p));
+			unregisterCustomSymbol(id);
+			bumpCustomSymbols();
+		}
 	}
 
 	// ------------------------------------------------------------ symboles favoris

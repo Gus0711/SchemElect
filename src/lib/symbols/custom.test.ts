@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { analyzeProject } from '$lib/model/analysis';
-import { addSymbol, addWire } from '$lib/model/edit';
+import { addSymbol, addWire, deleteItems, usedCustomSymbolIds } from '$lib/model/edit';
 import { extractFragment, insertFragment } from '$lib/model/fragments';
 import { createProject } from '$lib/model/project';
 import { symbolTerminals } from '$lib/model/symbolGeometry';
@@ -147,5 +147,20 @@ describe('symboles maison', () => {
 		expect(s.scale).toBeUndefined();
 		// Les symboles normalisés ne se redimensionnent pas.
 		expect(isScalable(addSymbol(project, folio, 'voyant', { x: 20, y: 20 }))).toBe(false);
+	});
+
+	it('copie embarquée retirée quand le dernier exemplaire est supprimé', () => {
+		const def = buildCustomSymbol({ ...spec, id: 'custom-retrait' });
+		registerCustomSymbols([def]);
+		const project = createProject('P');
+		const folio = project.folios[0];
+		const a = addSymbol(project, folio, def.id, { x: 50, y: 50 });
+		const b = addSymbol(project, folio, def.id, { x: 120, y: 50 });
+		expect(usedCustomSymbolIds(project).has(def.id)).toBe(true);
+		deleteItems(project, folio, [{ kind: 'symbol', id: a.id }]);
+		expect(project.customSymbols[def.id]).toBeDefined();
+		deleteItems(project, folio, [{ kind: 'symbol', id: b.id }]);
+		expect(project.customSymbols[def.id]).toBeUndefined();
+		expect(usedCustomSymbolIds(project).size).toBe(0);
 	});
 });
