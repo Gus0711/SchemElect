@@ -11,6 +11,26 @@ Une entrée par session, la plus récente en haut. Gabarit :
 
 ---
 
+## 2026-10-02 (suite 7) — Bibliothèque de symboles CEI 60617 étendue
+
+**Fait** : recherche des symboles normalisés (CEI 60617 / NF EN 60617) et ajout de 45
+symboles intégrés (74 → 119) : DDR 1P+N/3P+N/4P, interrupteur-sectionneur 3P,
+sectionneur 3P, porte-fusibles 1P/3P/3P+N, relais thermique + contacts 95/96 – 97/98,
+déclencheurs MN/MX, pôles de contacteur 4P, contacts temporisés travail/repos NO/NC, bobine
+temporisée repos, relais de contrôle de phases, interrupteur, commutateurs 0-1 et à clé, fins
+de course, pressostat/thermostat de sécurité NC, contrôleur de débit, hygrostat, détecteurs
+inductif/capacitif/photoélectrique 3 fils, transmetteur 4-20 mA, horloge, moteur CC,
+variateurs de fréquence, démarreur progressif, servomoteur 0-10V, lampe, nouvelles
+catégories « Mesure et comptage » (A, V, W, Hz, compteur horaire, compteurs d'énergie, TC)
+et « Composants » (R, potentiomètre, CTN, varistance, condensateurs, diodes, LED, batterie),
+bornes PE / sectionnable / fusible, terre de protection, E/S analogiques. Encombrements
+d'implantation pour les appareils modulaires. Liste : `docs/SYMBOLES.md` § 6.
+**Reste / suite** : faire valider graphismes et préfixes par V.R ; éventuellement symboles
+horizontaux, moteur 6 bornes (étoile-triangle), pont redresseur.
+**Pièges / à savoir** : les ids des symboles existants sont inchangés (projets enregistrés).
+
+---
+
 ## 2026-10-02 (suite 6) — Traçage des fils et couleur des fils
 
 **Fait** (retours de Gus : traçage peu naturel, accroche trop large) :

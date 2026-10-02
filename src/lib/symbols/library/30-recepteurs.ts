@@ -75,6 +75,70 @@ const propeller = (cx: number, cy: number): Prim[] => [
 	circle(cx, cy, 0.5, { fill: 'ink' })
 ];
 
+/**
+ * Convertisseur de puissance (variateur, démarreur) : réseau en haut, moteur en bas,
+ * PE à droite en haut ; `inner(cx)` = graphisme dans le cadre (y 5 → 20).
+ */
+function converter(o: {
+	id: string;
+	name: string;
+	inputs: string[];
+	outputs: string[];
+	inner: (w: number) => Prim[];
+	keywords: string[];
+	defaults?: SymbolDef['defaults'];
+}): SymbolDef {
+	const n = Math.max(o.inputs.length, o.outputs.length);
+	const peX = n * POLE;
+	const w = peX + 2.5;
+	return defineSymbol({
+		id: o.id,
+		name: o.name,
+		category: CAT,
+		keywords: o.keywords,
+		prefix: 'U',
+		role: 'standalone',
+		graphics: [
+			...o.inputs.map((_, i) => line(i * POLE, 0, i * POLE, 5)),
+			line(peX, 0, peX, 5),
+			...o.outputs.map((_, i) => line(i * POLE, 20, i * POLE, 25)),
+			rect(-2.5, 5, w + 2.5, 15, { fill: 'paper' }),
+			...o.inner(w)
+		],
+		terminals: [
+			...o.inputs.map((id, i) => term(id, i * POLE, 0, 'n')),
+			term('PE', peX, 0, 'n'),
+			...o.outputs.map((id, i) => term(id, i * POLE, 25, 's'))
+		],
+		labels: rightLabels(w + 3, 10),
+		defaults: o.defaults
+	});
+}
+
+/** Variateur : cadre barré, ~ réseau en haut à gauche, ~ fréquence variable en bas à droite. */
+const vfdInner = (w: number): Prim[] => [
+	line(-2.5, 20, w, 5),
+	text(1, 10, '~', { size: 3, anchor: 'middle' }),
+	text(w - 3.5, 15.5, '~', { size: 3, anchor: 'middle' }),
+	text(w - 3.5, 18.6, 'f', { size: 1.8, anchor: 'middle' })
+];
+
+/** Démarreur progressif : deux thyristors tête-bêche. */
+const softInner = (w: number): Prim[] => {
+	const cx = (w - 2.5) / 2;
+	return [
+		path(`M ${cx - 3} 10 L ${cx - 1} 10 L ${cx - 2} 12 Z`),
+		line(cx - 3, 12, cx - 1, 12),
+		path(`M ${cx + 1} 12 L ${cx + 3} 12 L ${cx + 2} 10 Z`),
+		line(cx + 1, 10, cx + 3, 10),
+		line(cx - 2, 8, cx - 2, 14),
+		line(cx + 2, 8, cx + 2, 14),
+		line(cx - 2, 8, cx + 2, 8),
+		line(cx - 2, 14, cx + 2, 14),
+		text(cx, 18.4, 'DÉM. PROG.', { size: 1.5, anchor: 'middle' })
+	];
+};
+
 /* Transformateur : primaire 1/2 en haut, secondaire 3/4 en bas, deux cercles entrelacés. */
 const TR = { cx: POLE / 2, r: 4, c1: 10.5, c2: 14.5, len: 25 };
 
@@ -224,5 +288,82 @@ export const symbols: SymbolDef[] = [
 		],
 		terminals: vTerminals('1', '2'),
 		labels: rightLabels(6, 7)
+	}),
+	machine({
+		id: 'moteur-cc',
+		name: 'Moteur à courant continu',
+		prefix: 'M',
+		phases: ['+', '-'],
+		inner: motorText('='),
+		keywords: ['moteur', 'continu', 'cc', 'dc', '24V', 'm']
+	}),
+	converter({
+		id: 'variateur-frequence-tri',
+		name: 'Variateur de fréquence (entrée tri)',
+		inputs: ['L1', 'L2', 'L3'],
+		outputs: ['U', 'V', 'W'],
+		inner: vfdInner,
+		keywords: ['variateur', 'fréquence', 'vitesse', 'vfd', 'atv', 'convertisseur', 'u'],
+		defaults: { value: '400V 2,2kW' }
+	}),
+	converter({
+		id: 'variateur-frequence-mono',
+		name: 'Variateur de fréquence (entrée mono)',
+		inputs: ['L', 'N'],
+		outputs: ['U', 'V', 'W'],
+		inner: vfdInner,
+		keywords: ['variateur', 'fréquence', 'vitesse', 'vfd', 'atv', 'monophasé', 'u'],
+		defaults: { value: '230V 0,75kW' }
+	}),
+	converter({
+		id: 'demarreur-progressif',
+		name: 'Démarreur progressif',
+		inputs: ['1/L1', '3/L2', '5/L3'],
+		outputs: ['2/T1', '4/T2', '6/T3'],
+		inner: softInner,
+		keywords: ['démarreur', 'progressif', 'soft starter', 'ats', 'gradateur', 'u'],
+		defaults: { value: '400V 7,5kW' }
+	}),
+	defineSymbol({
+		id: 'servomoteur-0-10v',
+		name: 'Servomoteur proportionnel 0-10V',
+		category: CAT,
+		keywords: ['servomoteur', 'vanne', 'registre', '0-10V', 'proportionnel', 'belimo', 'yv'],
+		prefix: 'YV',
+		role: 'standalone',
+		graphics: [
+			...leadToCircle(0, 4, 1.5 * POLE, 11, 4),
+			...leadToCircle(POLE, 4, 1.5 * POLE, 11, 4),
+			...leadToCircle(2 * POLE, 4, 1.5 * POLE, 11, 4),
+			...leadToCircle(3 * POLE, 4, 1.5 * POLE, 11, 4),
+			circle(1.5 * POLE, 11, 4, { fill: 'paper' }),
+			text(1.5 * POLE, 12.1, 'M', { size: 3, anchor: 'middle' }),
+			line(1.5 * POLE, 15, 1.5 * POLE, 20),
+			...valve(1.5 * POLE, 20, 4, 2)
+		],
+		terminals: [
+			term('1', 0, 0, 'n'),
+			term('2', POLE, 0, 'n'),
+			term('3', 2 * POLE, 0, 'n'),
+			term('5', 3 * POLE, 0, 'n')
+		],
+		labels: rightLabels(3 * POLE + 3, 10),
+		defaults: { value: '24V 0-10V' }
+	}),
+	defineSymbol({
+		id: 'lampe',
+		name: "Lampe d'éclairage",
+		category: CAT,
+		keywords: ['lampe', 'éclairage', 'luminaire', 'armoire', 'e'],
+		prefix: 'E',
+		role: 'standalone',
+		graphics: [
+			...leads(4.5, 10.5),
+			circle(0, 7.5, 3, { fill: 'paper' }),
+			line(-2.12, 5.38, 2.12, 9.62),
+			line(-2.12, 9.62, 2.12, 5.38)
+		],
+		terminals: vTerminals('1', '2'),
+		labels: rightLabels(4, 7)
 	})
 ];

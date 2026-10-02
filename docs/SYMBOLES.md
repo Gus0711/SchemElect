@@ -74,31 +74,60 @@ Tests de conformité : `src/lib/symbols/library.test.ts`.
 
 ## 6. Liste des symboles
 
-**Protection** (`10-protection.ts`) : `disjoncteur-1p`, `disjoncteur-1p-n`, `disjoncteur-2p`,
-`disjoncteur-3p`, `disjoncteur-3p-n`, `disjoncteur-4p` (Q, master) ;
-`interrupteur-differentiel-2p`, `interrupteur-differentiel-4p` (ID) ;
-`interrupteur-sectionneur-2p`, `interrupteur-sectionneur-4p` (QS) ; `porte-fusible-1p-n` (FU) ;
-`disjoncteur-moteur-3p` (QM, master) ; `contact-aux-disjoncteur-no` (13/14),
+Graphismes conformes à la **CEI 60617** (NF EN 60617) : qualificatifs de fonction (croix =
+disjoncteur, demi-cercle = contacteur, barre = sectionneur, créneau = thermique), organes de
+commande (poussoir, tournant, clé, came, flotteur, boîte P/θ/%), parachute de temporisation
+(ouvert à gauche = travail, vers la lame = repos), losange = détection de proximité.
+
+**Protection** (`10-protection.ts`) : `disjoncteur-1p`, `-1p-n`, `-2p`, `-3p`, `-3p-n`, `-4p`
+(Q, master) ; `disjoncteur-differentiel-1p-n`, `-3p-n`, `-4p` (Q, master) ;
+`interrupteur-differentiel-2p`, `-4p` (ID) ; `interrupteur-sectionneur-2p`, `-3p`, `-4p`,
+`sectionneur-3p` (QS) ; `porte-fusible-1p`, `-1p-n`, `-3p`, `-3p-n` (FU) ;
+`disjoncteur-moteur-3p` (QM, master) ; `relais-thermique-3p` (F, master) +
+`contact-relais-thermique-nc` (95/96), `contact-relais-thermique-no` (97/98) (F, slave) ;
+`declencheur-mn`, `declencheur-mx` (Q, C1/C2) ; `contact-aux-disjoncteur-no` (13/14),
 `contact-aux-disjoncteur-nc` (21/22) (Q, slave) ; `fusible` (FU) ; `parafoudre` (F).
 
-**Contacteurs et relais** (`15-contacteurs.ts`) : `poles-contacteur-2p`, `poles-contacteur-3p`
-(KM, slave `pole`) ; `contact-inverseur` (KA, slave `co`) ; `contact-temporise-travail`
-(KT, slave `no`) ; `bobine-relais-temporise` (KT, master) ; `bobine-telerupteur` (KL, master).
+**Contacteurs et relais** (`15-contacteurs.ts`) : `poles-contacteur-2p`, `-3p`, `-4p`
+(KM, slave `pole`) ; `contact-inverseur` (KA, slave `co`) ; contacts temporisés (KT, slave)
+`contact-temporise-travail` (67/68), `contact-temporise-travail-nc` (55/56),
+`contact-temporise-repos` (67/68), `contact-temporise-repos-nc` (55/56) ;
+`bobine-relais-temporise`, `bobine-relais-temporise-repos` (KT, master) ;
+`relais-controle-phases` (KA, master, L1/L2/L3) ; `bobine-telerupteur` (KL, master).
 
 **Commande** (`20-commande.ts`) : `bobine-contacteur` (KM), `bobine-relais` (KA),
 `contact-no`, `contact-nc` (KA, slave), `voyant` (H).
 
-**Commande manuelle et capteurs** (`25-manoeuvre.ts`) : `commutateur-a-m` (S, 3/4),
-`commutateur-0-1-2` (S, 3/4 + 13/14), `bouton-poussoir-no`, `bouton-poussoir-nc` (S),
-`arret-urgence` (AU), `pressostat` (Pr), `thermostat` (TH), `contact-niveau` (LS), `sonde` (B).
+**Commande manuelle et capteurs** (`25-manoeuvre.ts`) : `interrupteur` (S), `commutateur-a-m`,
+`commutateur-0-1`, `commutateur-0-1-2`, `commutateur-a-cle` (S), `bouton-poussoir-no`,
+`bouton-poussoir-nc` (S), `arret-urgence` (AU), `fin-de-course-no`, `fin-de-course-nc` (SQ),
+`pressostat`, `pressostat-nc` (Pr), `thermostat`, `thermostat-securite` (TH),
+`controleur-debit` (FS), `hygrostat` (B), `contact-niveau` (LS), `sonde` (B),
+`detecteur-inductif`, `detecteur-capacitif`, `detecteur-photoelectrique` (B, 3 fils
+BN/BU/BK), `transmetteur-4-20ma` (B, +/-), `horloge` (KH, master).
 
 **Récepteurs et alimentation** (`30-recepteurs.ts`) : `moteur-mono` (L/N/PE),
-`moteur-tri` (U/V/W/PE), `ventilateur` (M) ; `transformateur` (TT, 1/2 → 3/4) ;
-`alimentation-24vdc` (G, L/N → +/-) ; `prise-2p-t` (XP) ; `resistance-chauffante` (EH) ;
-`electrovanne`, `vanne-3-points` (YV) ; `buzzer` (HA).
+`moteur-tri` (U/V/W/PE), `moteur-cc` (+/-/PE), `ventilateur` (M) ; `transformateur`
+(TT, 1/2 → 3/4) ; `alimentation-24vdc` (G, L/N → +/-) ; `prise-2p-t` (XP) ;
+`resistance-chauffante` (EH) ; `electrovanne`, `vanne-3-points`, `servomoteur-0-10v`
+(YV, 1/2/3/5) ; `variateur-frequence-tri`, `variateur-frequence-mono`,
+`demarreur-progressif` (U) ; `lampe` (E) ; `buzzer` (HA).
+
+**Mesure et comptage** (`35-mesure.ts`) : `amperemetre`, `voltmetre`, `wattmetre`,
+`frequencemetre`, `compteur-horaire` (P) ; `compteur-energie-mono`, `compteur-energie-tri`
+(P, arrivée L… / départ L'…) ; `transformateur-courant` (TC, P1/P2 + S1/S2).
+
+**Composants** (`40-composants.ts`) : `resistance`, `potentiometre`, `thermistance` (R) ;
+`varistance` (RV) ; `condensateur`, `condensateur-polarise` (C) ; `diode`, `diode-zener`,
+`led` (V, A/K) ; `batterie` (GB).
 
 **Bornes et renvois** (`80-bornes-renvois.ts`) : `borne-x`, `borne-p`, `borne-c`,
-`renvoi-sortie`, `renvoi-entree`.
+`borne-pe`, `borne-sectionnable`, `borne-fusible`, `renvoi-sortie`, `renvoi-entree`.
 
-**Divers** (`90-divers.ts`) : `terre`, `masse` (decor) ; `borne-appareil` (XE, borne
-d'équipement externe type QX1/L) ; `entree-tor`, `sortie-tor` (A, voie d'automate).
+**Divers** (`90-divers.ts`) : `terre`, `masse`, `terre-protection` (decor) ; `borne-appareil`
+(XE, borne d'équipement externe type QX1/L) ; `entree-tor`, `sortie-tor`,
+`entree-analogique`, `sortie-analogique` (A, voie d'automate).
+
+**À faire valider par V.R** : préfixes proposés pour les nouveaux appareils (SQ, FS, KH, U,
+P, TC, V, GB…) ; `sectionneur-3p` et `interrupteur-sectionneur-*` ont le même graphisme
+(barre de sectionnement) comme dans l'existant.

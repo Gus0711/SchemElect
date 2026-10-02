@@ -1,5 +1,5 @@
 import type { Prim, SymbolDef } from '../types';
-import { defineSymbol, line, rect, term, text } from '../helpers';
+import { circle, defineSymbol, line, rect, term, text } from '../helpers';
 
 const CAT = 'Divers';
 
@@ -23,7 +23,7 @@ const plcIo = (id: string, name: string, label: string, keywords: string[]): Sym
 		id,
 		name,
 		category: CAT,
-		keywords: ['automate', 'tor', 'e/s', 'régulateur', 'a', ...keywords],
+		keywords: ['automate', 'e/s', 'régulateur', 'a', ...keywords],
 		prefix: 'A',
 		role: 'standalone',
 		graphics: [
@@ -69,6 +69,32 @@ export const symbols: SymbolDef[] = [
 		bridges: [['1', '2']],
 		labels: { tag: { x: 1.8, y: 3.4 } }
 	}),
-	plcIo('entree-tor', 'Entrée TOR (automate)', 'DI', ['entrée', 'di']),
-	plcIo('sortie-tor', 'Sortie TOR (automate)', 'DO', ['sortie', 'do'])
+	decor(
+		'terre-protection',
+		'Terre de protection',
+		['terre', 'pe', 'protection', 'liaison équipotentielle'],
+		[
+			line(0, 0, 0, 3),
+			circle(0, 6, 3),
+			line(0, 3, 0, 5),
+			line(-1.8, 5, 1.8, 5),
+			line(-1.2, 6, 1.2, 6),
+			line(-0.6, 7, 0.6, 7)
+		]
+	),
+	plcIo('entree-tor', 'Entrée TOR (automate)', 'DI', ['entrée', 'tor', 'di']),
+	plcIo('sortie-tor', 'Sortie TOR (automate)', 'DO', ['sortie', 'tor', 'do']),
+	plcIo('entree-analogique', 'Entrée analogique (automate)', 'AI', [
+		'entrée',
+		'analogique',
+		'0-10V',
+		'4-20mA',
+		'ai'
+	]),
+	plcIo('sortie-analogique', 'Sortie analogique (automate)', 'AO', [
+		'sortie',
+		'analogique',
+		'0-10V',
+		'ao'
+	])
 ];

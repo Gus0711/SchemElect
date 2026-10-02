@@ -16,10 +16,13 @@ import {
 	POLES_L,
 	rect,
 	sideLabels,
+	SPAN,
 	text,
 	thermalMark,
 	vTerminals,
-	BLADE_MID
+	BLADE_MID,
+	coilBody,
+	POLES_KM
 } from '../helpers';
 import type { Prim } from '../types';
 
@@ -104,16 +107,76 @@ const differential = (n: number, label: string) =>
 		defaults: { value: '40A 30mA', designation: 'Type AC' }
 	});
 
-const isolator = (n: number, label: string) =>
+const isolator = (suffix: string, label: string, poles: Poles) =>
 	device({
-		id: `interrupteur-sectionneur-${n}p`,
+		id: `interrupteur-sectionneur-${suffix}`,
 		name: `Interrupteur-sectionneur ${label}`,
 		prefix: 'QS',
 		role: 'standalone',
-		poles: phases(n - 1, true),
+		poles,
 		keywords: ['interrupteur', 'sectionneur', 'coupure', 'qs', label.toLowerCase()],
 		draw: (x) => disconnectorPole(x),
 		defaults: { value: '40A' }
+	});
+
+/** Disjoncteur différentiel (DDR) : pôles de disjoncteur + tore différentiel. */
+const rcbo = (suffix: string, label: string, poles: Poles) =>
+	device({
+		id: `disjoncteur-differentiel-${suffix}`,
+		name: `Disjoncteur différentiel ${label}`,
+		prefix: 'Q',
+		role: 'master',
+		poles,
+		keywords: ['disjoncteur', 'différentiel', 'ddr', 'vigi', '30mA', label.toLowerCase(), 'q'],
+		draw: breakerDraw,
+		extra: rcd,
+		link: false,
+		defaults: { value: '10A 30mA', designation: 'Courbe C type AC' }
+	});
+
+/** Sectionneur porte-fusible : cartouche sur chaque phase, neutre sectionné. */
+const fuseHolder = (suffix: string, label: string, poles: Poles) =>
+	device({
+		id: `porte-fusible-${suffix}`,
+		name: `Porte-fusible sectionneur ${label}`,
+		prefix: 'FU',
+		role: 'standalone',
+		poles,
+		keywords: ['fusible', 'porte-fusible', 'sectionneur', 'fu', 'protection', label.toLowerCase()],
+		draw: (x, neutral) => (neutral ? disconnectorPole(x) : fuseDisconnectorPole(x)),
+		defaults: { value: '2A' }
+	});
+
+/** Bilame de relais thermique (créneau) sur un pôle, entre y = 5 et y = 10. */
+const bimetal = (x: number): Prim[] => [
+	line(x, 0, x, 5.5),
+	path(`M ${x} 5.5 H ${x + 1.5} V 9.5 H ${x}`),
+	line(x, 9.5, x, SPAN)
+];
+
+/** Organe thermique d'un contact de relais thermique (à gauche de la liaison). */
+const thermalActuator = (bladeX: number): Prim[] => [
+	mechLink(-6, bladeX, BLADE_MID.y),
+	path('M -6 5.9 H -7.5 V 8.9 H -9')
+];
+
+/** Déclencheur à bobine (MN, MX) : rectangle + qualificatif, accroché à l'appareil. */
+const trip = (id: string, name: string, mark: string, keywords: string[]): SymbolDef =>
+	defineSymbol({
+		id,
+		name,
+		category: CAT,
+		keywords: ['déclencheur', 'bobine', 'disjoncteur', 'auxiliaire', 'q', ...keywords],
+		prefix: 'Q',
+		role: 'standalone',
+		graphics: [
+			...coilBody(),
+			text(0, 8.4, mark, { size: 2, anchor: 'middle' }),
+			mechLink(4.5, 8, 7.5)
+		],
+		terminals: vTerminals('C1', 'C2'),
+		labels: { tag: { x: 9, y: 6 }, value: { x: 9, y: 8.8 }, designation: { x: 9, y: 11.4 } },
+		defaults: { value: '230V' }
 	});
 
 export const symbols: SymbolDef[] = [
@@ -125,18 +188,26 @@ export const symbols: SymbolDef[] = [
 	breaker('4p', '4P', phases(4)),
 	differential(2, '2P'),
 	differential(4, '4P'),
-	isolator(2, '2P'),
-	isolator(4, '4P'),
+	rcbo('1p-n', '1P+N', phases(1, true)),
+	rcbo('3p-n', '3P+N', phases(3, true)),
+	rcbo('4p', '4P', phases(4)),
+	isolator('2p', '2P', phases(1, true)),
+	isolator('3p', '3P', phases(3)),
+	isolator('4p', '4P', phases(3, true)),
 	device({
-		id: 'porte-fusible-1p-n',
-		name: 'Porte-fusible sectionneur 1P+N',
-		prefix: 'FU',
+		id: 'sectionneur-3p',
+		name: 'Sectionneur 3P (sans pouvoir de coupure)',
+		prefix: 'QS',
 		role: 'standalone',
-		poles: phases(1, true),
-		keywords: ['fusible', 'porte-fusible', 'sectionneur', 'fu', 'protection'],
-		draw: (x, neutral) => (neutral ? disconnectorPole(x) : fuseDisconnectorPole(x)),
-		defaults: { value: '2A' }
+		poles: phases(3),
+		keywords: ['sectionneur', 'isolement', 'consignation', 'qs', '3p'],
+		draw: (x) => disconnectorPole(x),
+		defaults: { value: '63A' }
 	}),
+	fuseHolder('1p', '1P', phases(1)),
+	fuseHolder('1p-n', '1P+N', phases(1, true)),
+	fuseHolder('3p', '3P', phases(3)),
+	fuseHolder('3p-n', '3P+N', phases(3, true)),
 	device({
 		id: 'disjoncteur-moteur-3p',
 		name: 'Disjoncteur moteur 3P',
@@ -147,6 +218,51 @@ export const symbols: SymbolDef[] = [
 		draw: (x) => [...breakerPole(x), ...thermalMark(x)],
 		defaults: { value: '1-1,6A' }
 	}),
+	defineSymbol({
+		id: 'relais-thermique-3p',
+		name: 'Relais thermique 3P',
+		category: CAT,
+		keywords: ['relais', 'thermique', 'surcharge', 'bilame', 'lrd', 'f'],
+		prefix: 'F',
+		role: 'master',
+		graphics: [
+			...POLES_KM.flatMap((_, i) => bimetal(i * 7.5)),
+			rect(-2, 4.5, 2 * 7.5 + 5, 6, { stroke: 'dashed' })
+		],
+		terminals: POLES_KM.flatMap(([a, b], i) => vTerminals(a, b, i * 7.5)),
+		labels: sideLabels(2 * 7.5 + 1.5),
+		defaults: { value: '1-1,6A' }
+	}),
+	auxContact(
+		'contact-relais-thermique-nc',
+		'Contact de relais thermique (NC 95-96)',
+		CAT,
+		'F',
+		'nc',
+		['95', '96'],
+		['contact', 'relais', 'thermique', 'défaut', 'surcharge', '95', 'nc'],
+		thermalActuator(1.5)
+	),
+	auxContact(
+		'contact-relais-thermique-no',
+		'Contact de relais thermique (NO 97-98)',
+		CAT,
+		'F',
+		'no',
+		['97', '98'],
+		['contact', 'relais', 'thermique', 'signalisation', 'défaut', '97', 'no'],
+		thermalActuator(BLADE_MID.dx)
+	),
+	trip('declencheur-mn', 'Déclencheur à manque de tension (MN)', 'U<', [
+		'mn',
+		'manque de tension',
+		'arrêt d’urgence'
+	]),
+	trip('declencheur-mx', 'Déclencheur à émission de courant (MX)', 'MX', [
+		'mx',
+		'émission',
+		'shunt'
+	]),
 	auxContact(
 		'contact-aux-disjoncteur-no',
 		'Contact auxiliaire de disjoncteur (NO)',
